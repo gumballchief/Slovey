@@ -9,6 +9,8 @@ import {
   updateDecision,
   deleteDecision,
   importDocs,
+  fetchMemoryHealth,
+  type MemoryHealthSummary,
 } from "@/lib/api-client";
 import { SearchInput } from "@/components/ui/SearchInput";
 import { Badge } from "@/components/ui/Badge";
@@ -24,6 +26,7 @@ import {
   Pencil,
   Trash2,
   Upload,
+  Activity,
   X,
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
@@ -94,8 +97,11 @@ export default function MemoryPage() {
     }
   }
 
+  const [health, setHealth] = useState<MemoryHealthSummary | null>(null);
+
   function load() {
     fetchDecisions(activeRepoId).then(setDecisions);
+    fetchMemoryHealth(activeRepoId).then(setHealth);
   }
   useEffect(load, [activeRepoId]);
 
@@ -157,6 +163,43 @@ export default function MemoryPage() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-5">
+      {/* Memory health strip */}
+      {health && health.active > 0 && (
+        <div className="card p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Activity size={14} className="text-[var(--primary)]" />
+            <span className="text-sm font-semibold text-[var(--cb-text)]">Memory health</span>
+          </div>
+          <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+            <span className="text-[var(--text-muted)]">
+              Durability{" "}
+              <strong className="text-[var(--cb-text)]">{Math.round(health.durability * 100)}%</strong>
+            </span>
+            <span className="text-[var(--text-muted)]">
+              Freshness{" "}
+              <strong className="text-emerald-600 dark:text-emerald-400">{health.freshness.fresh}</strong> fresh ·{" "}
+              <strong className="text-amber-600 dark:text-amber-400">{health.freshness.aging}</strong> aging ·{" "}
+              <strong className="text-[#F43F5E]">{health.freshness.stale}</strong> stale
+            </span>
+            <span className="text-[var(--text-muted)]">
+              <strong className="text-[var(--cb-text)]">{health.reinforcement.confirmed}</strong> confirmed ·{" "}
+              <strong className="text-[var(--cb-text)]">{health.reinforcement.unreviewed}</strong> unreviewed
+            </span>
+            {health.duplicates.length > 0 && (
+              <span className="text-amber-600 dark:text-amber-400">{health.duplicates.length} duplicate pair(s)</span>
+            )}
+            {health.conflicts > 0 && (
+              <span className="text-[#F43F5E]">{health.conflicts} conflict(s)</span>
+            )}
+          </div>
+          {health.recommendations[0] && (
+            <p className="text-xs text-[var(--text-muted)] mt-2 pt-2 border-t border-[var(--border)]">
+              {health.recommendations[0]}
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Header + controls */}
       <div className="flex flex-col sm:flex-row gap-3">
         <SearchInput
