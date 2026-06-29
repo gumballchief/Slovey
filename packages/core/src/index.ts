@@ -20,6 +20,8 @@ export * as graph from "./graph";
 export * as reasoning from "./reasoning";
 // Planning Engine — pre-code, evidence-backed implementation plans
 export * as planning from "./planning";
+// Memory Engine — durability scoring, reinforcement, memory health
+export * as memory from "./memory";
 // The Decision API — the single named interface every client consumes
 export * as decisionApi from "./api";
 // Queue contracts + enqueue (shared by web + worker)

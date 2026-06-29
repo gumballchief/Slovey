@@ -14,6 +14,7 @@ import {
 } from "@company-brain/db";
 import { and, desc, eq, ilike, inArray, ne, or, sql } from "drizzle-orm";
 import { getEmbeddings } from "../embeddings";
+import { reinforce } from "../memory";
 import { enqueue, JOBS } from "../queue";
 
 // ── API shapes (match apps/web/lib/data.ts exactly so they're drop-in) ──
@@ -628,5 +629,9 @@ export async function dashboardFeedback(
       reason: input.reason ?? null,
     })
     .returning();
+  // A human confirmation reinforces the memory (confirmed + freshness + confidence).
+  if (input.action === "confirm" && input.decisionId) {
+    await reinforce(repoId, input.decisionId, "confirmed");
+  }
   return row;
 }

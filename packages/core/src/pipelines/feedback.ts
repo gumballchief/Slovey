@@ -1,5 +1,6 @@
 import { getDb, decisions, feedback, prChecks } from "@company-brain/db";
 import { and, desc, eq } from "drizzle-orm";
+import { reinforce } from "../memory";
 
 /** Decision texts this team has dismissed — passed to the judge as negatives. */
 export async function getDismissedNotes(repoId: string): Promise<string[]> {
@@ -56,5 +57,11 @@ export async function recordFeedback(params: RecordFeedbackParams) {
       byUser: params.byUser ?? null,
     })
     .returning();
+
+  // A human confirmation reinforces the memory: mark it confirmed, refresh
+  // freshness, nudge confidence. (Dismissals stay negative — see getDismissedNotes.)
+  if (params.action === "confirm" && decisionId) {
+    await reinforce(params.repoId, decisionId, "confirmed");
+  }
   return row;
 }

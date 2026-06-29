@@ -19,6 +19,10 @@ export { governanceReport } from "../graph";
 export { plan } from "../planning";
 export type { EngineeringPlan, PlanIntent, PlanStep, RiskLevel } from "../planning";
 
+// Memory health (durability, decay, duplicates, reinforcement state).
+export { memoryHealth } from "../memory";
+export type { MemoryHealth } from "../memory";
+
 // Net-new verbs.
 export { canI } from "./can-i";
 export type { CanIResult, RejectedPrecedent } from "./can-i";
