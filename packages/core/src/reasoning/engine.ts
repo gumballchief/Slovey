@@ -4,6 +4,7 @@ import { getAI } from "../ai";
 import { getEmbeddings } from "../embeddings";
 import { freshnessScore } from "../graph/service";
 import type { DecisionRow } from "../graph/types";
+import { reinforce } from "../memory/reinforce";
 import type { AnswerConfidence, Citation, ReasonedAnswer } from "./types";
 
 // Statuses the engine reasons over: active + queryable history (so "why was X
@@ -149,6 +150,13 @@ Respond ONLY with JSON: {"answer": "<concise answer citing [n]>", "used": [<numb
     citations.length
       ? `Reasoner cited ${citations.length} decision(s).`
       : "Reasoner used no decision; answer is not grounded in recorded evidence.",
+  );
+
+  // Reinforcement: a citation is weak evidence the decision is still relevant.
+  // Bounded confidence nudge (never resets freshness); failures never break the
+  // answer. Knowledge strengthens through use.
+  await Promise.all(
+    citations.map((c) => reinforce(repoId, c.decisionId, "referenced").catch(() => undefined)),
   );
 
   let conf: AnswerConfidence =

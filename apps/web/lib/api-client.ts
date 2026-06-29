@@ -370,6 +370,24 @@ export function reviewDecision(
   );
 }
 
+// ── Memory health ──
+export interface MemoryHealthSummary {
+  total: number;
+  active: number;
+  durability: number;
+  layers: { long_term: number; working: number; short_term: number };
+  freshness: { fresh: number; aging: number; stale: number };
+  weak: Array<{ id: string; decision: string }>;
+  duplicates: unknown[];
+  conflicts: number;
+  reinforcement: { confirmed: number; unreviewed: number; needsChanges: number };
+  recommendations: string[];
+}
+
+export function fetchMemoryHealth(repoId: string): Promise<MemoryHealthSummary | null> {
+  return getJSON<MemoryHealthSummary | null>(`/api/repos/${repoId}/memory-health`, () => null);
+}
+
 // ── Import existing docs (ADRs/RFCs) → proposed decisions ──
 export interface ImportResult {
   docs: number;
