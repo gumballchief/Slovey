@@ -16,3 +16,5 @@ export type { RescanResult, RefreshResult } from "./rescan";
 export { pollReactionDismissals, pickDownvoters } from "./reactions";
 export { runIngestConnector } from "./ingest-connector";
 export type { IngestResult } from "./ingest-connector";
+export { importDocs, splitDocs, normalizeEvidence } from "./import-docs";
+export type { ImportDoc, ImportResult } from "./import-docs";

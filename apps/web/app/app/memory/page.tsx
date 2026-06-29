@@ -8,6 +8,7 @@ import {
   createDecision,
   updateDecision,
   deleteDecision,
+  importDocs,
 } from "@/lib/api-client";
 import { SearchInput } from "@/components/ui/SearchInput";
 import { Badge } from "@/components/ui/Badge";
@@ -22,6 +23,7 @@ import {
   Plus,
   Pencil,
   Trash2,
+  Upload,
   X,
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
@@ -69,6 +71,28 @@ export default function MemoryPage() {
   const [form, setForm] = useState<FormState | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importText, setImportText] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState<string | null>(null);
+
+  async function doImport() {
+    if (!importText.trim()) return;
+    setImporting(true);
+    setImportMsg(null);
+    try {
+      const r = await importDocs(activeRepoId, importText);
+      setImportMsg(
+        `Imported ${r.extracted} decision${r.extracted !== 1 ? "s" : ""} from ${r.docs} doc${r.docs !== 1 ? "s" : ""} → review them in Review.`,
+      );
+      setImportText("");
+      load();
+    } catch (e) {
+      setImportMsg(e instanceof Error ? e.message : "Import failed");
+    } finally {
+      setImporting(false);
+    }
+  }
 
   function load() {
     fetchDecisions(activeRepoId).then(setDecisions);
@@ -158,12 +182,60 @@ export default function MemoryPage() {
               </button>
             ))}
           </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              setImportOpen((v) => !v);
+              setImportMsg(null);
+            }}
+          >
+            <Upload size={13} />
+            Import
+          </Button>
           <Button size="sm" onClick={() => setForm({ ...EMPTY_FORM })}>
             <Plus size={13} />
             Add
           </Button>
         </div>
       </div>
+
+      {/* Import docs → proposed decisions (review queue) */}
+      {importOpen && (
+        <div className="card p-5 space-y-3 border-[var(--primary)]/30">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-[var(--cb-text)]">Import existing docs</h2>
+            <button
+              onClick={() => setImportOpen(false)}
+              className="text-[var(--text-muted)] hover:text-[var(--cb-text)] cursor-pointer"
+              aria-label="Close import"
+            >
+              <X size={16} />
+            </button>
+          </div>
+          <p className="text-xs text-[var(--text-muted)]">
+            Paste ADRs, RFCs, or architecture docs (Markdown). Split into one document per{" "}
+            <code className="font-mono">#</code> heading. Extracted decisions enter as{" "}
+            <strong>proposed</strong> and appear in <strong>Review</strong> for confirmation.
+          </p>
+          <textarea
+            value={importText}
+            onChange={(e) => setImportText(e.target.value)}
+            placeholder={"# ADR 1: Use PostgreSQL\nWe chose Postgres over Mongo because…\n\n# ADR 2: Reject Redis\nRedis was rejected because…"}
+            rows={8}
+            className="w-full text-sm font-mono rounded-lg border border-[var(--border)] bg-[var(--bg-subtle)] px-3 py-2 text-[var(--cb-text)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--primary)]"
+          />
+          {importMsg && <p className="text-xs text-[var(--primary)]">{importMsg}</p>}
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" size="sm" onClick={() => setImportOpen(false)}>
+              Close
+            </Button>
+            <Button size="sm" disabled={importing || !importText.trim()} onClick={doImport}>
+              {importing ? "Importing…" : "Import"}
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Add / edit form */}
       {form && (

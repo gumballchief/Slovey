@@ -370,4 +370,16 @@ export function reviewDecision(
   );
 }
 
+// ── Import existing docs (ADRs/RFCs) → proposed decisions ──
+export interface ImportResult {
+  docs: number;
+  extracted: number;
+  inserted: number;
+  updated: number;
+}
+
+export function importDocs(repoId: string, text: string) {
+  return send<ImportResult>(`/api/repos/${repoId}/import`, "POST", { text });
+}
+
 export { REPOS, getRepo };
