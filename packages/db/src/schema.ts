@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   bigint,
   boolean,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -46,10 +47,70 @@ export const decisionSource = pgEnum("decision_source", [
   "confluence",
   "discord",
 ]);
+// Decision lifecycle. Legacy values (approved/suggested/removed) kept for back-compat;
+// the platform uses the full lifecycle going forward.
 export const decisionStatus = pgEnum("decision_status", [
   "approved",
   "suggested",
   "removed",
+  "proposed",
+  "candidate", // low-confidence / awaiting human review — never treated as truth
+  "deprecated",
+  "superseded",
+  "rejected",
+  "archived",
+]);
+export const decisionImportance = pgEnum("decision_importance", [
+  "low",
+  "medium",
+  "high",
+  "critical",
+]);
+// Human review state, distinct from lifecycle status.
+export const decisionReview = pgEnum("decision_review", [
+  "unreviewed",
+  "confirmed",
+  "needs_changes",
+]);
+// Typed relationships in the Engineering Decision Graph.
+export const decisionEdgeType = pgEnum("decision_edge_type", [
+  "implements",
+  "supersedes",
+  "contradicts",
+  "related_to",
+  "depends_on",
+  "discussed_in",
+  "approved_by",
+  "owned_by",
+  "created_from",
+  "governs",
+  "affects",
+  "references",
+  "duplicates",
+  "replaces",
+  "conflicts_with",
+]);
+// Entity types an edge can point at when the target isn't another decision.
+export const graphEntityType = pgEnum("graph_entity_type", [
+  "decision",
+  "adr",
+  "repository",
+  "directory",
+  "service",
+  "module",
+  "file",
+  "api",
+  "database",
+  "engineer",
+  "team",
+  "issue",
+  "rfc",
+  "pr",
+  "rejected_pr",
+  "slack_thread",
+  "meeting",
+  "incident",
+  "architecture_component",
 ]);
 export const verdict = pgEnum("verdict", ["conflict", "clear", "skipped"]);
 export const feedbackAction = pgEnum("feedback_action", ["dismiss", "confirm"]);
@@ -153,6 +214,9 @@ export const decisions = pgTable(
     repoId: uuid("repo_id")
       .notNull()
       .references(() => repos.id, { onDelete: "cascade" }),
+    // `decision` is the canonical statement; `title`/`summary` give it a handle.
+    title: text("title"),
+    summary: text("summary"),
     decision: text("decision").notNull(),
     why: text("why").notNull().default(""),
     examples: text("examples").array().notNull().default(sql`'{}'::text[]`),
@@ -161,6 +225,32 @@ export const decisions = pgTable(
     source: decisionSource("source").notNull(),
     category: text("category"),
     status: decisionStatus("status").notNull().default("approved"),
+
+    // ── governance / ownership ──
+    ownerUser: text("owner_user"),
+    owningTeam: text("owning_team"),
+    importance: decisionImportance("importance").notNull().default("medium"),
+    priority: integer("priority").notNull().default(0),
+    // 0..1 extraction/judgement confidence. Candidates are low-confidence.
+    confidence: doublePrecision("confidence").notNull().default(0.5),
+    review: decisionReview("review").notNull().default("unreviewed"),
+
+    // ── scope (denormalized for fast filtering; edges carry relationships) ──
+    domains: text("domains").array().notNull().default(sql`'{}'::text[]`),
+    services: text("services").array().notNull().default(sql`'{}'::text[]`),
+    affectedRepos: text("affected_repos").array().notNull().default(sql`'{}'::text[]`),
+    directories: text("directories").array().notNull().default(sql`'{}'::text[]`),
+    languages: text("languages").array().notNull().default(sql`'{}'::text[]`),
+    frameworks: text("frameworks").array().notNull().default(sql`'{}'::text[]`),
+
+    // ── temporal / lifecycle ──
+    version: integer("version").notNull().default(1),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    supersededById: uuid("superseded_by_id"),
+    // rejected knowledge: why it was rejected + what to do instead
+    rejectionReason: text("rejection_reason"),
+    alternatives: text("alternatives").array().notNull().default(sql`'{}'::text[]`),
+
     embedding: vector("embedding", { dimensions: EMBEDDING_DIMS }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
@@ -168,12 +258,62 @@ export const decisions = pgTable(
   },
   (t) => [
     index("decisions_repo_status_idx").on(t.repoId, t.status),
+    index("decisions_repo_review_idx").on(t.repoId, t.review),
     // ANN index for pgvector cosine similarity retrieval.
     index("decisions_embedding_idx").using(
       "hnsw",
       t.embedding.op("vector_cosine_ops"),
     ),
   ],
+);
+
+// ─────────────────────────── decision graph: edges ───────────────────────────
+// A typed, confidence-weighted, provenance-bearing relationship. The source is
+// always a decision; the target is either another decision (toDecisionId) or an
+// external entity (toEntityType + toEntityRef, e.g. service "billing", pr "#42").
+export const decisionEdges = pgTable(
+  "decision_edges",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    repoId: uuid("repo_id")
+      .notNull()
+      .references(() => repos.id, { onDelete: "cascade" }),
+    fromDecisionId: uuid("from_decision_id")
+      .notNull()
+      .references(() => decisions.id, { onDelete: "cascade" }),
+    type: decisionEdgeType("type").notNull(),
+    toDecisionId: uuid("to_decision_id").references(() => decisions.id, {
+      onDelete: "cascade",
+    }),
+    toEntityType: graphEntityType("to_entity_type"),
+    toEntityRef: text("to_entity_ref"),
+    confidence: doublePrecision("confidence").notNull().default(1),
+    provenance: jsonb("provenance"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index("decision_edges_from_idx").on(t.fromDecisionId),
+    index("decision_edges_to_idx").on(t.toDecisionId),
+    index("decision_edges_entity_idx").on(t.repoId, t.toEntityType, t.toEntityRef),
+  ],
+);
+
+// ─────────────────────────── decision graph: version history ───────────────────────────
+export const decisionVersions = pgTable(
+  "decision_versions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    decisionId: uuid("decision_id")
+      .notNull()
+      .references(() => decisions.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    // full field snapshot at this version
+    snapshot: jsonb("snapshot").notNull(),
+    changedBy: text("changed_by"),
+    changeNote: text("change_note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [index("decision_versions_decision_idx").on(t.decisionId, t.version)],
 );
 
 // ─────────────────────────── checks ───────────────────────────
