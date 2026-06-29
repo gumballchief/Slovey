@@ -1,0 +1,20 @@
+# pg-boss worker. Build: docker build -f Dockerfile.worker -t company-brain-worker .
+FROM node:20-slim AS base
+RUN corepack enable
+WORKDIR /app
+
+FROM base AS deps
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml .npmrc ./
+COPY packages/config/package.json packages/config/package.json
+COPY packages/db/package.json packages/db/package.json
+COPY packages/core/package.json packages/core/package.json
+COPY apps/web/package.json apps/web/package.json
+COPY apps/worker/package.json apps/worker/package.json
+RUN pnpm install --frozen-lockfile
+
+FROM base AS run
+ENV NODE_ENV=production
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+# Worker runs TypeScript directly via tsx.
+CMD ["pnpm", "--filter", "@company-brain/worker", "start"]

@@ -1,0 +1,22 @@
+# Local Postgres with pgvector. `docker compose up -d` then run db:migrate.
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: company-brain-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: brain
+      POSTGRES_PASSWORD: brain
+      POSTGRES_DB: company_brain
+    ports:
+      - "5432:5432"
+    volumes:
+      - brain-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U brain -d company_brain"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  brain-pgdata:

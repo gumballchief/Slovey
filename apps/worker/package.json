@@ -1,0 +1,28 @@
+{
+  "name": "@company-brain/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "check": "tsx src/preflight.ts",
+    "sync": "tsx src/sync-installs.ts",
+    "index-repo": "tsx src/index-repo.ts",
+    "check-pr": "tsx src/trigger-check.ts",
+    "seed": "tsx src/seed.ts",
+    "eval": "tsx src/eval.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@company-brain/config": "workspace:*",
+    "@company-brain/core": "workspace:*",
+    "@company-brain/db": "workspace:*",
+    "drizzle-orm": "^0.36.4",
+    "pg-boss": "^10.1.6"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}

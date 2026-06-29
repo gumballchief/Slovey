@@ -1,0 +1,28 @@
+# Next.js dashboard. Build: docker build -f Dockerfile.web -t company-brain-web .
+FROM node:20-slim AS base
+RUN corepack enable
+WORKDIR /app
+
+# --- deps (cached on manifest changes) ---
+FROM base AS deps
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml .npmrc ./
+COPY packages/config/package.json packages/config/package.json
+COPY packages/db/package.json packages/db/package.json
+COPY packages/core/package.json packages/core/package.json
+COPY apps/web/package.json apps/web/package.json
+COPY apps/worker/package.json apps/worker/package.json
+RUN pnpm install --frozen-lockfile
+
+# --- build ---
+FROM base AS build
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+RUN pnpm --filter @company-brain/web build
+
+# --- run ---
+FROM base AS run
+ENV NODE_ENV=production
+COPY --from=build /app ./
+EXPOSE 3000
+# Bind the host-provided port (Render/Railway/Fly set $PORT); default 3000 locally.
+CMD pnpm --filter @company-brain/web start -- -p ${PORT:-3000}

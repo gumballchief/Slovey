@@ -1,0 +1,1 @@
+ALTER TYPE "public"."decision_source" ADD VALUE 'manual';

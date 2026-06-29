@@ -1,0 +1,27 @@
+{
+  "name": "company-brain-monorepo",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@11.9.0",
+  "scripts": {
+    "dev:web": "pnpm --filter @company-brain/web dev",
+    "dev:worker": "pnpm --filter @company-brain/worker dev",
+    "build": "pnpm -r --filter ./packages/* build && pnpm --filter @company-brain/web build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "db:generate": "pnpm --filter @company-brain/db generate",
+    "db:migrate": "pnpm --filter @company-brain/db migrate",
+    "db:studio": "pnpm --filter @company-brain/db studio",
+    "check": "pnpm --filter @company-brain/worker check",
+    "seed": "pnpm --filter @company-brain/worker seed",
+    "eval": "pnpm --filter @company-brain/worker eval"
+  },
+  "devDependencies": {
+    "@types/node": "^20.16.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  }
+}
