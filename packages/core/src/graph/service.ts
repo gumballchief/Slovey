@@ -5,7 +5,9 @@ import {
   ACTIVE_STATUSES,
   isActiveStatus,
   type CreateDecisionInput,
+  type DecisionReview,
   type DecisionRow,
+  type DecisionStatus,
   type EdgeRow,
   type EdgeTarget,
   type EdgeType,
@@ -292,6 +294,78 @@ export async function timeline(repoId: string, id: string) {
     .from(decisionVersions)
     .where(eq(decisionVersions.decisionId, id))
     .orderBy(desc(decisionVersions.version));
+}
+
+// ── Human review loop ──────────────────────────────────────────────────────
+// AI-extracted decisions enter as `proposed` (active, so the reviewer still uses
+// them) but `review = unreviewed`. A human confirms (→ approved, reinforced) or
+// rejects (→ rejected = negative knowledge). This is what makes the *graph*, not
+// the PR comment, the system of record.
+
+/** Pure: does a decision need human review? (Unconfirmed and still in play.) */
+export function isReviewable(status: DecisionStatus, review: DecisionReview): boolean {
+  return review === "unreviewed" && ["candidate", "proposed", "approved"].includes(status);
+}
+
+/** The review queue: unconfirmed decisions, AI-proposed/candidate first. */
+export async function listForReview(repoId: string, limit = 50): Promise<DecisionRow[]> {
+  const db = getDb();
+  return db
+    .select()
+    .from(decisions)
+    .where(
+      and(
+        eq(decisions.repoId, repoId),
+        eq(decisions.review, "unreviewed"),
+        inArray(decisions.status, ["candidate", "proposed", "approved"]),
+      ),
+    )
+    .orderBy(
+      // unconfirmed-active (candidate/proposed) before legacy auto-approved
+      sql`case when ${decisions.status} in ('candidate','proposed') then 0 else 1 end`,
+      desc(decisions.createdAt),
+    )
+    .limit(limit);
+}
+
+export type ReviewAction = "approve" | "reject";
+
+/**
+ * Resolve a decision under review. Approve ⇒ confirmed + promoted to approved +
+ * reinforced (confidence bump, freshness refresh). Reject ⇒ rejected (negative
+ * knowledge, surfaced by canI / getRejectedKnowledge). Every transition is
+ * versioned.
+ */
+export async function reviewDecision(
+  repoId: string,
+  id: string,
+  action: ReviewAction,
+  opts: { by?: string; reason?: string } = {},
+): Promise<DecisionRow | null> {
+  if (action === "reject") {
+    return transitionStatus(repoId, id, "rejected", { rejectionReason: opts.reason, by: opts.by });
+  }
+  const db = getDb();
+  const [current] = await db
+    .select()
+    .from(decisions)
+    .where(and(eq(decisions.id, id), eq(decisions.repoId, repoId)))
+    .limit(1);
+  if (!current) return null;
+  const [row] = await db
+    .update(decisions)
+    .set({
+      status: "approved",
+      review: "confirmed",
+      approvedAt: current.approvedAt ?? new Date(),
+      updatedAt: new Date(),
+      confidence: sql`least(0.99, ${decisions.confidence} + 0.1)`,
+      version: current.version + 1,
+    })
+    .where(and(eq(decisions.id, id), eq(decisions.repoId, repoId)))
+    .returning();
+  if (row) await snapshot(id, row.version, row, opts.by, "reviewed → approved");
+  return row ?? null;
 }
 
 /** Deterministic conflict pairs: decisions joined by a contradicts/conflicts edge. */

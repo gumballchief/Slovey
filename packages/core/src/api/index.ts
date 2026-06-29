@@ -14,6 +14,10 @@ export { traverse as getRelated } from "../graph";
 export { timeline as getHistory } from "../graph";
 // Governance / drift.
 export { governanceReport } from "../graph";
+// Human review loop — the graph (not the PR comment) as system of record.
+export { listForReview as reviewQueue } from "../graph";
+export { reviewDecision as review } from "../graph";
+export type { ReviewAction } from "../graph";
 
 // Pre-code implementation planning (composes context + canI + rejected).
 export { plan } from "../planning";

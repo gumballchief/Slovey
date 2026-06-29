@@ -97,7 +97,9 @@ export async function upsertDecisions(
         evidence: d.evidence,
         source,
         category: d.category ?? null,
-        status: "approved",
+        // AI-extracted ⇒ proposed (active, so the reviewer still uses it) but
+        // unconfirmed until a human reviews it. Manual entries are approved.
+        status: "proposed",
         embedding: vec,
         createdBy,
       });

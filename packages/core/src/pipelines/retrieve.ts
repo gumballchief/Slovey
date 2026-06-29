@@ -1,5 +1,5 @@
 import { getDb, decisions } from "@company-brain/db";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { getAI } from "../ai";
 import { CATEGORIES, categorizePrompt, type Category } from "../ai/prompts";
 import type { JudgePrInput } from "../ai/prompts";
@@ -31,8 +31,9 @@ function toVectorLiteral(vec: number[]): string {
 
 /**
  * Smarter retrieval: categorize → query-embed (title+body+paths+diff) → pgvector
- * cosine top-K over the repo's APPROVED decisions, with a category boost. Keeps
- * the judge prompt small and improves recall on real matches.
+ * cosine top-K over the repo's ACTIVE decisions (human-approved + AI-proposed),
+ * with a category boost. Candidates (unverified) are excluded. Keeps the judge
+ * prompt small and improves recall on real matches.
  */
 export async function retrieveDecisions(
   repoId: string,
@@ -69,7 +70,8 @@ export async function retrieveDecisions(
     .where(
       and(
         eq(decisions.repoId, repoId),
-        eq(decisions.status, "approved"),
+        // human-approved + AI-proposed both govern; candidates are excluded.
+        inArray(decisions.status, ["approved", "proposed"]),
         // only rows that actually have an embedding
         sql`${decisions.embedding} is not null`,
       ),

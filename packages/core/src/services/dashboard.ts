@@ -99,7 +99,7 @@ async function repoStats(repoId: string) {
   const [d] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(decisions)
-    .where(and(eq(decisions.repoId, repoId), eq(decisions.status, "approved")));
+    .where(and(eq(decisions.repoId, repoId), inArray(decisions.status, ["approved", "proposed"])));
   const [p] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(prChecks)
