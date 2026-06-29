@@ -1,7 +1,8 @@
 # Next.js dashboard. Build: docker build -f Dockerfile.web -t company-brain-web .
-FROM node:20-slim AS base
-# Update corepack first — the version bundled with node:20 can fail to fetch a
-# pinned pnpm (signature/key error). Then enable it for the pinned packageManager.
+FROM node:22-slim AS base
+# Node 22: pnpm 11 uses node:sqlite, which doesn't exist on Node 20 (install
+# crashes with ERR_UNKNOWN_BUILTIN_MODULE). Update corepack so it can fetch the
+# pinned pnpm, then enable it.
 RUN npm install -g corepack@latest && corepack enable
 WORKDIR /app
 
