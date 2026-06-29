@@ -1,6 +1,8 @@
 # pg-boss worker. Build: docker build -f Dockerfile.worker -t company-brain-worker .
 FROM node:20-slim AS base
-RUN corepack enable
+# Update corepack first — the version bundled with node:20 can fail to fetch a
+# pinned pnpm (signature/key error). Then enable it for the pinned packageManager.
+RUN npm install -g corepack@latest && corepack enable
 WORKDIR /app
 
 FROM base AS deps
