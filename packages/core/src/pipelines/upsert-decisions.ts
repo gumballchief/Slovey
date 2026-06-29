@@ -2,6 +2,22 @@ import { decisions, getDb } from "@company-brain/db";
 import { and, eq, sql } from "drizzle-orm";
 import type { ExtractedDecision } from "../ai/types";
 import { getEmbeddings } from "../embeddings";
+import { activeDecisionsForScope, addEdge } from "../graph/service";
+import type { ScopeQuery } from "../graph/types";
+import { extractScope } from "../planning/classify";
+
+/** Link a new decision to existing decisions that share scope (bounded, deterministic). */
+async function autoLinkByScope(repoId: string, fromId: string, scope: ScopeQuery): Promise<void> {
+  const related = (await activeDecisionsForScope(repoId, scope, 4))
+    .filter((r) => r.id !== fromId)
+    .slice(0, 2);
+  for (const r of related) {
+    await addEdge(repoId, fromId, "related_to", { decisionId: r.id }, {
+      confidence: 0.5,
+      provenance: { auto: "scope-overlap" },
+    });
+  }
+}
 
 /** Cosine distance below which two decisions are treated as the same (merge). */
 export const DEDUP_DISTANCE = 0.15;
@@ -89,21 +105,34 @@ export async function upsertDecisions(
         .where(eq(decisions.id, near.id));
       updated++;
     } else {
-      await db.insert(decisions).values({
-        repoId,
-        decision: d.decision,
-        why: d.why ?? "",
-        examples: d.examples ?? [],
-        evidence: d.evidence,
-        source,
-        category: d.category ?? null,
-        // AI-extracted ⇒ proposed (active, so the reviewer still uses it) but
-        // unconfirmed until a human reviews it. Manual entries are approved.
-        status: "proposed",
-        embedding: vec,
-        createdBy,
-      });
+      // Auto-populate scope (services/domains/languages/frameworks) from the
+      // decision text so the Context API / MCP `what_applies_here` can match it
+      // to code. Deterministic vocab match — reuses the Planning extractor.
+      const scope = extractScope([d.decision, d.why ?? "", (d.examples ?? []).join(" ")].join("\n"));
+      const [row] = await db
+        .insert(decisions)
+        .values({
+          repoId,
+          decision: d.decision,
+          why: d.why ?? "",
+          examples: d.examples ?? [],
+          evidence: d.evidence,
+          source,
+          category: d.category ?? null,
+          // AI-extracted ⇒ proposed (active, so the reviewer still uses it) but
+          // unconfirmed until a human reviews it. Manual entries are approved.
+          status: "proposed",
+          domains: scope.domains ?? [],
+          services: scope.services ?? [],
+          languages: scope.languages ?? [],
+          frameworks: scope.frameworks ?? [],
+          embedding: vec,
+          createdBy,
+        })
+        .returning({ id: decisions.id });
       inserted++;
+      // Connect the graph: link to existing decisions sharing scope.
+      if (row && Object.keys(scope).length > 0) await autoLinkByScope(repoId, row.id, scope);
     }
   }
   return { inserted, updated };
