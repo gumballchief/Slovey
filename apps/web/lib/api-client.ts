@@ -266,4 +266,78 @@ export function postFeedback(
   return send(`/api/repos/${repoId}/feedback`, "POST", input);
 }
 
+// ── Ask Company Brain (reasoning over the decision graph) ──
+// No mock fallback: these need the live brain (DB + LLM). Errors surface so the
+// UI can show an honest failure rather than a fabricated answer.
+
+export type Confidence = "high" | "medium" | "low" | "none";
+
+export interface BrainCitation {
+  decisionId: string;
+  title: string;
+  decision: string;
+  status: string;
+  evidence: string[];
+  freshness: number;
+}
+
+export interface AskAnswer {
+  question: string;
+  answer: string;
+  confidence: Confidence;
+  citations: BrainCitation[];
+  reasoning: string[];
+}
+
+export interface RejectedPrecedent {
+  decision: string;
+  rejectionReason: string | null;
+  alternatives: string[];
+}
+
+export interface CanIAnswer {
+  intent: string;
+  verdict: "allowed" | "disallowed" | "unclear";
+  rationale: string;
+  citations: BrainCitation[];
+  rejectedPrecedent: RejectedPrecedent[];
+}
+
+export interface PlanAnswer {
+  request: string;
+  intent: string;
+  scope: Record<string, string[]>;
+  verdict: "allowed" | "disallowed" | "unclear";
+  risk: "low" | "medium" | "high";
+  confidence: Confidence;
+  summary: string;
+  steps: Array<{ title: string; detail: string }>;
+  constraints: Array<{ decision: string; why: string; evidence: string[] }>;
+  rejectedPrecedent: Array<{ decision: string; rejectionReason: string | null; alternatives: string[] }>;
+  conflicts: string[];
+  citations: BrainCitation[];
+  reasoning: string[];
+}
+
+async function getOrThrow<T>(url: string): Promise<T> {
+  const res = await fetch(url, { headers: { accept: "application/json" }, cache: "no-store" });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || `Request failed (${res.status})`);
+  }
+  return (await res.json()) as T;
+}
+
+export function askBrain(repoId: string, question: string): Promise<AskAnswer> {
+  return getOrThrow<AskAnswer>(`/api/repos/${repoId}/ask?q=${encodeURIComponent(question)}`);
+}
+
+export function canIBrain(repoId: string, intent: string): Promise<CanIAnswer> {
+  return send<CanIAnswer>(`/api/repos/${repoId}/can-i`, "POST", { intent });
+}
+
+export function planBrain(repoId: string, request: string): Promise<PlanAnswer> {
+  return send<PlanAnswer>(`/api/repos/${repoId}/plan`, "POST", { request });
+}
+
 export { REPOS, getRepo };

@@ -141,15 +141,22 @@ Respond ONLY with JSON: {"answer": "<concise answer citing [n]>", "used": [<numb
   }
 
   const usedIdx = (res.used ?? []).filter((n) => n >= 1 && n <= considered.length);
-  const citations = (usedIdx.length ? usedIdx.map((n) => considered[n - 1]!) : [considered[0]!]).map(
-    toCitation,
+  // If the reasoner grounded the answer in NO decision, do not fabricate a
+  // citation — that would fake evidence. An ungrounded answer is, at best, a
+  // soft decline: show no citation and never claim high confidence.
+  const citations = usedIdx.map((n) => considered[n - 1]!).map(toCitation);
+  reasoning.push(
+    citations.length
+      ? `Reasoner cited ${citations.length} decision(s).`
+      : "Reasoner used no decision; answer is not grounded in recorded evidence.",
   );
-  reasoning.push(`Reasoner cited ${citations.length} decision(s).`);
 
-  const conf: AnswerConfidence =
+  let conf: AnswerConfidence =
     res.confidence === "high" || res.confidence === "medium" || res.confidence === "low"
       ? res.confidence
       : "medium";
+  // Never fake confidence: an answer with no citation cannot be high-confidence.
+  if (citations.length === 0) conf = "low";
 
   return { question, answer: res.answer, confidence: conf, citations, reasoning };
 }
