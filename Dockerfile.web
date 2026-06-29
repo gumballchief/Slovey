@@ -22,10 +22,17 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN pnpm --filter @company-brain/web build
 
-# --- run ---
+# --- run (standalone: minimal server + only traced deps) ---
 FROM base AS run
 ENV NODE_ENV=production
-COPY --from=build /app ./
+# Standalone server defaults to binding localhost; bind all interfaces so the
+# host (Render/Railway/Fly) can reach it. It reads $PORT automatically.
+ENV HOSTNAME=0.0.0.0
+WORKDIR /app
+# Monorepo standalone layout: server.js lives at apps/web/server.js inside the
+# standalone tree (rooted at the repo via outputFileTracingRoot).
+COPY --from=build /app/apps/web/.next/standalone ./
+COPY --from=build /app/apps/web/.next/static ./apps/web/.next/static
+COPY --from=build /app/apps/web/public ./apps/web/public
 EXPOSE 3000
-# Bind the host-provided port (Render/Railway/Fly set $PORT); default 3000 locally.
-CMD pnpm --filter @company-brain/web start -- -p ${PORT:-3000}
+CMD ["node", "apps/web/server.js"]
