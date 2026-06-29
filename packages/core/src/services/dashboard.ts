@@ -24,7 +24,7 @@ export interface ApiDecision {
   examples: string[];
   evidence: string[];
   source: (typeof decisions.$inferSelect)["source"];
-  status?: "approved" | "suggested";
+  status?: Exclude<(typeof decisions.$inferSelect)["status"], "removed">;
   createdAt: string;
   repoId: string;
 }
