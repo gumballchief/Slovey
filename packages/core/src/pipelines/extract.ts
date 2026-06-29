@@ -1,7 +1,7 @@
 import { getDb, decisions } from "@company-brain/db";
 import { eq, sql } from "drizzle-orm";
 import { getAI } from "../ai";
-import { consolidatePrompt, extractPrompt } from "../ai/prompts";
+import { consolidatePrompt, extractDocPrompt, extractPrompt } from "../ai/prompts";
 import type { ExtractedDecision } from "../ai/types";
 import { getInstallationOctokit } from "../github/app";
 import { buildPrBatchText, fetchClosedPRs, fetchDocs } from "../github/fetchers";
@@ -107,7 +107,7 @@ export async function runExtract(params: ExtractParams): Promise<ExtractResult> 
     const docs = await fetchDocs(octokit, params.owner, params.name, params.defaultBranch);
     for (const doc of docs) {
       const res = await ai.completeJSON<ExtractedDecision[]>(
-        extractPrompt(`### DOC ${doc.path}\n${doc.content}`),
+        extractDocPrompt(`### ${doc.path}\n${doc.content}`),
         { tier: "cheap", maxTokens: 2000 },
       );
       if (Array.isArray(res)) {
