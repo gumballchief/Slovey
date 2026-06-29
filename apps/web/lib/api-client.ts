@@ -340,4 +340,34 @@ export function planBrain(repoId: string, request: string): Promise<PlanAnswer> 
   return send<PlanAnswer>(`/api/repos/${repoId}/plan`, "POST", { request });
 }
 
+// ── Human review queue ──
+export interface ReviewItem {
+  id: string;
+  decision: string;
+  why: string;
+  evidence: string[];
+  source: string;
+  status: string;
+  confidence: number;
+  importance: string;
+  createdAt: string;
+}
+
+export function fetchReviewQueue(repoId: string): Promise<ReviewItem[]> {
+  return getJSON<ReviewItem[]>(`/api/repos/${repoId}/review`, () => []);
+}
+
+export function reviewDecision(
+  repoId: string,
+  decisionId: string,
+  action: "approve" | "reject",
+  reason?: string,
+) {
+  return send<{ id: string; status: string; review: string }>(
+    `/api/repos/${repoId}/review/${decisionId}`,
+    "POST",
+    { action, reason },
+  );
+}
+
 export { REPOS, getRepo };

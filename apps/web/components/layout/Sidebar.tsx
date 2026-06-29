@@ -14,6 +14,7 @@ import {
   CreditCard,
   User,
   Sparkles,
+  ShieldCheck,
   X,
 } from "lucide-react";
 import { RepoSwitcher } from "./RepoSwitcher";
@@ -23,6 +24,7 @@ const NAV_ITEMS = [
   { href: "/app", label: "Overview", icon: LayoutDashboard, exact: true },
   { href: "/app/ask", label: "Ask Brain", icon: Sparkles },
   { href: "/app/memory", label: "Memory", icon: BookOpen },
+  { href: "/app/review", label: "Review", icon: ShieldCheck },
   { href: "/app/architecture", label: "Architecture", icon: Network },
   { href: "/app/pull-requests", label: "Pull Requests", icon: GitPullRequest },
   { href: "/app/connectors", label: "Connectors", icon: Plug },

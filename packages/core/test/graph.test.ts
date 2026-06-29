@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { freshnessScore, scopeScore } from "../src/graph/service";
+import { freshnessScore, isReviewable, scopeScore } from "../src/graph/service";
 import { isActiveStatus } from "../src/graph/types";
 
 const DAY = 86_400_000;
@@ -68,5 +68,20 @@ describe("scopeScore", () => {
   it("is case-insensitive and zero when nothing matches", () => {
     expect(scopeScore(d, { services: ["BILLING"] }, [])).toBe(3);
     expect(scopeScore(d, { services: ["auth"] }, ["packages/db/schema.ts"])).toBe(0);
+  });
+});
+
+describe("isReviewable", () => {
+  it("queues unconfirmed candidate/proposed/approved decisions", () => {
+    expect(isReviewable("proposed", "unreviewed")).toBe(true);
+    expect(isReviewable("candidate", "unreviewed")).toBe(true);
+    expect(isReviewable("approved", "unreviewed")).toBe(true); // legacy auto-approved
+  });
+
+  it("excludes already-reviewed and terminal decisions", () => {
+    expect(isReviewable("approved", "confirmed")).toBe(false);
+    expect(isReviewable("proposed", "needs_changes")).toBe(false);
+    expect(isReviewable("rejected", "unreviewed")).toBe(false);
+    expect(isReviewable("superseded", "unreviewed")).toBe(false);
   });
 });
