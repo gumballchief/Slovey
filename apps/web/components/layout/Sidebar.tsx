@@ -13,6 +13,7 @@ import {
   Building2,
   CreditCard,
   User,
+  Sparkles,
   X,
 } from "lucide-react";
 import { RepoSwitcher } from "./RepoSwitcher";
@@ -20,6 +21,7 @@ import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { href: "/app", label: "Overview", icon: LayoutDashboard, exact: true },
+  { href: "/app/ask", label: "Ask Brain", icon: Sparkles },
   { href: "/app/memory", label: "Memory", icon: BookOpen },
   { href: "/app/architecture", label: "Architecture", icon: Network },
   { href: "/app/pull-requests", label: "Pull Requests", icon: GitPullRequest },
