@@ -7,6 +7,11 @@ import { fileURLToPath } from "node:url";
 const here = dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
+  // Standalone: emit a minimal server bundling only traced deps, so the runtime
+  // image is small and fits well within a 512MB instance (plain `next start`
+  // loads the whole workspace + node_modules and OOMs there).
+  output: "standalone",
+  outputFileTracingRoot: resolve(here, "../.."),
   turbopack: { root: resolve(here, "../..") },
 };
 
