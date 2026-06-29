@@ -1,5 +1,5 @@
 import { getAI } from "../ai";
-import { extractPrompt } from "../ai/prompts";
+import { extractDocPrompt } from "../ai/prompts";
 import type { ExtractedDecision } from "../ai/types";
 import { upsertDecisions } from "./upsert-decisions";
 
@@ -89,7 +89,7 @@ export async function importDocs(repoId: string, docs: ImportDoc[]): Promise<Imp
     const content = (doc.content ?? "").slice(0, MAX_CHARS);
     if (!content.trim()) continue;
     const res = await ai.completeJSON<ExtractedDecision[]>(
-      extractPrompt(`### DOC ${doc.path}\n${content}`),
+      extractDocPrompt(`### ${doc.path}\n${content}`),
       { tier: "cheap", maxTokens: 2000 },
     );
     if (!Array.isArray(res)) continue;

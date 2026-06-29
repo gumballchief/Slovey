@@ -103,6 +103,38 @@ Respond ONLY with a JSON array of decision objects.`;
 }
 
 /**
+ * Doc-tuned extraction — for decision DOCUMENTS (ADRs, RFCs, architecture/design
+ * docs, READMEs), not PRs. ADRs state decisions explicitly and a single doc
+ * normally yields a decision, so this drops the PR framing and the
+ * required-non-empty PR evidence that made the PR prompt return nothing on docs.
+ * Same output shape as `extractPrompt` so it's drop-in. Evidence is optional —
+ * the source document path is recorded automatically by the caller.
+ */
+export function extractDocPrompt(docText: string): string {
+  return `You are building an engineering team's decision memory from a DECISION DOCUMENT — an ADR, RFC, architecture doc, design doc, or README. These state decisions explicitly (often in a "Decision" or "Status" section) and frequently record rejected alternatives.
+
+Extract the durable, reusable engineering decisions this document records — rules, conventions, technology choices, and explicitly rejected approaches. A single ADR usually contains ONE primary decision; capture it even if the document is short.
+
+For each decision provide:
+- "decision": the durable rule, stated generally (not tied to one line)
+- "why": the rationale/context from the document (may be "")
+- "examples": concrete examples or rejected alternatives mentioned (array of short strings; may be empty)
+- "evidence": any references the document itself cites (array; MAY be empty — the source document is recorded automatically)
+- "category": one of ${CATEGORIES.join(", ")}
+
+Rules:
+- Ground every decision in the document's actual content. Never invent.
+- A documented rejected/declined alternative is a rejected approach — capture it as one.
+- Prefer the core decision(s); skip boilerplate (table of contents, license, badges).
+- A decision document normally yields at least one decision.
+
+DOCUMENT:
+${docText}
+
+Respond ONLY with a JSON array of decision objects.`;
+}
+
+/**
  * Consolidation prompt — merges semantically-equivalent decisions into one,
  * unioning their examples and evidence.
  */
