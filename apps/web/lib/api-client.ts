@@ -1,22 +1,10 @@
 // ── Dashboard data layer (client) ──
-// Calls the real API route handlers. If the backend/DB isn't up, it falls back
-// to the bundled mock data so the demo still renders. This is the clearly-marked
-// integration seam: when Postgres + the GitHub App are configured, every screen
-// is live; otherwise it's a faithful demo.
+// Real data only. Reads call the API route handlers and return real results —
+// or empty/neutral values when nothing exists yet or the API errors. Never
+// fabricated/mock data: an unconfigured or empty backend degrades to honest
+// empty states, not a fake-populated demo.
 
-import {
-  CHECKED_PRS,
-  CONNECTORS,
-  DECISIONS,
-  REPOS,
-  getDecisionsForRepo,
-  getPRsForRepo,
-  getRepo,
-  type CheckedPR,
-  type Connector,
-  type Decision,
-  type Repo,
-} from "@/lib/data";
+import type { CheckedPR, Connector, Decision, Repo } from "@/lib/data";
 
 export interface RepoSettings {
   confidenceThreshold: "low" | "high" | "strict";
@@ -60,7 +48,7 @@ async function send<T>(url: string, method: string, body?: unknown): Promise<T> 
 
 // ── reads (with mock fallback) ──
 export function fetchRepos(): Promise<Repo[]> {
-  return getJSON<Repo[]>("/api/repos", () => REPOS).then((r) => (r.length ? r : REPOS));
+  return getJSON<Repo[]>("/api/repos", () => []);
 }
 
 export function fetchDecisions(
@@ -71,42 +59,22 @@ export function fetchDecisions(
   if (opts.query) params.set("q", opts.query);
   if (opts.source && opts.source !== "all") params.set("source", opts.source);
   const qs = params.toString();
-  return getJSON<Decision[]>(
-    `/api/repos/${repoId}/decisions${qs ? `?${qs}` : ""}`,
-    () => getDecisionsForRepo(repoId),
-  );
+  return getJSON<Decision[]>(`/api/repos/${repoId}/decisions${qs ? `?${qs}` : ""}`, () => []);
 }
 
 /** Semantic search over decisions (falls back to local substring search). */
 export function searchDecisions(repoId: string, q: string): Promise<Decision[]> {
-  return getJSON<Decision[]>(`/api/repos/${repoId}/search?q=${encodeURIComponent(q)}`, () => {
-    const ql = q.toLowerCase();
-    const all = getDecisionsForRepo(repoId);
-    if (!ql) return all;
-    return all.filter(
-      (d) =>
-        d.decision.toLowerCase().includes(ql) ||
-        d.why.toLowerCase().includes(ql) ||
-        d.evidence.some((e) => e.toLowerCase().includes(ql)),
-    );
-  });
+  return getJSON<Decision[]>(`/api/repos/${repoId}/search?q=${encodeURIComponent(q)}`, () => []);
 }
 
 export function fetchPRs(repoId: string): Promise<CheckedPR[]> {
-  return getJSON<CheckedPR[]>(`/api/repos/${repoId}/pull-requests`, () =>
-    getPRsForRepo(repoId).sort(
-      (a, b) => new Date(b.checkedAt).getTime() - new Date(a.checkedAt).getTime(),
-    ),
-  );
+  return getJSON<CheckedPR[]>(`/api/repos/${repoId}/pull-requests`, () => []);
 }
 
 export type PRDetail = CheckedPR & { citation?: string; decision?: Decision };
 
 export function fetchPR(repoId: string, number: number): Promise<PRDetail | null> {
-  return getJSON<PRDetail | null>(`/api/repos/${repoId}/pull-requests/${number}`, () => {
-    const pr = getPRsForRepo(repoId).find((p) => p.number === number) ?? null;
-    return pr as PRDetail | null;
-  });
+  return getJSON<PRDetail | null>(`/api/repos/${repoId}/pull-requests/${number}`, () => null);
 }
 
 export interface RepoArchitecture {
@@ -207,7 +175,7 @@ export function fetchMe(): Promise<Me> {
 }
 
 export function fetchConnectors(repoId: string): Promise<Connector[]> {
-  return getJSON<Connector[]>(`/api/repos/${repoId}/connectors`, () => CONNECTORS);
+  return getJSON<Connector[]>(`/api/repos/${repoId}/connectors`, () => []);
 }
 
 export function connectConnector(
@@ -400,4 +368,3 @@ export function importDocs(repoId: string, text: string) {
   return send<ImportResult>(`/api/repos/${repoId}/import`, "POST", { text });
 }
 
-export { REPOS, getRepo };

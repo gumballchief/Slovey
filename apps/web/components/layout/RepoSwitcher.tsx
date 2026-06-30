@@ -10,6 +10,16 @@ export function RepoSwitcher() {
   const [open, setOpen] = useState(false);
   const current = repos.find((r) => r.id === activeRepoId) ?? repos[0];
 
+  // No repositories connected yet — honest empty state (no mock repo).
+  if (!current) {
+    return (
+      <div className="flex items-center gap-2 w-full px-3 py-2 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border)] text-sm text-[var(--text-muted)]">
+        <GitBranch size={14} className="shrink-0" />
+        No repositories
+      </div>
+    );
+  }
+
   return (
     <div className="relative">
       <button

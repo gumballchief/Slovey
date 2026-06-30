@@ -5,6 +5,7 @@ import type { CheckedPR, Decision } from "@/lib/data";
 import { useRepo } from "@/app/app/RepoProvider";
 import { fetchDecisions, fetchPRs } from "@/lib/api-client";
 import { Stat } from "@/components/ui/Stat";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { VerdictPill } from "@/components/ui/VerdictPill";
 import { CorePoster } from "@/components/core/MemoryCore";
 import { Brain, GitPullRequest, AlertTriangle, Clock } from "lucide-react";
@@ -31,6 +32,18 @@ export default function OverviewPage() {
       cancelled = true;
     };
   }, [activeRepoId]);
+
+  if (!repo) {
+    return (
+      <div className="p-6 max-w-6xl mx-auto">
+        <EmptyState
+          icon={<Brain size={22} />}
+          title="No repository connected"
+          description="Install the GitHub App on a repository to start capturing decisions — or import existing ADRs from the Memory page."
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
