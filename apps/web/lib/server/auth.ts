@@ -1,11 +1,12 @@
 import {
   getUserIdByGithubId,
   resolveRepoById,
+  upsertUser,
   userOrgRole,
   type ResolvedRepo,
   type Role,
 } from "@company-brain/core";
-import { auth } from "@/auth";
+import { createSupabaseServer, supabaseConfigured } from "./supabase";
 import { HttpError } from "./respond";
 
 export interface Viewer {
@@ -15,26 +16,43 @@ export interface Viewer {
   isDev: boolean;
 }
 
-function oauthConfigured(): boolean {
-  return Boolean(
-    process.env.GITHUB_CLIENT_ID &&
-      process.env.GITHUB_CLIENT_SECRET &&
-      process.env.NEXTAUTH_SECRET,
-  );
+/** GitHub identity carried in a Supabase user's metadata (provider = github). */
+interface GhMeta {
+  user_name?: string;
+  preferred_username?: string;
+  provider_id?: string | number;
+  avatar_url?: string;
 }
 
 /**
- * Resolve the current viewer from the Auth.js session (incl. their DB user id,
- * needed for membership checks). Dev mode returns a dev viewer when OAuth isn't
- * configured so the dashboard is usable locally.
+ * Resolve the current viewer from the Supabase Auth session (incl. their DB user
+ * id, needed for membership checks). The GitHub identity lives in user_metadata.
+ * First-seen users are upserted lazily so a `users` row always exists. Dev mode
+ * returns a dev viewer when Supabase isn't configured so the dashboard is usable
+ * locally.
  */
 export async function getViewer(): Promise<Viewer | null> {
-  if (oauthConfigured()) {
-    const session = await auth();
-    const u = session?.user as { login?: string; githubId?: number } | undefined;
-    if (u?.login) {
-      const userId = u.githubId ? ((await getUserIdByGithubId(u.githubId)) ?? undefined) : undefined;
-      return { login: u.login, githubId: u.githubId, userId, isDev: false };
+  if (supabaseConfigured()) {
+    const supabase = await createSupabaseServer();
+    const { data } = await supabase.auth.getUser();
+    const user = data.user;
+    if (user) {
+      const meta = (user.user_metadata ?? {}) as GhMeta;
+      const login =
+        meta.user_name || meta.preferred_username || user.email?.split("@")[0] || "user";
+      const githubId = meta.provider_id ? Number(meta.provider_id) : undefined;
+      let userId = githubId ? ((await getUserIdByGithubId(githubId)) ?? undefined) : undefined;
+      // Lazily ensure a DB user exists (callback usually does this on first login).
+      if (githubId && !userId) {
+        const row = await upsertUser({
+          githubId,
+          login,
+          email: user.email ?? null,
+          avatarUrl: meta.avatar_url ?? null,
+        });
+        userId = row?.id;
+      }
+      return { login, githubId, userId, isDev: false };
     }
     if (process.env.NODE_ENV === "production") return null;
   }

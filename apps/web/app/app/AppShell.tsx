@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { SessionProvider } from "next-auth/react";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
 import { usePathname } from "next/navigation";
@@ -9,7 +8,9 @@ import { RepoProvider } from "./RepoProvider";
 
 const PAGE_TITLES: Record<string, string> = {
   "/app": "Overview",
+  "/app/ask": "Ask Brain",
   "/app/memory": "Memory",
+  "/app/review": "Review",
   "/app/architecture": "Architecture",
   "/app/pull-requests": "Pull Requests",
   "/app/connectors": "Connectors",
@@ -31,8 +32,7 @@ export function AppShell({
   const title = PAGE_TITLES[pathname] ?? "Company Brain";
 
   return (
-    <SessionProvider>
-      <RepoProvider>
+    <RepoProvider>
       <div className="flex h-dvh overflow-hidden bg-[var(--bg)]">
         <Sidebar mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)} />
         <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
@@ -46,7 +46,6 @@ export function AppShell({
           </main>
         </div>
       </div>
-      </RepoProvider>
-    </SessionProvider>
+    </RepoProvider>
   );
 }
