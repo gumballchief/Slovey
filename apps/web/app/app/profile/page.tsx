@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { signOut } from "next-auth/react";
+import { createSupabaseBrowser } from "@/lib/supabase-browser";
 import { fetchMe, type Me } from "@/lib/api-client";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -107,7 +107,15 @@ export default function ProfilePage() {
             <h3 className="text-sm font-semibold text-[var(--cb-text)]">Sign out</h3>
             <p className="text-xs text-[var(--text-muted)] mt-1">End your session on this device.</p>
           </div>
-          <Button variant="secondary" size="sm" onClick={() => signOut({ callbackUrl: "/" })}>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() =>
+              createSupabaseBrowser()
+                .auth.signOut()
+                .then(() => window.location.assign("/"))
+            }
+          >
             <LogOut size={13} />
             Sign out
           </Button>

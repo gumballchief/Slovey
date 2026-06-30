@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Space_Grotesk, Inter, JetBrains_Mono } from "next/font/google";
 import { cookies } from "next/headers";
+import Script from "next/script";
 import "./globals.css";
 
 // Display — h1/h2 and big numbers only
@@ -48,10 +49,11 @@ export default async function RootLayout({
       <body className="min-h-full bg-[var(--bg)] text-[var(--cb-text)] font-body antialiased">
         {/* Swallow noise from browser extensions (e.g. MetaMask's inpage.js)
             so it never reaches the dev error overlay. Scoped strictly to
-            chrome-extension:// sources — never suppresses app errors. */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){
+            chrome-extension:// sources — never suppresses app errors. Loaded via
+            next/script so React 19 actually executes it (a raw <script> in the
+            tree is not run on the client and trips the dev overlay). */}
+        <Script id="suppress-extension-noise" strategy="beforeInteractive">
+          {`(function(){
   if (typeof window === 'undefined') return;
   function fromExtension(t){ return typeof t === 'string' && (t.indexOf('chrome-extension://') !== -1 || /MetaMask/i.test(t)); }
   window.addEventListener('error', function(e){
@@ -62,9 +64,8 @@ export default async function RootLayout({
     var r = e && e.reason; var t = (r && (r.stack || r.message)) || (typeof r === 'string' ? r : '');
     if (fromExtension(t)) { e.stopImmediatePropagation(); e.preventDefault(); }
   }, true);
-})();`,
-          }}
-        />
+})();`}
+        </Script>
         {children}
       </body>
     </html>
