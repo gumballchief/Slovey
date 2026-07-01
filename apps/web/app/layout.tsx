@@ -1,22 +1,21 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans, Inter, JetBrains_Mono } from "next/font/google";
+import { Sora, Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
 import { cookies } from "next/headers";
 import Script from "next/script";
 import "./globals.css";
 
-// Display — h1/h2 and big numbers. Plus Jakarta Sans: friendly geometric,
-// the Sui-adjacent character face.
-const plusJakarta = Plus_Jakarta_Sans({
+// Display — Sora: a clean geometric sans with quiet character (Sui-adjacent).
+const sora = Sora({
   variable: "--font-display",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
+  weight: ["400", "500", "600", "700"],
 });
 
-// Body
-const inter = Inter({
+// Body — Hanken Grotesk: a warm, clean grotesk (deliberately not Inter/Roboto).
+const hanken = Hanken_Grotesk({
   variable: "--font-body",
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
+  weight: ["400", "500", "600", "700"],
 });
 
 // Mono — the brand's connective tissue: PR numbers, citations, labels, units
@@ -44,7 +43,7 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
-      className={`${plusJakarta.variable} ${inter.variable} ${jetbrainsMono.variable} h-full${isDark ? " dark" : ""}`}
+      className={`${sora.variable} ${hanken.variable} ${jetbrainsMono.variable} h-full${isDark ? " dark" : ""}`}
       suppressHydrationWarning
     >
       <body className="min-h-full bg-[var(--bg)] text-[var(--cb-text)] font-body antialiased">
