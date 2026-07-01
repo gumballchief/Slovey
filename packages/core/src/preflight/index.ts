@@ -1,10 +1,11 @@
 export * from "./types";
-export { runPreflight, evaluateLoop } from "./engine";
+export { runPreflight, evaluateLoop, detectUnrelatedChanges, detectRegression, listChecks } from "./engine";
 export { rejectedKeywordHit } from "./decisions";
-export { loadPreflightConfig, CONFIG_FILENAME } from "./config";
-export { getLatestRun, getRunDetail, listRuns } from "./persist";
+export { loadPreflightConfig, defaultConfigJson, CONFIG_FILENAME } from "./config";
+export { getLatestRun, getRunDetail, listRuns, findErrorByFingerprint } from "./persist";
 export { detectProject, getChangedFiles, getBranch, getCommitSha } from "./detect";
 export { redact, scanForSecrets } from "./redact";
-export { parseErrors, toFixInstructions } from "./parse";
+export { parseErrors, toFixInstructions, fingerprint } from "./parse";
 export { runDecisionCheck } from "./decisions";
+export { architectureCheck, globToRegex } from "./architecture";
 export { ALLOWED_BINS, runCommand } from "./runner";

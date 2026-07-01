@@ -72,7 +72,8 @@ export default function PreflightPage() {
                 {latest.run.safeToCommit ? "Safe to commit" : "Do not commit yet"}
               </p>
               <p className="text-xs text-[var(--text-muted)]">
-                {latest.run.summary} · attempt {latest.run.attempt}/{latest.run.maxAttempts}
+                {latest.run.summary} · mode {latest.run.mode} · push {latest.run.safeToPush ? "ok" : "blocked"} · attempt{" "}
+                {latest.run.attempt}/{latest.run.maxAttempts}
                 {latest.run.branch ? ` · ${latest.run.branch}` : ""}
               </p>
             </div>

@@ -47,8 +47,16 @@ export interface CommandOutcome {
 /**
  * Run an allowlisted command with no shell interpolation, a hard timeout, output
  * caps, and secret redaction. `command` is a plain string like "pnpm typecheck".
+ * A command is allowed when its base binary is in ALLOWED_BINS, or when the full
+ * command exactly matches an entry the repo's config explicitly allowlists —
+ * either way it must first pass the metacharacter guard.
  */
-export function runCommand(cwd: string, command: string, timeoutMs: number): Promise<CommandOutcome> {
+export function runCommand(
+  cwd: string,
+  command: string,
+  timeoutMs: number,
+  extraAllowlist: string[] = [],
+): Promise<CommandOutcome> {
   const started = Date.now();
   const refuse = (refusedReason: string): CommandOutcome => ({
     ok: false, code: null, stdout: "", stderr: "", timedOut: false,
@@ -61,7 +69,7 @@ export function runCommand(cwd: string, command: string, timeoutMs: number): Pro
   }
   const tokens = trimmed.split(/\s+/);
   const bin = tokens[0]!;
-  if (!ALLOWED_BINS.has(bin)) {
+  if (!ALLOWED_BINS.has(bin) && !extraAllowlist.some((c) => c.trim() === trimmed)) {
     return Promise.resolve(refuse(`refused: "${bin}" is not an allowlisted command`));
   }
 

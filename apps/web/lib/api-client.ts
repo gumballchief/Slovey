@@ -56,9 +56,12 @@ export interface PreflightRunRow {
   id: string;
   branch: string | null;
   commitSha: string | null;
-  status: "pass" | "fail";
+  mode: string;
+  status: "pass" | "fail" | "partial" | "error";
   safeToCommit: boolean;
+  safeToPush: boolean;
   summary: string;
+  agentInstruction: string;
   attempt: number;
   maxAttempts: number;
   humanReviewRequired: boolean;

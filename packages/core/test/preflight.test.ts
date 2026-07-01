@@ -4,7 +4,13 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   ALLOWED_BINS,
+  architectureCheck,
+  defaultConfigJson,
+  detectRegression,
+  detectUnrelatedChanges,
   evaluateLoop,
+  fingerprint,
+  globToRegex,
   loadPreflightConfig,
   parseErrors,
   redact,
@@ -27,34 +33,98 @@ describe("preflight config", () => {
     expect(source).toBe("default");
     expect(config.maxAttempts).toBe(9);
     expect(config.requiredChecks).toContain("typecheck");
+    expect(config.decisionChecks.minimumBlockingConfidence).toBe(0.85);
+    expect(config.blockPushOnFailure).toBe(true);
+  });
+  it("deep-merges nested sections instead of wiping them", () => {
+    const dir = tmp({ "companybrain.preflight.json": JSON.stringify({ decisionChecks: { minimumBlockingConfidence: 0.5 } }) });
+    const { config, source } = loadPreflightConfig(dir);
+    expect(source).toBe("file");
+    expect(config.decisionChecks.minimumBlockingConfidence).toBe(0.5);
+    expect(config.decisionChecks.enabled).toBe(true); // untouched default survives
+  });
+  it("init config JSON is valid and matches the schema", () => {
+    const cfg = JSON.parse(defaultConfigJson());
+    expect(cfg.requiredChecks).toContain("decision-check");
+    expect(cfg.architectureChecks.enabled).toBe(true);
   });
 });
 
 describe("passing preflight + JSON schema", () => {
-  it("returns pass + safeToCommit with the required schema shape", async () => {
+  it("returns pass + safeToCommit/safeToPush with the v2 schema shape", async () => {
     const r = await runPreflight({ cwd: tmp({ "package.json": "{}" }), repoId: null, configOverride: { requiredChecks: [], optionalChecks: [] } });
     expect(r.status).toBe("pass");
     expect(r.safeToCommit).toBe(true);
+    expect(r.safeToPush).toBe(true);
     expect(Array.isArray(r.checks)).toBe(true);
     expect(Array.isArray(r.fixInstructions)).toBe(true);
     expect(Array.isArray(r.decisionViolations)).toBe(true);
+    expect(Array.isArray(r.warnings)).toBe(true);
+    expect(Array.isArray(r.nextSteps)).toBe(true);
     expect(typeof r.summary).toBe("string");
-    expect(typeof r.attempt).toBe("number");
-    expect(typeof r.agentGuidance).toBe("string");
+    expect(typeof r.agentInstruction).toBe("string");
+    expect(typeof r.attempt.attemptNumber).toBe("number");
+    expect(typeof r.attempt.remainingAttempts).toBe("number");
+    expect(r.project.packageManager).toBeTruthy();
+    expect(new Date(r.createdAt).getTime()).toBeGreaterThan(0);
+  });
+  it("mode:quick drops slow checks and the decision graph", async () => {
+    const dir = tmp({ "package.json": JSON.stringify({ scripts: {} }) });
+    const r = await runPreflight({
+      cwd: dir, repoId: null, mode: "quick",
+      configOverride: {
+        requiredChecks: ["typecheck", "test", "build"], optionalChecks: [],
+        commands: { typecheck: "node --version", test: "node --version", build: "node --version" },
+      },
+    });
+    const names = r.checks.map((c) => c.name);
+    expect(names).toContain("typecheck");
+    expect(names).not.toContain("test");
+    expect(names).not.toContain("build");
+    expect(names).not.toContain("decision-check");
+    expect(r.mode).toBe("quick");
+  });
+  it("optional-only failures → status partial, still safe to commit", async () => {
+    const dir = tmp({ "package.json": "{}" }); // no lockfile → deps fails
+    const r = await runPreflight({ cwd: dir, repoId: null, configOverride: { requiredChecks: [], optionalChecks: ["deps"] } });
+    expect(r.checks.find((c) => c.name === "deps")?.status).toBe("fail");
+    expect(r.status).toBe("partial");
+    expect(r.safeToCommit).toBe(true);
+    expect(r.agentInstruction).toContain("safe to commit");
   });
 });
 
 describe("failing typecheck parsing", () => {
-  it("parses tsc output into structured, file-scoped errors", () => {
+  it("parses tsc output into structured, categorized, fingerprinted errors", () => {
     const errors = parseErrors("typecheck", "src/foo.ts(12,5): error TS2532: Object is possibly 'undefined'.");
-    expect(errors[0]).toMatchObject({ file: "src/foo.ts", line: 12, column: 5, code: "TS2532" });
+    expect(errors[0]).toMatchObject({ file: "src/foo.ts", line: 12, column: 5, code: "TS2532", category: "type-error" });
+    expect(errors[0]!.id).toMatch(/^[0-9a-f]{8}$/);
   });
-  it("generates agent-directed fix instructions", () => {
+  it("generates agent-directed fix instructions with ids", () => {
     const fixes = toFixInstructions("typecheck", [{ file: "a.ts", line: 3, message: "boom", code: "TS1" }]);
     expect(fixes[0]!.priority).toBe("high");
+    expect(fixes[0]!.id).toBeTruthy();
+    expect(fixes[0]!.checkId).toBe("typecheck");
     expect(fixes[0]!.instructionForAgent).toContain("Agent, fix this before continuing");
     expect(fixes[0]!.instructionForAgent).toContain("Do not commit yet");
-    expect(fixes[0]!.instructionForAgent).toContain("Run Preflight again");
+  });
+});
+
+describe("test + build output parsing", () => {
+  it("parses vitest FAIL lines", () => {
+    const errors = parseErrors("test", "⎯ Failed Tests ⎯\nFAIL  test/foo.test.ts > suite > does the thing");
+    expect(errors[0]).toMatchObject({ file: "test/foo.test.ts", code: "test-fail", category: "test-failure" });
+    expect(errors[0]!.message).toContain("does the thing");
+  });
+  it("parses jest bullet failures with a stack location", () => {
+    const out = "● suite › fails hard\n\n  expect(received).toBe(1)\n    at Object.<anonymous> (src/x.test.ts:9:15)";
+    const errors = parseErrors("test", out);
+    expect(errors[0]).toMatchObject({ file: "src/x.test.ts", line: 9, code: "test-fail" });
+  });
+  it("parses module-not-found build errors", () => {
+    const errors = parseErrors("build", "./src/app/page.tsx:3:1\nModule not found: Can't resolve '@/components/Missing'");
+    expect(errors[0]!.code).toBe("module-not-found");
+    expect(errors[0]!.message).toContain("@/components/Missing");
   });
 });
 
@@ -64,8 +134,9 @@ describe("skipped missing script", () => {
     const r = await runPreflight({ cwd: dir, repoId: null, configOverride: { requiredChecks: ["typecheck"], optionalChecks: [] } });
     const tc = r.checks.find((c) => c.name === "typecheck");
     expect(tc?.status).toBe("skipped");
-    expect(tc?.skippedReason).toBeTruthy();
+    expect(tc?.blocking).toBe(true);
     expect(r.status).toBe("fail"); // required + skipped + allowSkippedChecks:false
+    expect(r.safeToCommit).toBe(false);
   });
 });
 
@@ -83,6 +154,43 @@ describe("loop safety", () => {
     const r = evaluateLoop({ priorRunStatus: "pass", priorAttempt: 3, priorSignature: null, currentStatus: "fail", currentSignature: "Z", maxAttempts: 5 });
     expect(r.attempt).toBe(1);
   });
+  it("detects unrelated file changes between attempts", () => {
+    expect(detectUnrelatedChanges(["a.ts"], ["a.ts", "b.ts"], ["a.ts"])).toBe(true); // b.ts is new + unreferenced
+    expect(detectUnrelatedChanges(["a.ts"], ["a.ts", "b.ts"], ["b.ts"])).toBe(false); // b.ts is where the failure is
+    expect(detectUnrelatedChanges([], ["a.ts"], [])).toBe(false); // no prior attempt
+  });
+  it("detects fix regressions (old errors gone, new ones introduced)", () => {
+    expect(detectRegression("aaa\nbbb", "ccc")).toBe(true);
+    expect(detectRegression("aaa\nbbb", "bbb\nccc")).toBe(false); // still overlapping → not a regression
+    expect(detectRegression(null, "ccc")).toBe(false);
+  });
+});
+
+describe("architecture checks", () => {
+  it("flags forbidden imports in changed files", () => {
+    const dir = tmp({ "cache.ts": `import Redis from "ioredis";\nexport const r = new Redis();` });
+    const c = architectureCheck(dir, ["cache.ts"], [{ type: "forbidden-import", module: "ioredis", reason: "Redis was rejected — use CacheService." }]);
+    expect(c.status).toBe("fail");
+    expect(c.errors[0]).toMatchObject({ file: "cache.ts", line: 1, code: "arch-import", category: "architecture" });
+    expect(c.errors[0]!.message).toContain("CacheService");
+  });
+  it("flags forbidden content patterns scoped by glob", () => {
+    const dir = tmp({ "ui.tsx": "const x = db.query('select 1');" });
+    const rules = [{ type: "forbidden-content" as const, pattern: "db\\.query\\(", in: "**/*.tsx", reason: "UI must not access the database directly." }];
+    expect(architectureCheck(dir, ["ui.tsx"], rules).status).toBe("fail");
+    expect(architectureCheck(dir, ["ui.tsx"], [{ ...rules[0]!, in: "server/**" }]).status).toBe("pass"); // out of scope
+  });
+  it("flags forbidden paths and skips cleanly with no rules", () => {
+    const dir = tmp({});
+    const c = architectureCheck(dir, ["legacy/auth.ts"], [{ type: "forbidden-path", glob: "legacy/**", reason: "legacy/ was removed; do not reintroduce." }]);
+    expect(c.status).toBe("fail");
+    expect(architectureCheck(dir, ["a.ts"], []).status).toBe("skipped");
+  });
+  it("glob semantics: * stays in a segment, ** crosses", () => {
+    expect(globToRegex("src/*.ts").test("src/a.ts")).toBe(true);
+    expect(globToRegex("src/*.ts").test("src/deep/a.ts")).toBe(false);
+    expect(globToRegex("src/**").test("src/deep/a.ts")).toBe(true);
+  });
 });
 
 describe("decision violation (rejected pattern)", () => {
@@ -93,14 +201,27 @@ describe("decision violation (rejected pattern)", () => {
 });
 
 describe("secret handling", () => {
+  // Assembled at runtime so Preflight's own secret-scan doesn't flag this test file.
+  const fakeAwsKey = ["AKIA", "IOSFODN", "N7EXAMPLE"].join("");
   it("redacts secrets from output", () => {
-    expect(redact("using AKIAIOSFODNN7EXAMPLE now")).toContain("[REDACTED]");
-    expect(redact("using AKIAIOSFODNN7EXAMPLE now")).not.toContain("AKIAIOSFODNN7EXAMPLE");
+    expect(redact(`using ${fakeAwsKey} now`)).toContain("[REDACTED]");
+    expect(redact(`using ${fakeAwsKey} now`)).not.toContain(fakeAwsKey);
   });
-  it("scans changed source for hardcoded secrets", () => {
-    const errs = scanForSecrets([{ path: "a.ts", content: 'const k = "AKIAIOSFODNN7EXAMPLE";' }]);
+  it("scans changed source for hardcoded secrets but skips .env templates", () => {
+    const errs = scanForSecrets([
+      { path: "a.ts", content: `const k = "${fakeAwsKey}";` },
+      { path: ".env.example", content: `AWS_KEY=${fakeAwsKey}` },
+    ]);
     expect(errs.length).toBeGreaterThan(0);
-    expect(errs[0]!.file).toBe("a.ts");
+    expect(errs.every((e) => e.file === "a.ts")).toBe(true);
+  });
+});
+
+describe("fingerprints", () => {
+  it("is stable for identical errors and distinct otherwise", () => {
+    const a = fingerprint({ file: "a.ts", code: "TS1", message: "boom" });
+    expect(fingerprint({ file: "a.ts", code: "TS1", message: "boom" })).toBe(a);
+    expect(fingerprint({ file: "b.ts", code: "TS1", message: "boom" })).not.toBe(a);
   });
 });
 
@@ -112,6 +233,14 @@ describe("runner security + timeout", () => {
     expect(a.refusedReason).toBeTruthy();
     const b = await runCommand(process.cwd(), "node --version; echo hacked", 1000);
     expect(b.refusedReason).toBeTruthy();
+  });
+  it("config allowlist permits an exact full command (still metacharacter-guarded)", async () => {
+    const denied = await runCommand(process.cwd(), "somebin --check", 3000);
+    expect(denied.refusedReason).toBeTruthy();
+    const allowed = await runCommand(process.cwd(), "somebin --check", 3000, ["somebin --check"]);
+    expect(allowed.refusedReason).toBeUndefined(); // allowed to run; fails at spawn since somebin doesn't exist
+    const stillUnsafe = await runCommand(process.cwd(), "somebin --check; rm -rf /", 3000, ["somebin --check; rm -rf /"]);
+    expect(stillUnsafe.refusedReason).toContain("unsafe characters");
   });
   it("kills a command that exceeds the timeout", async () => {
     const dir = tmp({ "sleep.js": "setTimeout(() => process.exit(0), 3000); setInterval(() => {}, 500);" });
