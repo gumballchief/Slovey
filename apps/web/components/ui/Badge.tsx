@@ -9,7 +9,7 @@ type BadgeProps = {
 
 const variants = {
   default: "bg-[var(--bg-subtle)] text-[var(--text-muted)] border border-[var(--border)]",
-  primary: "bg-[var(--primary-soft)] text-[var(--primary)]",
+  primary: "bg-[var(--primary-soft)] text-[var(--primary-strong)]",
   ghost: "bg-transparent text-[var(--text-muted)]",
   approved: "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20",
   suggested: "bg-amber-500/10 text-amber-500 border border-amber-500/20",
