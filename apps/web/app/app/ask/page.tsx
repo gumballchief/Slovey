@@ -114,7 +114,7 @@ export default function AskPage() {
               className={cn(
                 "text-xs font-medium px-3.5 py-1.5 rounded-lg transition-colors cursor-pointer",
                 mode === m.id
-                  ? "bg-[var(--primary)] text-white shadow-sm"
+                  ? "bg-[var(--primary)] text-[var(--on-primary)] shadow-sm"
                   : "text-[var(--text-muted)] hover:text-[var(--cb-text)]",
               )}
             >
@@ -175,7 +175,7 @@ export default function AskPage() {
             type="submit"
             disabled={!input.trim()}
             aria-label="Send"
-            className="shrink-0 w-11 h-11 rounded-xl bg-[var(--primary)] text-white flex items-center justify-center hover:bg-[var(--primary-hover)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+            className="shrink-0 w-11 h-11 rounded-xl bg-[var(--primary)] text-[var(--on-primary)] flex items-center justify-center hover:bg-[var(--primary-hover)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
           >
             <ArrowUp size={18} />
           </button>
@@ -190,7 +190,7 @@ function TurnView({ turn, onFollow }: { turn: Turn; onFollow: (q: string) => voi
     <div className="space-y-3">
       {/* Question */}
       <div className="flex justify-end">
-        <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-[var(--primary)] text-white px-4 py-2.5 text-sm">
+        <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-[var(--primary)] text-[var(--on-primary)] px-4 py-2.5 text-sm">
           {turn.q}
         </div>
       </div>

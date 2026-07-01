@@ -94,7 +94,7 @@ export function PublicNav() {
             className={`label-mono px-4 py-1.5 rounded-lg transition-colors ${
               onHero
                 ? "bg-white text-[#0A0F1C] hover:bg-white/90"
-                : "bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)]"
+                : "bg-[var(--primary)] text-[var(--on-primary)] hover:bg-[var(--primary-hover)]"
             }`}
           >
             Open App

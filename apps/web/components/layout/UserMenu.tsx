@@ -54,7 +54,7 @@ export function UserMenu() {
     return (
       <button
         onClick={signIn}
-        className="inline-flex items-center gap-1.5 label-mono px-3 py-1.5 rounded-lg bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)] transition-colors cursor-pointer"
+        className="inline-flex items-center gap-1.5 label-mono px-3 py-1.5 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer"
       >
         <LogIn size={13} />
         Sign in

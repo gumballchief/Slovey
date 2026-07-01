@@ -14,11 +14,11 @@ type ButtonProps = {
 };
 
 const base =
-  "inline-flex items-center justify-center gap-2 font-medium rounded-lg transition-all duration-150 cursor-pointer select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] disabled:opacity-50 disabled:cursor-not-allowed";
+  "inline-flex items-center justify-center gap-2 font-semibold rounded-xl transition-all duration-150 cursor-pointer select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] disabled:opacity-50 disabled:cursor-not-allowed";
 
 const variants = {
   primary:
-    "bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)] shadow-sm",
+    "bg-[var(--primary)] text-[var(--on-primary)] hover:bg-[var(--primary-hover)] shadow-sm",
   secondary:
     "bg-[var(--bg-subtle)] text-[var(--cb-text)] border border-[var(--border)] hover:bg-[var(--surface)] hover:border-[var(--primary)]",
   ghost:
