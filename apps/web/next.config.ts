@@ -24,6 +24,19 @@ const nextConfig: NextConfig = {
   output: "standalone",
   outputFileTracingRoot: resolve(here, "../.."),
   turbopack: { root: resolve(here, "../..") },
+  experimental: {
+    // Bound the static-generation footprint. Next otherwise forks ~1 worker per
+    // CPU (~15 here), each a full Node process (~150-200MB); on a memory-tight
+    // machine that OOMs mid-prerender, and a dying worker surfaces as React
+    // "useContext of null" / "reading 'length' of undefined" crashes on the
+    // error-page and dashboard shells. Force a single worker (minPagesPerWorker
+    // far above the ~20-page count) rendering one page at a time, and retry any
+    // residual transient failure. There are only ~20 pages and they prerender in
+    // <2s, so serial generation costs nothing meaningful.
+    staticGenerationMinPagesPerWorker: 1000,
+    staticGenerationMaxConcurrency: 1,
+    staticGenerationRetryCount: 3,
+  },
 };
 
 export default nextConfig;

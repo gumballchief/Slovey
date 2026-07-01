@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { preflight, resolveRepo } from "@company-brain/core";
+import { closeDb } from "@company-brain/db";
 
 type PreflightResult = preflight.PreflightResult;
 
@@ -129,10 +130,16 @@ async function main() {
   else if (argv.includes("--fix-agent")) printAgent(r);
   else printHuman(r);
 
-  process.exit(r.safeToCommit ? 0 : 1);
+  // Close the DB pool and let Node drain the event loop naturally. A hard
+  // process.exit() while postgres.js/undici handles are still open aborts on
+  // Windows (libuv "UV_HANDLE_CLOSING" assertion) instead of exiting cleanly.
+  process.exitCode = r.safeToCommit ? 0 : 1;
+  await closeDb();
 }
 
-main().catch((e) => {
-  console.error(`preflight failed: ${e instanceof Error ? e.message : String(e)}`);
-  process.exit(1);
-});
+main()
+  .catch(async (e) => {
+    console.error(`preflight failed: ${e instanceof Error ? e.message : String(e)}`);
+    process.exitCode = 1;
+    await closeDb().catch(() => {});
+  });
