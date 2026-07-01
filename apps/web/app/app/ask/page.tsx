@@ -262,7 +262,7 @@ function Citations({ citations }: { citations: BrainCitation[] }) {
               {c.evidence.map((ev) => (
                 <span
                   key={ev}
-                  className="font-mono text-xs bg-[var(--primary-soft)] text-[var(--primary)] px-2 py-0.5 rounded flex items-center gap-1"
+                  className="chip"
                 >
                   <ExternalLink size={10} />
                   {ev}
