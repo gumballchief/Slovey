@@ -10,7 +10,14 @@ let _started: Promise<PgBoss> | null = null;
 export async function getBoss(): Promise<PgBoss> {
   if (_boss) return _boss;
   if (_started) return _started;
-  const boss = new PgBoss({ connectionString: loadDbUrl() });
+  // Supabase's pooler presents a cert chain Node doesn't trust by default, and
+  // node-postgres now treats `sslmode=require` as strict `verify-full` — which
+  // rejects it ("self-signed certificate in certificate chain"). Strip the
+  // sslmode param (it would otherwise override) and set TLS explicitly without
+  // CA verification, matching the postgres.js client in packages/db.
+  const dbUrl = new URL(loadDbUrl());
+  dbUrl.searchParams.delete("sslmode");
+  const boss = new PgBoss({ connectionString: dbUrl.toString(), ssl: { rejectUnauthorized: false } });
   boss.on("error", (e) => logger.error("pg-boss error", { err: e }));
   _started = boss.start().then(() => {
     _boss = boss;
