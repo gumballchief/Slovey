@@ -1,0 +1,13 @@
+{
+  "requiredChecks": ["typecheck", "test", "build", "decision-check"],
+  "optionalChecks": ["secret-scan", "lint", "format", "env-check", "route-check", "deps"],
+  "maxAttempts": 5,
+  "blockCommitOnFailure": true,
+  "allowSkippedChecks": false,
+  "timeoutMs": 300000,
+  "commands": {
+    "typecheck": "pnpm typecheck",
+    "test": "pnpm test",
+    "build": "pnpm build"
+  }
+}

@@ -51,6 +51,60 @@ export function fetchRepos(): Promise<Repo[]> {
   return getJSON<Repo[]>("/api/repos", () => []);
 }
 
+// ── Preflight ──
+export interface PreflightRunRow {
+  id: string;
+  branch: string | null;
+  commitSha: string | null;
+  status: "pass" | "fail";
+  safeToCommit: boolean;
+  summary: string;
+  attempt: number;
+  maxAttempts: number;
+  humanReviewRequired: boolean;
+  durationMs: number;
+  createdAt: string;
+}
+export interface PreflightCheckRow {
+  id: string;
+  name: string;
+  status: "pass" | "fail" | "skipped";
+  command: string;
+  durationMs: number;
+  skippedReason: string | null;
+}
+export interface PreflightErrorRow {
+  id: string;
+  checkName: string;
+  file: string;
+  line: number | null;
+  message: string;
+  priority: string | null;
+  instructionForAgent: string | null;
+  evidence: string | null;
+}
+export interface PreflightViolationRow {
+  id: string;
+  decisionId: string;
+  title: string;
+  violation: string;
+  instructionForAgent: string;
+  confidence: number;
+  evidence: string[];
+}
+export interface PreflightData {
+  runs: PreflightRunRow[];
+  latest: {
+    run: PreflightRunRow;
+    checks: PreflightCheckRow[];
+    errors: PreflightErrorRow[];
+    violations: PreflightViolationRow[];
+  } | null;
+}
+export function fetchPreflight(repoId: string): Promise<PreflightData> {
+  return getJSON<PreflightData>(`/api/repos/${repoId}/preflight`, () => ({ runs: [], latest: null }));
+}
+
 export function fetchDecisions(
   repoId: string,
   opts: { query?: string; source?: string } = {},

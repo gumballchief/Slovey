@@ -15,6 +15,7 @@ import {
   User,
   Sparkles,
   ShieldCheck,
+  Gauge,
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -33,6 +34,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { href: "/app/review", label: "Review", icon: ShieldCheck },
       { href: "/app/architecture", label: "Architecture", icon: Network },
       { href: "/app/pull-requests", label: "Pull Requests", icon: GitPullRequest },
+      { href: "/app/preflight", label: "Preflight", icon: Gauge },
     ],
   },
   {

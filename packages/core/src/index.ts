@@ -14,6 +14,8 @@ export * from "./crypto";
 export * from "./connectors";
 // Pipelines (extract, retrieve, check, feedback)
 export * from "./pipelines";
+// Preflight — the agent-gating check system (checks + decision graph + loop safety)
+export * as preflight from "./preflight";
 // Engineering Decision Graph (the core asset) + Decision API
 export * as graph from "./graph";
 // Reasoning engine + Engineering Search / Context API
