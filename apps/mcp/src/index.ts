@@ -159,17 +159,30 @@ function registerTools(server: McpServer) {
     {
       title: "Preflight — run all checks",
       description:
-        "Run Company Brain Preflight on the local repo: typecheck, lint, tests, build, secret scan, and decision-graph checks. Returns structured JSON with pass/fail, safeToCommit, and exact fix instructions. Call this after writing code and BEFORE committing. If it fails, fix the reported issues and call it again until it passes.",
+        "Run Company Brain Preflight on the local repo: typecheck, lint, tests, build, secret scan, architecture rules, and decision-graph checks. Returns structured JSON with pass/fail, safeToCommit/safeToPush, and exact fix instructions. Call this after writing code and BEFORE committing; if it fails, apply every fixInstruction and call it again (pass the same attemptId across the loop). Modes: full (default), quick (no test/build/decision), commit (quick + decision-check), push (=full), changed-files, planning (pre-code: returns governing decisions before you write anything).",
       inputSchema: {
+        mode: z.enum(["full", "quick", "commit", "push", "changed-files", "planning"]).optional(),
+        attemptId: z.string().optional(),
+        changedFiles: z.array(z.string()).optional(),
         requiredChecks: z.array(z.string()).optional(),
         maxAttempts: z.number().int().positive().optional(),
         checkOnly: z.boolean().optional(),
       },
     },
-    safe("preflight_run", async (args: { requiredChecks?: string[]; maxAttempts?: number; checkOnly?: boolean }) => {
-      const r = await preflight.runPreflight({ cwd: REPO_PATH, repoId: REPO_ID, ...args });
-      return json(r);
-    }),
+    safe(
+      "preflight_run",
+      async (args: {
+        mode?: preflight.PreflightMode;
+        attemptId?: string;
+        changedFiles?: string[];
+        requiredChecks?: string[];
+        maxAttempts?: number;
+        checkOnly?: boolean;
+      }) => {
+        const r = await preflight.runPreflight({ cwd: REPO_PATH, repoId: REPO_ID, ...args });
+        return json(r);
+      },
+    ),
   );
 
   server.registerTool(
@@ -186,7 +199,11 @@ function registerTools(server: McpServer) {
       return json({
         status: run.status,
         safeToCommit: run.safeToCommit,
+        safeToPush: run.safeToPush,
+        mode: run.mode,
         summary: run.summary,
+        agentInstruction: run.agentInstruction,
+        attemptId: run.attemptId,
         attempt: run.attempt,
         maxAttempts: run.maxAttempts,
         humanReviewRequired: run.humanReviewRequired,
@@ -235,19 +252,45 @@ function registerTools(server: McpServer) {
     {
       title: "Preflight — validate commit",
       description:
-        "Run Preflight and return ONLY the commit verdict. Use this as the FINAL gate immediately before committing or marking a task complete. Returns safeToCommit + agentGuidance. If not safe, do not commit — fix and re-run.",
-      inputSchema: { maxAttempts: z.number().int().positive().optional() },
+        "Run the commit gate (fast checks + decision-graph; run preflight_run mode:\"push\" for the full gate before pushing) and return ONLY the verdict. Use this immediately before committing or marking a task complete. If not safe, do not commit — fix and re-run.",
+      inputSchema: { maxAttempts: z.number().int().positive().optional(), attemptId: z.string().optional() },
     },
-    safe("preflight_validate_commit", async ({ maxAttempts }: { maxAttempts?: number }) => {
-      const r = await preflight.runPreflight({ cwd: REPO_PATH, repoId: REPO_ID, maxAttempts });
+    safe("preflight_validate_commit", async (args: { maxAttempts?: number; attemptId?: string }) => {
+      const r = await preflight.runPreflight({ cwd: REPO_PATH, repoId: REPO_ID, mode: "commit", ...args });
       return json({
         verdict: r.safeToCommit ? "safe to commit" : "do not commit yet",
         safeToCommit: r.safeToCommit,
+        safeToPush: r.safeToPush,
         status: r.status,
         attempt: r.attempt,
         humanReviewRequired: r.humanReviewRequired,
-        agentGuidance: r.agentGuidance,
+        agentInstruction: r.agentInstruction,
       });
+    }),
+  );
+
+  server.registerTool(
+    "preflight_list_checks",
+    {
+      title: "Preflight — list available checks",
+      description:
+        "List every check configured for this repository: name, kind (command/static/decision-graph), whether it is required (blocking), the resolved command, and whether it can actually run here.",
+      inputSchema: {},
+    },
+    safe("preflight_list_checks", async () => json(preflight.listChecks(REPO_PATH))),
+  );
+
+  server.registerTool(
+    "preflight_config",
+    {
+      title: "Preflight — effective configuration",
+      description:
+        "Return the effective Preflight configuration for this repository (companybrain.preflight.json merged over defaults), plus whether it came from a config file.",
+      inputSchema: {},
+    },
+    safe("preflight_config", async () => {
+      const { config, source, warning } = preflight.loadPreflightConfig(REPO_PATH);
+      return json({ source, warning, config });
     }),
   );
 
@@ -256,10 +299,22 @@ function registerTools(server: McpServer) {
     {
       title: "Preflight — explain failure",
       description:
-        "Explain, in plain language for the agent, why the latest Preflight run failed and what to do next. Optionally focus on one check by name.",
-      inputSchema: { check: z.string().optional() },
+        "Explain, in plain language for the agent, why the latest Preflight run failed and what to do next. Optionally focus on one check by name, or pass an errorId (fingerprint from fixInstructions) to explain a single stored error.",
+      inputSchema: { check: z.string().optional(), errorId: z.string().optional() },
     },
-    safe("preflight_explain_failure", async ({ check }: { check?: string }) => {
+    safe("preflight_explain_failure", async ({ check, errorId }: { check?: string; errorId?: string }) => {
+      if (errorId) {
+        const found = await preflight.findErrorByFingerprint(REPO_ID, errorId);
+        if (!found) return text(`No stored error with id "${errorId}". Ids come from fixInstructions[].id.`);
+        const e = found.error;
+        return text(
+          `Error ${errorId} (${e.category ?? "unknown"} · check: ${e.checkName} · blocking priority: ${e.priority ?? "?"})\n` +
+            `File: ${e.file || "(none)"}${e.line ? `:${e.line}` : ""}\n` +
+            `Problem: ${e.message}\n` +
+            (e.rawRedacted ? `Raw output: ${e.rawRedacted}\n` : "") +
+            `\n${e.instructionForAgent ?? "Fix the problem above, then run preflight_run again."}`,
+        );
+      }
       const run = await preflight.getLatestRun(REPO_ID, preflight.getBranch(REPO_PATH));
       if (!run) return text('No Preflight run yet. Call "preflight_run" first.');
       if (run.status === "pass") return text("The last Preflight run passed — safe to commit.");

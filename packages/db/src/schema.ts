@@ -458,8 +458,8 @@ export const agentRuns = pgTable("agent_runs", {
 });
 
 // ─────────────────────────── preflight ───────────────────────────
-export const preflightStatus = pgEnum("preflight_status", ["pass", "fail"]);
-export const preflightCheckStatus = pgEnum("preflight_check_status", ["pass", "fail", "skipped"]);
+export const preflightStatus = pgEnum("preflight_status", ["pass", "fail", "partial", "error"]);
+export const preflightCheckStatus = pgEnum("preflight_check_status", ["pass", "fail", "skipped", "error"]);
 
 /** One preflight invocation (one agent call / one gate run). */
 export const preflightRuns = pgTable("preflight_runs", {
@@ -467,9 +467,13 @@ export const preflightRuns = pgTable("preflight_runs", {
   repoId: uuid("repo_id").references(() => repos.id, { onDelete: "cascade" }),
   branch: text("branch"),
   commitSha: text("commit_sha"),
+  mode: text("mode").notNull().default("full"),
   status: preflightStatus("status").notNull(),
   safeToCommit: boolean("safe_to_commit").notNull().default(false),
+  safeToPush: boolean("safe_to_push").notNull().default(false),
   summary: text("summary").notNull().default(""),
+  agentInstruction: text("agent_instruction").notNull().default(""),
+  attemptId: text("attempt_id"),
   attempt: integer("attempt").notNull().default(1),
   maxAttempts: integer("max_attempts").notNull().default(5),
   humanReviewRequired: boolean("human_review_required").notNull().default(false),
@@ -483,8 +487,11 @@ export const preflightChecks = pgTable("preflight_checks", {
   name: text("name").notNull(),
   status: preflightCheckStatus("status").notNull(),
   command: text("command").notNull().default(""),
+  blocking: boolean("blocking").notNull().default(false),
   durationMs: integer("duration_ms").notNull().default(0),
   skippedReason: text("skipped_reason"),
+  stdoutSummary: text("stdout_summary"),
+  stderrSummary: text("stderr_summary"),
 });
 
 export const preflightErrors = pgTable("preflight_errors", {
@@ -494,7 +501,10 @@ export const preflightErrors = pgTable("preflight_errors", {
   file: text("file").notNull().default(""),
   line: integer("line"),
   code: text("code"),
+  category: text("category"),
+  fingerprint: text("fingerprint"),
   message: text("message").notNull(),
+  rawRedacted: text("raw_redacted"),
   priority: text("priority"),
   instructionForAgent: text("instruction_for_agent"),
   evidence: text("evidence"),
@@ -506,8 +516,13 @@ export const preflightAttempts = pgTable("preflight_attempts", {
   repoId: uuid("repo_id").references(() => repos.id, { onDelete: "cascade" }),
   runId: uuid("run_id").notNull().references(() => preflightRuns.id, { onDelete: "cascade" }),
   branch: text("branch"),
+  attemptId: text("attempt_id"),
   attempt: integer("attempt").notNull().default(1),
   signature: text("signature").notNull().default(""),
+  changedFiles: jsonb("changed_files").notNull().default(sql`'[]'::jsonb`),
+  repeatedFailure: boolean("repeated_failure").notNull().default(false),
+  unrelatedChangesDetected: boolean("unrelated_changes_detected").notNull().default(false),
+  humanReviewRequired: boolean("human_review_required").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 

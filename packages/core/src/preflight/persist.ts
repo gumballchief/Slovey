@@ -40,6 +40,24 @@ export async function getRunDetail(runId: string) {
   return { run, checks, errors, violations };
 }
 
+/** Find one stored error by its fingerprint (for `preflight explain <errorId>`). */
+export async function findErrorByFingerprint(repoId: string, fp: string) {
+  const db = getDb();
+  const rows = await db
+    .select({
+      error: preflightErrors,
+      runId: preflightRuns.id,
+      branch: preflightRuns.branch,
+      createdAt: preflightRuns.createdAt,
+    })
+    .from(preflightErrors)
+    .innerJoin(preflightRuns, eq(preflightErrors.runId, preflightRuns.id))
+    .where(and(eq(preflightRuns.repoId, repoId), eq(preflightErrors.fingerprint, fp)))
+    .orderBy(desc(preflightRuns.createdAt))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
 /** Recent runs for a repo (dashboard list). */
 export async function listRuns(repoId: string, limit = 20) {
   const db = getDb();
@@ -51,9 +69,10 @@ export async function persistRun(input: {
   result: PreflightResult;
   checks: CheckResult[];
   signature: string;
+  changedFiles: string[];
 }): Promise<string> {
   const db = getDb();
-  const { repoId, result, checks, signature } = input;
+  const { repoId, result, checks, signature, changedFiles } = input;
 
   const [run] = await db
     .insert(preflightRuns)
@@ -61,11 +80,15 @@ export async function persistRun(input: {
       repoId,
       branch: result.branch,
       commitSha: result.commitSha,
+      mode: result.mode,
       status: result.status,
       safeToCommit: result.safeToCommit,
+      safeToPush: result.safeToPush,
       summary: result.summary,
-      attempt: result.attempt,
-      maxAttempts: result.maxAttempts,
+      agentInstruction: result.agentInstruction,
+      attemptId: result.attempt.attemptId,
+      attempt: result.attempt.attemptNumber,
+      maxAttempts: result.attempt.maxAttempts,
       humanReviewRequired: result.humanReviewRequired,
       durationMs: checks.reduce((s, c) => s + c.durationMs, 0),
     })
@@ -79,22 +102,35 @@ export async function persistRun(input: {
         name: c.name,
         status: c.status,
         command: c.command,
+        blocking: c.blocking,
         durationMs: c.durationMs,
         skippedReason: c.skippedReason ?? null,
+        stdoutSummary: c.stdoutSummary ?? null,
+        stderrSummary: c.stderrSummary ?? null,
       })),
     );
   }
+  // One row per fix instruction, joined back to its parsed error where possible.
   if (result.fixInstructions.length) {
+    const errorsByFp = new Map(result.checks.flatMap((c) => c.errors.map((e) => [e.id ?? "", e] as const)));
     await db.insert(preflightErrors).values(
-      result.fixInstructions.map((f) => ({
-        runId,
-        checkName: f.evidence.split(" · ")[0] ?? "check",
-        file: f.file,
-        message: f.problem,
-        priority: f.priority,
-        instructionForAgent: f.instructionForAgent,
-        evidence: f.evidence,
-      })),
+      result.fixInstructions.map((f) => {
+        const e = errorsByFp.get(f.id);
+        return {
+          runId,
+          checkName: f.checkId ?? f.evidence.split(" · ")[0] ?? "check",
+          file: f.file,
+          line: e?.line ?? null,
+          code: e?.code ?? null,
+          category: e?.category ?? null,
+          fingerprint: f.id,
+          message: f.problem,
+          rawRedacted: e?.raw ?? null,
+          priority: f.priority,
+          instructionForAgent: f.instructionForAgent,
+          evidence: f.evidence,
+        };
+      }),
     );
   }
   if (result.decisionViolations.length) {
@@ -114,8 +150,13 @@ export async function persistRun(input: {
     repoId,
     runId,
     branch: result.branch,
-    attempt: result.attempt,
+    attemptId: result.attempt.attemptId,
+    attempt: result.attempt.attemptNumber,
     signature,
+    changedFiles,
+    repeatedFailure: result.attempt.repeatedFailure,
+    unrelatedChangesDetected: result.attempt.unrelatedChangesDetected,
+    humanReviewRequired: result.humanReviewRequired,
   });
   return runId;
 }

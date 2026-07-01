@@ -90,6 +90,7 @@ function toViolation(d: CatalogEntry, violation: string, confidence: number): De
   return {
     decisionId: d.id,
     title: d.title,
+    decisionStatus: d.status,
     violation,
     confidence,
     evidence: d.evidence,

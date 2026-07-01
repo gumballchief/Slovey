@@ -1,118 +1,223 @@
-# Preflight — the agent-gating check system
+# Preflight — AI supervising AI
 
-Preflight is the gate an AI coding agent runs **after writing code and before
-committing** (or marking a task done). It runs the project's real checks, checks
-the diff against the Engineering Decision Graph, and returns **exact, agent-directed
-fix instructions** — then the agent fixes and re-runs until it's clean.
+Preflight is the guardrail between AI-generated code and your repository. An AI
+coding agent runs it **after writing code and before committing** (and again
+before pushing): it runs the project's real checks, checks the diff against the
+Engineering Decision Graph and your architecture rules, and returns **exact,
+agent-directed fix instructions**. The agent fixes, re-runs, and repeats until
+`safeToCommit: true` — or Preflight tells it to stop and ask a human.
 
 ```
-agent writes code → preflight_run → checks + decision graph
-   → fail? return fix instructions → agent fixes → preflight_run → …
-   → pass → "safe to commit"
+agent writes code → preflight_run → checks + decisions + architecture
+   → fail? exact fixInstructions → agent fixes → preflight_run → …
+   → pass → "safe to commit" | max attempts → "human review required"
 ```
 
-## How Claude Code (or any agent) uses it
+It also works **before** coding: `mode: "planning"` returns the decisions and
+rules that govern the repo, so the agent doesn't reintroduce something the team
+already rejected.
 
-The MCP server exposes five tools:
+## Setup — Claude Code (MCP)
 
-| Tool | When to call | Returns |
-|---|---|---|
-| `preflight_run` | after writing code, before committing | full structured JSON (status, checks, fixInstructions, decisionViolations) |
-| `preflight_validate_commit` | the final gate before committing / finishing | `safeToCommit` + `agentGuidance` |
-| `preflight_fix_instructions` | to see what to change | prioritized fix instructions + decision violations |
-| `preflight_status` | to check the last result without re-running | pass/fail, attempt, humanReviewRequired |
-| `preflight_explain_failure` | to understand a failure | plain-language explanation for the agent |
-
-**Agent loop:** call `preflight_run` → if `safeToCommit` is false, apply every
-`instructionForAgent`, then call `preflight_run` again → repeat until it passes or
-it reports `humanReviewRequired` (stop and ask a human).
-
-## Result schema (returned to the agent)
-
-```jsonc
-{
-  "status": "pass" | "fail",
-  "safeToCommit": true,
-  "summary": "…",
-  "checks": [{ "name": "typecheck", "status": "pass|fail|skipped", "command": "…", "durationMs": 0, "errors": [] }],
-  "fixInstructions": [{ "priority": "critical|high|medium|low", "file": "…", "problem": "…", "instructionForAgent": "Agent, fix this before continuing. …", "evidence": "…" }],
-  "decisionViolations": [{ "decisionId": "…", "title": "…", "violation": "…", "instructionForAgent": "Agent, do not commit. …", "confidence": 0.0, "evidence": [] }],
-  // loop safety
-  "attempt": 1, "maxAttempts": 5, "humanReviewRequired": false, "agentGuidance": "…", "branch": "…", "commitSha": "…", "runId": "…"
-}
-```
-
-## Checks
-
-- **Command-based** (auto-detected from `package.json`, or from config `commands`): `typecheck`, `lint`, `test`, `build`, `format`. Missing scripts are **skipped** with a reason, never failed.
-- **Static:** `secret-scan` (hardcoded secrets in changed files), `env-check` (`process.env.X` not documented in `.env.example`), `route-check` (Next route handlers export a valid method), `deps` (lockfile present, `package.json` valid).
-- **`decision-check`:** the diff vs the Decision Graph — active constraints, **rejected** approaches, deprecated/removed patterns, architecture rules, forbidden dependencies. Uses the AI judge, with a conservative keyword fallback for rejected decisions when AI is unavailable.
-
-Example decision violation:
-> Agent, do not commit. This reintroduces a REJECTED approach: "Redis was rejected in favor of the in-process CacheService." The diff imports `ioredis`. Replace it with the approved pattern, then run Preflight again.
-
-## Configuration — `companybrain.preflight.json`
+`.mcp.json` in the repo (or your client's MCP config):
 
 ```json
 {
-  "requiredChecks": ["typecheck", "lint", "test", "build", "decision-check"],
-  "maxAttempts": 5,
-  "blockCommitOnFailure": true,
-  "allowSkippedChecks": false,
-  "timeoutMs": 120000,
-  "commands": { "typecheck": "pnpm typecheck", "lint": "pnpm lint", "test": "pnpm test", "build": "pnpm build" }
+  "mcpServers": {
+    "company-brain": {
+      "command": "npx",
+      "args": ["-y", "tsx", "apps/mcp/src/index.ts"],
+      "env": {
+        "COMPANY_BRAIN_REPO": "owner/name",
+        "COMPANY_BRAIN_REPO_PATH": "/absolute/path/to/repo"
+      }
+    }
+  }
 }
 ```
 
-A required check that fails **or** is skipped (unless `allowSkippedChecks`) fails the gate.
+Add this to your agent's instructions (CLAUDE.md, Cursor rules, etc.):
+
+> Before committing or completing any coding task, call Company Brain
+> `preflight_run`. If `safeToCommit` is false, apply every `fixInstructions`
+> item and run preflight again — pass the same `attemptId` across the loop. Do
+> not commit until `safeToCommit` is true or `humanReviewRequired` is true (then
+> stop and ask a human). Before starting non-trivial work, call `preflight_run`
+> with `mode: "planning"`.
+
+**Cursor / Windsurf / Codex / Gemini CLI / Aider / Continue.dev:** any
+MCP-compatible client works the same way — register the same stdio server and
+add the same instruction to the agent's rules file. Non-MCP agents can shell out
+to the CLI (`companybrain preflight --json`) and read the identical JSON.
+
+## MCP tools
+
+| Tool | When | Returns |
+|---|---|---|
+| `preflight_run` | after coding, before commit/push; `mode:"planning"` before coding | the full result contract below |
+| `preflight_validate_commit` | final gate right before committing (runs `mode:"commit"`) | verdict + `agentInstruction` |
+| `preflight_fix_instructions` | to see what to change | prioritized fixes + decision violations |
+| `preflight_status` | last result without re-running | pass/fail, safeToCommit/Push, attempt |
+| `preflight_explain_failure` | understand a failure (`check` or `errorId`) | plain-language explanation |
+| `preflight_list_checks` | discover what runs here | each check: kind, required, command, availability |
+| `preflight_config` | inspect effective config | merged config + source |
+
+## Modes
+
+- **full** (default) / **push** — everything configured. Use before pushing.
+- **quick** — static checks + typecheck/lint only (no test/build/decision-check). Seconds, not minutes.
+- **commit** — quick + decision-check. What `preflight_validate_commit` and the pre-commit hook run.
+- **changed-files** — full, with file-scoped checks limited to an explicit `changedFiles` list.
+- **planning** — pre-code: no commands; returns `planning: { activeDecisions, rejectedApproaches, architectureRules, checksThatWillRun }`.
+
+## Result contract (what the agent reads)
+
+```jsonc
+{
+  "status": "pass" | "fail" | "partial" | "error", // partial = only optional checks failed
+  "safeToCommit": true, "safeToPush": true, "humanReviewRequired": false,
+  "summary": "…",
+  "agentInstruction": "Agent, do not commit yet. Fix these issues first. …",
+  "mode": "full",
+  "attempt": { "attemptId": "…", "attemptNumber": 2, "maxAttempts": 5, "remainingAttempts": 3,
+               "repeatedFailure": false, "unrelatedChangesDetected": false },
+  "project": { "workspacePath": "…", "projectType": "node", "packageManager": "pnpm", "detectedScripts": ["typecheck","test","build"] },
+  "checks": [{ "name": "typecheck", "status": "pass", "command": "pnpm typecheck", "blocking": true,
+               "durationMs": 0, "errors": [], "stdoutSummary": "…", "stderrSummary": "…" }],
+  "fixInstructions": [{ "id": "9212120e", "checkId": "typecheck", "priority": "high", "file": "…",
+                        "problem": "…", "instructionForAgent": "Agent, fix this before continuing. …", "evidence": "…" }],
+  "decisionViolations": [{ "decisionId": "…", "title": "…", "decisionStatus": "rejected", "violation": "…",
+                           "instructionForAgent": "Agent, do not commit. This reintroduces a REJECTED approach…",
+                           "confidence": 0.9, "evidence": ["ADR-17", "PR #296"] }],
+  "warnings": ["You changed unrelated files. Focus only on the listed failures."],
+  "nextSteps": ["Apply every fixInstructions item.", "Run preflight_run again."],
+  "branch": "main", "commitSha": "…", "runId": "…", "createdAt": "…"
+}
+```
+
+Errors carry a stable `id` (fingerprint) — pass it to
+`preflight_explain_failure` / `companybrain preflight explain <id>`.
+
+## Checks
+
+- **Command-based** (auto-detected from `package.json` by package manager —
+  pnpm/npm/yarn/bun — or overridden via config `commands`): `typecheck`, `lint`,
+  `test`, `build`, `format`. Missing scripts are **skipped with a reason**; a
+  skipped *required* check fails the gate unless `allowSkippedChecks`.
+- **Static:** `secret-scan` (skips `.env.example`-style templates),
+  `env-check`, `route-check`, `deps`.
+- **`architecture-check`** — deterministic, rule-based (no LLM), against changed
+  files only. Rules in config:
+  - `{ "type": "forbidden-import", "module": "ioredis", "in": "apps/web/**", "reason": "Redis was rejected — use CacheService." }`
+  - `{ "type": "forbidden-content", "pattern": "db\\.query\\(", "in": "**/*.tsx", "reason": "UI must not access the DB directly." }`
+  - `{ "type": "forbidden-path", "glob": "legacy/**", "reason": "legacy/ was removed; do not reintroduce." }`
+- **`decision-check`** — the diff vs the Decision Graph: active constraints and
+  **rejected/deprecated** approaches, with confidence. Only violations at/above
+  `decisionChecks.minimumBlockingConfidence` (default 0.85) block; lower ones
+  surface as warnings. AI judge with a conservative keyword fallback.
+
+Example violation:
+> Agent, do not commit. This reintroduces a REJECTED approach: "Redis was
+> rejected in favor of CacheService" — the diff imports `ioredis` in
+> `src/billing/cache.ts`. Replace it with the approved pattern, then run
+> Preflight again.
+
+## Configuration — `companybrain.preflight.json`
+
+Generate a starter: `companybrain preflight init`
+
+```json
+{
+  "requiredChecks": ["typecheck", "lint", "test", "build", "decision-check", "architecture-check"],
+  "optionalChecks": ["secret-scan", "format", "env-check", "route-check", "deps"],
+  "maxAttempts": 5,
+  "blockCommitOnFailure": true,
+  "blockPushOnFailure": true,
+  "allowSkippedChecks": false,
+  "timeoutMs": 120000,
+  "commands": { "typecheck": "pnpm typecheck", "test": "pnpm test", "build": "pnpm build" },
+  "allowlistedCommands": [],
+  "decisionChecks": { "enabled": true, "blockOnHighConfidence": true, "minimumBlockingConfidence": 0.85 },
+  "architectureChecks": { "enabled": true, "rules": [] },
+  "secretScan": { "enabled": true }
+}
+```
 
 ## CLI
 
 ```
-companybrain preflight                 human-readable report
-companybrain preflight --json          machine JSON (agents / CI)
-companybrain preflight --fix-agent     agent-directed fix instructions only
-companybrain preflight --check-only    static + command checks, skip decision graph
+companybrain preflight                    full gate, human-readable
+companybrain preflight --json             machine JSON (agents / CI)
+companybrain preflight --fix-agent        agent-directed fixes only
+companybrain preflight --mode quick       fast gate (also: commit|push|changed-files|planning)
+companybrain preflight --check-only       skip decision-graph
 companybrain preflight --max-attempts 5
-companybrain preflight --install-hooks install pre-commit + pre-push git hooks
+companybrain preflight init               write starter config
+companybrain preflight status             latest run, no re-run
+companybrain preflight explain <errorId>  explain one stored error
+companybrain preflight --install-hooks    pre-commit (mode: commit) + pre-push (full)
+companybrain preflight --uninstall-hooks  remove Company Brain hooks only
 ```
 
-Exit code `0` if safe to commit, else `1`.
+Exit code `0` if safe to commit, else `1` (CI-friendly).
 
 ## Git hooks
 
-`companybrain preflight --install-hooks` writes `.git/hooks/pre-commit` (runs
-`--check-only`) and `.git/hooks/pre-push` (full gate). Hooks are **not** installed
-automatically. If the `companybrain` CLI isn't on PATH, the hooks skip gracefully.
+Never installed automatically. `--install-hooks` writes `pre-commit`
+(`--mode commit`, fast) and `pre-push` (full gate). `--uninstall-hooks` removes
+only hooks carrying the Company Brain marker. If the CLI isn't on PATH, hooks
+skip gracefully with a notice.
 
 ## Loop safety
 
-- `maxAttempts` (default 5): after that many consecutive failing attempts on a branch, Preflight returns **human review required** and tells the agent to stop.
-- Repeated failures (same error signature across attempts) are detected → "This still fails — the previous fix did not resolve the issue."
-- Attempt lineage is persisted in `preflight_attempts`.
+- `maxAttempts` (default 5) counts consecutive failing runs per branch; the
+  counter resets after a pass. At the cap: `humanReviewRequired: true` →
+  "Stop. Human review is required."
+- **Repeated failure** (same error-fingerprint signature): "This is still
+  failing — the previous attempt did not resolve the issue."
+- **Unrelated changes**: new changed files that no failure references → "You
+  changed unrelated files. Focus only on the listed failures."
+- **Fix regression**: old failures gone but new ones introduced → flagged.
+- Full lineage persists in `preflight_attempts`.
 
 ## Security
 
-- Only allowlisted binaries run (`npm/pnpm/yarn/bun/npx/node/tsx/tsc/eslint/biome/prettier/vitest/jest/next`); everything else is refused.
-- Commands are validated against shell metacharacters and run **without a shell** (except a validated shell on Windows for `.cmd` shims) — no command injection.
-- Per-check timeout kills runaway processes; output is capped and **secrets are redacted** from all captured output and stored logs.
+- Commands never come from MCP input. Sources: repo config, detected
+  package.json scripts, safe defaults. Base-binary allowlist
+  (`npm/pnpm/yarn/bun/npx/node/tsx/tsc/eslint/biome/prettier/vitest/jest/next`);
+  a repo config may allowlist additional **exact** full commands.
+- Every command is rejected if it contains shell metacharacters, runs without
+  shell interpolation (validated shell on Windows for `.cmd` shims), inside the
+  repo root, with a hard timeout that kills the **whole process tree**.
+- Output is capped and **secrets are redacted** (keys, tokens, connection
+  strings, JWTs, private-key blocks) before storage or display.
 
 ## Persistence & dashboard
 
 Runs persist to `preflight_runs / preflight_checks / preflight_errors /
-preflight_attempts / preflight_decision_violations`. The dashboard at
-**`/app/preflight`** shows recent runs, checks, files with errors, decision
-violations, repeated failures, and safe-to-commit status.
+preflight_attempts / preflight_decision_violations`. **`/app/preflight`** shows
+recent runs, checks, files with errors, decision violations, and
+safe-to-commit status.
 
-## Setup
+## Troubleshooting
 
-1. Apply the DB migration: `pnpm db:migrate` (creates the 5 preflight tables).
-2. Point the MCP server at the local repo via `COMPANY_BRAIN_REPO` (owner/name) and, if not launched from the repo root, `COMPANY_BRAIN_REPO_PATH`.
-3. (Optional) add `companybrain.preflight.json`; (optional) `companybrain preflight --install-hooks`.
+- **"No Preflight run yet"** — the repo isn't connected (no `repoId`); status
+  and stored errors need a connected repo. `preflight_run` itself still works.
+- **Everything AI-powered fails with 429** — the AI provider quota is exhausted
+  (decision-check falls back to keyword-only and says so).
+- **`build` says "Another next build process is already running"** — a dev
+  server or stale build holds `.next/lock`; stop it or delete `.next/lock`.
+- **A required check is "skipped" and the gate fails** — add the script to
+  package.json, map it in config `commands`, or set `allowSkippedChecks: true`.
 
 ## Limitations (current)
 
-- Local repositories + Claude Code MCP only — no cloud orchestration.
-- Error parsers are strongest for `tsc` and ESLint; other tools fall back to a captured-output tail.
-- `decision-check` needs a connected repo (repoId) + AI/DB; without them it's skipped or runs keyword-only.
-- The agent loop is driven by the agent re-calling the tool; Preflight tracks state but does not itself re-invoke the agent.
+- Local repositories + MCP/CLI only — no CI/GitHub-Actions orchestration yet
+  (extension points exist; the CLI's exit code works in CI today).
+- Error parsers are strongest for tsc/ESLint/vitest/jest/Next; unknown tools
+  fall back to a raw-output tail, category `unknown`.
+- `decision-check` needs a connected repo + AI/DB.
+- Architecture checks are config-rule-based; they don't yet derive rules from
+  the Decision Graph automatically.
+- The loop is agent-driven: Preflight tracks state and instructs, but does not
+  itself re-invoke the agent.
