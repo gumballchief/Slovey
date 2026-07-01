@@ -159,7 +159,9 @@ export default function LoginPage() {
         </div>
 
         <p className="mt-6 text-center text-xs text-white/35">
-          By continuing you agree to the Terms and Privacy Policy.
+          By continuing you agree to the{" "}
+          <a href="/terms" className="text-white/60 underline hover:text-white">Terms</a> and{" "}
+          <a href="/privacy" className="text-white/60 underline hover:text-white">Privacy Policy</a>.
         </p>
       </div>
     </div>
