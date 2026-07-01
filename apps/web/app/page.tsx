@@ -1,4 +1,5 @@
 import { PublicNav } from "@/components/layout/PublicNav";
+import { AuthButton } from "@/components/auth/AuthButton";
 import { Reveal } from "@/components/ui/Reveal";
 import { ArrowRight, ArrowUpRight, Check, Quote, GitPullRequest } from "lucide-react";
 
@@ -49,13 +50,10 @@ export default function LandingPage() {
           </Reveal>
 
           <Reveal delay={180} className="mt-9 flex flex-col gap-3 sm:flex-row">
-            <a
-              href="/app"
-              className="btn-mesh group inline-flex items-center justify-center gap-2 rounded-full px-6 py-3.5 font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
-            >
-              Connect a repo
+            <AuthButton className="btn-mesh group inline-flex cursor-pointer items-center justify-center gap-2 rounded-full px-6 py-3.5 font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]">
+              Get started — free
               <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" />
-            </a>
+            </AuthButton>
             <a
               href="/demo"
               className="inline-flex items-center justify-center gap-2 rounded-full border border-white/15 px-6 py-3.5 font-medium text-white backdrop-blur-sm transition-colors hover:border-white/35 hover:bg-white/5"
@@ -182,10 +180,10 @@ export default function LandingPage() {
             from re-learning a lesson the hard way.
           </p>
           <div className="mt-10 flex flex-col justify-center gap-3 sm:flex-row">
-            <a href="/app" className="btn-mesh group inline-flex items-center justify-center gap-2 rounded-full px-7 py-4 font-semibold">
-              Connect a repo
+            <AuthButton className="btn-mesh group inline-flex cursor-pointer items-center justify-center gap-2 rounded-full px-7 py-4 font-semibold">
+              Get started — free
               <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" />
-            </a>
+            </AuthButton>
             <a href="/demo" className="inline-flex items-center justify-center gap-2 rounded-full border border-white/15 px-7 py-4 font-medium text-white transition-colors hover:border-white/35 hover:bg-white/5">
               See a demo workspace
             </a>

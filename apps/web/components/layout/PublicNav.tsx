@@ -2,6 +2,7 @@
 
 import { Brain } from "lucide-react";
 import { useState, useEffect } from "react";
+import { AuthButton } from "@/components/auth/AuthButton";
 
 export function PublicNav() {
   const [isDark, setIsDark] = useState(false);
@@ -37,7 +38,7 @@ export function PublicNav() {
       <div className="max-w-7xl mx-auto px-5 sm:px-8 flex items-center h-14 gap-6">
         <a href="/" className="flex items-center gap-2.5 shrink-0" aria-label="Company Brain home">
           <div className="w-7 h-7 rounded-lg bg-[var(--primary)] flex items-center justify-center">
-            <Brain size={15} className="text-white" />
+            <Brain size={15} className="text-[var(--on-primary)]" />
           </div>
           <span
             className={`font-display font-semibold tracking-[-0.02em] text-sm transition-colors ${
@@ -89,16 +90,24 @@ export function PublicNav() {
               )}
             </svg>
           </button>
-          <a
-            href="/app"
-            className={`label-mono px-4 py-1.5 rounded-lg transition-colors ${
+          <AuthButton
+            className={`label-mono px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
               onHero
-                ? "bg-white text-[#0A0F1C] hover:bg-white/90"
+                ? "text-white/70 hover:text-white hover:bg-white/10"
+                : "text-[var(--text-muted)] hover:text-[var(--cb-text)] hover:bg-[var(--bg-subtle)]"
+            }`}
+          >
+            Sign in
+          </AuthButton>
+          <AuthButton
+            className={`label-mono px-4 py-1.5 rounded-lg transition-colors cursor-pointer ${
+              onHero
+                ? "bg-white text-[#04101E] hover:bg-white/90"
                 : "bg-[var(--primary)] text-[var(--on-primary)] hover:bg-[var(--primary-hover)]"
             }`}
           >
-            Open App
-          </a>
+            Get started
+          </AuthButton>
         </div>
       </div>
     </nav>
