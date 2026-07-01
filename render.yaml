@@ -25,6 +25,10 @@ services:
     autoDeploy: true
     envVars:
       - fromGroup: company-brain
+      # tsx transpiles at runtime; cap V8 heap so RSS stays under the 512MB
+      # Starter limit and GC kicks in before the container is OOM-killed.
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=400
 
 envVarGroups:
   - name: company-brain
