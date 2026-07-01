@@ -45,14 +45,14 @@ export function TopBar({ title, isDark, onMenuOpen }: TopBarProps) {
       <div className="flex-1 flex justify-center sm:justify-end">
         <button
           onClick={() => setPaletteOpen(true)}
-          className="group flex items-center gap-2.5 w-full max-w-sm px-3 py-1.5 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border)] hover:border-[var(--primary)]/50 transition-colors cursor-pointer"
+          className="group flex w-full max-w-sm cursor-pointer items-center gap-2.5 rounded-full border border-[var(--border)] bg-[var(--bg-subtle)] px-3.5 py-2 transition-colors hover:border-[var(--primary)]/50 hover:bg-[var(--surface)]"
           aria-label="Open command palette"
         >
-          <Search size={14} className="text-[var(--text-muted)]" />
-          <span className="font-mono text-xs text-[var(--text-muted)] flex-1 text-left">
+          <Search size={14} className="text-[var(--text-muted)] transition-colors group-hover:text-[var(--primary)]" />
+          <span className="flex-1 text-left font-mono text-xs text-[var(--text-muted)]">
             Search decisions, PRs…
           </span>
-          <kbd className="font-mono text-[10px] text-[var(--text-muted)] bg-[var(--surface)] border border-[var(--border)] rounded px-1.5 py-0.5">
+          <kbd className="rounded border border-[var(--border)] bg-[var(--surface)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--text-muted)]">
             ⌘K
           </kbd>
         </button>
