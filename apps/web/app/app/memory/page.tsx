@@ -217,7 +217,7 @@ export default function MemoryPage() {
                 onClick={() => setSourceFilter(s)}
                 className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors cursor-pointer ${
                   sourceFilter === s
-                    ? "bg-[var(--primary)] text-white"
+                    ? "bg-[var(--primary)] text-[var(--on-primary)]"
                     : "bg-[var(--bg-subtle)] text-[var(--text-muted)] hover:text-[var(--cb-text)] border border-[var(--border)]"
                 }`}
               >

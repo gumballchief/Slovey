@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
-import { Space_Grotesk, Inter, JetBrains_Mono } from "next/font/google";
+import { Plus_Jakarta_Sans, Inter, JetBrains_Mono } from "next/font/google";
 import { cookies } from "next/headers";
 import Script from "next/script";
 import "./globals.css";
 
-// Display — h1/h2 and big numbers only
-const spaceGrotesk = Space_Grotesk({
+// Display — h1/h2 and big numbers. Plus Jakarta Sans: friendly geometric,
+// the Sui-adjacent character face.
+const plusJakarta = Plus_Jakarta_Sans({
   variable: "--font-display",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: ["400", "500", "600", "700", "800"],
 });
 
 // Body
@@ -43,7 +44,7 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
-      className={`${spaceGrotesk.variable} ${inter.variable} ${jetbrainsMono.variable} h-full${isDark ? " dark" : ""}`}
+      className={`${plusJakarta.variable} ${inter.variable} ${jetbrainsMono.variable} h-full${isDark ? " dark" : ""}`}
       suppressHydrationWarning
     >
       <body className="min-h-full bg-[var(--bg)] text-[var(--cb-text)] font-body antialiased">

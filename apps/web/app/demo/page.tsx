@@ -222,7 +222,7 @@ export default function DemoPage() {
           </p>
           <a
             href="/app"
-            className="inline-flex items-center gap-2 bg-[var(--primary)] text-white font-medium px-6 py-3 rounded-xl hover:bg-[var(--primary-hover)] transition-colors text-sm"
+            className="inline-flex items-center gap-2 bg-[var(--primary)] text-[var(--on-primary)] font-medium px-6 py-3 rounded-xl hover:bg-[var(--primary-hover)] transition-colors text-sm"
           >
             Open App →
           </a>
