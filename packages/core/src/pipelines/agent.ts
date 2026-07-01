@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { getAI } from "../ai";
 import { getInstallationOctokit } from "../github";
 import { commitFilesToNewBranch, getFileContent, openPullRequest } from "../github/write";
+import { checkPr } from "./check";
 import { retrieveDecisions, type RetrievedDecision } from "./retrieve";
 
 export interface AgentParams {
@@ -24,6 +25,9 @@ export interface AgentResult {
   path: string;
   isNew: boolean;
   decisionsUsed: number;
+  /** Result of the agent self-reviewing its own PR (undefined if review failed). */
+  verdict?: string;
+  reviewPosted: boolean;
 }
 
 interface Plan {
@@ -167,6 +171,27 @@ Output the COMPLETE new contents of ${plan.path} and NOTHING else — no prose, 
     body,
   });
 
+  // 4. Self-review. GitHub does NOT deliver a webhook to the same App that
+  // opened the PR, so trigger the memory check directly rather than relying on
+  // the webhook. The PR is already open, so a review failure is non-fatal.
+  let verdict: string | undefined;
+  let reviewPosted = false;
+  try {
+    const review = await checkPr({
+      repoId,
+      installationId,
+      owner,
+      name,
+      fullName,
+      prNumber: pr.number,
+      action: "opened",
+    });
+    verdict = review.verdict;
+    reviewPosted = review.posted;
+  } catch {
+    /* PR is open; self-review is best-effort */
+  }
+
   return {
     branch,
     prNumber: pr.number,
@@ -175,5 +200,7 @@ Output the COMPLETE new contents of ${plan.path} and NOTHING else — no prose, 
     path: plan.path,
     isNew: !!plan.isNew,
     decisionsUsed: decisions.length,
+    verdict,
+    reviewPosted,
   };
 }
