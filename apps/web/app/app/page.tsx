@@ -7,7 +7,6 @@ import { fetchDecisions, fetchPRs } from "@/lib/api-client";
 import { Stat } from "@/components/ui/Stat";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { VerdictPill } from "@/components/ui/VerdictPill";
-import { CorePoster } from "@/components/core/MemoryCore";
 import { Brain, GitPullRequest, AlertTriangle, Clock } from "lucide-react";
 import { formatRelativeTime } from "@/lib/utils";
 import {
@@ -47,18 +46,22 @@ export default function OverviewPage() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
-      {/* Header band — ambient Core motif (calm, static) */}
-      <div className="relative overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-6 py-5">
-        <div className="absolute -right-8 -top-10 w-48 h-48 opacity-30 pointer-events-none hidden sm:block">
-          <CorePoster />
-        </div>
+      {/* Header band — clean Sui accent */}
+      <div className="relative overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-6 py-6">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full opacity-70 blur-3xl"
+          style={{ background: "radial-gradient(circle, rgba(77,162,255,0.16), transparent 70%)" }}
+        />
         <div className="relative">
-          <span className="label-mono text-[var(--primary)]">{repo.name} · synced</span>
-          <h2 className="font-display text-2xl font-semibold tracking-[-0.02em] text-[var(--cb-text)] mt-1">
+          <span className="label-mono flex items-center gap-2 text-[var(--primary-strong)]">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> {repo.name} · synced
+          </span>
+          <h2 className="mt-2 font-display text-[1.7rem] font-semibold tracking-[-0.02em] text-[var(--cb-text)]">
             {repo.decisionsCount} decisions in memory
           </h2>
-          <p className="text-sm text-[var(--text-muted)] mt-1 max-w-md">
-            Company Brain is watching this repo. Recent activity and caught conflicts below.
+          <p className="mt-1 max-w-md text-sm leading-relaxed text-[var(--text-muted)]">
+            Company Brain is watching this repo — recent activity and caught conflicts below.
           </p>
         </div>
       </div>
