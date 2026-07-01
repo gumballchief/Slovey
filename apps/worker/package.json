@@ -9,6 +9,7 @@
     "check": "tsx src/preflight.ts",
     "sync": "tsx src/sync-installs.ts",
     "index-repo": "tsx src/index-repo.ts",
+    "agent": "tsx src/agent.ts",
     "check-pr": "tsx src/trigger-check.ts",
     "seed": "tsx src/seed.ts",
     "eval": "tsx src/eval.ts",
