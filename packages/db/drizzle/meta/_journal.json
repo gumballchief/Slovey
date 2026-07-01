@@ -64,6 +64,13 @@
       "when": 1782916366467,
       "tag": "0008_marvelous_the_hood",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1782935274034,
+      "tag": "0009_wise_mastermind",
+      "breakpoints": true
     }
   ]
 }

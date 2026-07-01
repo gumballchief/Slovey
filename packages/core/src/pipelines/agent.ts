@@ -45,6 +45,19 @@ function stripFence(s: string): string {
   return `${(m?.[1] ?? t).trim()}\n`;
 }
 
+/** Parse the plan JSON out of the model's reply, tolerating fences/prose. */
+function parsePlan(raw: string): Plan | null {
+  for (const candidate of [stripFence(raw), raw.match(/\{[\s\S]*\}/)?.[0]]) {
+    if (!candidate) continue;
+    try {
+      return JSON.parse(candidate) as Plan;
+    } catch {
+      /* try next */
+    }
+  }
+  return null;
+}
+
 function slugify(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "task";
 }
@@ -96,8 +109,11 @@ export async function runAgentTask(params: AgentParams): Promise<AgentResult> {
   ]);
   const constraints = decisionsBlock(decisions);
 
-  // 1. PLAN — choose one file to create or modify.
-  const plan = await getAI().completeJSON<Plan>(
+  // 1. PLAN — choose one file to create or modify. Uses complete() (not
+  // completeJSON, which swallows provider errors into null) so a real failure —
+  // e.g. "Gemini 429: quota exceeded" — surfaces verbatim in the run's error
+  // instead of a misleading "no target file chosen".
+  const planRaw = await getAI().complete(
     `You are a senior engineer planning a SMALL, single-file change to the repository "${fullName}".
 
 Repository architecture:
@@ -111,7 +127,8 @@ Task: ${intent}
 Choose exactly ONE file to create or modify. Prefer creating a new, self-contained file when reasonable. Respond ONLY as JSON: {"path":"relative/path/from/repo/root","isNew":true|false,"reason":"one sentence"}`,
     { tier: "premium", maxTokens: 400 },
   );
-  if (!plan?.path) throw new Error("agent: planning failed (no target file chosen)");
+  const plan = parsePlan(planRaw);
+  if (!plan?.path) throw new Error(`agent: planning returned no usable file target (raw: ${planRaw.slice(0, 160)})`);
   if (PROTECTED_PATH.test(plan.path)) throw new Error(`agent: refusing to edit protected path: ${plan.path}`);
 
   const octokit = await getInstallationOctokit(installationId);

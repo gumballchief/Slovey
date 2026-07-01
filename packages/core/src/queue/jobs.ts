@@ -7,6 +7,7 @@ export const JOBS = {
   rescanPrs: "rescan_prs",
   refreshMemory: "refresh_memory",
   ingestConnector: "ingest_connector",
+  agentTask: "agent_task",
 } as const;
 
 export type JobName = (typeof JOBS)[keyof typeof JOBS];
@@ -54,6 +55,11 @@ export interface IngestConnectorJob {
   connectorId: string;
 }
 
+/** Execute a queued agent_runs row (created by the dashboard's task form). */
+export interface AgentTaskJob {
+  runId: string;
+}
+
 export interface JobPayloads {
   [JOBS.extract]: ExtractJob;
   [JOBS.checkPr]: CheckPrJob;
@@ -62,4 +68,5 @@ export interface JobPayloads {
   [JOBS.rescanPrs]: RescanPrsJob;
   [JOBS.refreshMemory]: RefreshMemoryJob;
   [JOBS.ingestConnector]: IngestConnectorJob;
+  [JOBS.agentTask]: AgentTaskJob;
 }
