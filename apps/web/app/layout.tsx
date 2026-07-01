@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
-import { Sora, Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
+import { Bricolage_Grotesque, Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
 import { cookies } from "next/headers";
 import Script from "next/script";
 import "./globals.css";
 
-// Display — Sora: a clean geometric sans with quiet character (Sui-adjacent).
-const sora = Sora({
+// Display — Bricolage Grotesque: a characterful, editorial grotesque. The face
+// with real personality that keeps the headlines from reading "default AI sans".
+const bricolage = Bricolage_Grotesque({
   variable: "--font-display",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: ["400", "500", "600", "700", "800"],
 });
 
 // Body — Hanken Grotesk: a warm, clean grotesk (deliberately not Inter/Roboto).
@@ -43,7 +44,7 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
-      className={`${sora.variable} ${hanken.variable} ${jetbrainsMono.variable} h-full${isDark ? " dark" : ""}`}
+      className={`${bricolage.variable} ${hanken.variable} ${jetbrainsMono.variable} h-full${isDark ? " dark" : ""}`}
       suppressHydrationWarning
     >
       <body className="min-h-full bg-[var(--bg)] text-[var(--cb-text)] font-body antialiased">
