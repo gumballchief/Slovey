@@ -1,79 +1,86 @@
 # Deploying Company Brain to Render
 
-Two always-on services (Next.js **web** + pg-boss **worker**) on Render, with
-**Neon** Postgres (pgvector) as the DB. The repo is container-ready
-(`Dockerfile.web`, `Dockerfile.worker`) and `render.yaml` wires both services +
-a shared env group. Total: ~$14/mo Render + Neon (free→~$10–20) + domain (~$1).
+Two always-on services — Next.js **web** + pg-boss **worker** — on Render, with
+**Supabase** providing Postgres (pgvector), Auth, and storage. The repo is
+container-ready (`Dockerfile.web`, `Dockerfile.worker`) and `render.yaml` wires
+both services + a shared env group. Cost: ~$14/mo Render + Supabase (free tier
+works to start) + domain (~$1).
+
+> Auth is **Supabase Auth** (GitHub, Google, email). The GitHub *App* (webhooks,
+> repo access, PR comments) is separate from the GitHub *OAuth provider* you
+> configured inside Supabase — don't confuse the two.
 
 ## 1. Push the repo to GitHub
-The repo is already committed locally on `main`. Create an **empty private repo**
-on github.com (no README/license), then:
+Already on `main` at `gumballchief/brain`. `.env` and `*.private-key.pem` are
+gitignored — they are never pushed.
 
-```bash
-cd "C:/Users/youso/Claude Code/company-brain"
-git remote add origin https://github.com/<you>/company-brain.git
-git push -u origin main
-```
-(`.env` and `github-app.private-key.pem` are gitignored — they will NOT be pushed.)
-
-## 2. Provision the production database (Neon)
-- You can reuse the existing Neon project, or create a fresh one for prod.
-- Copy its connection string (`...?sslmode=require`) — that's `DATABASE_URL`.
-- Apply migrations once from your machine:
+## 2. Database (Supabase)
+- Reuse the existing Supabase project (or a fresh one for prod).
+- `DATABASE_URL` = the **session pooler** string (port 5432, `?sslmode=require`).
+- Apply migrations once from your machine (skip if the project is already
+  migrated):
   ```bash
-  DATABASE_URL="<neon-url>" pnpm --filter @company-brain/db migrate
+  DATABASE_URL="<supabase-pooler-url>" pnpm --filter @company-brain/db migrate
   ```
 
 ## 3. Create the Render services (Blueprint)
-- Render dashboard → **New → Blueprint** → pick the GitHub repo → it reads
+- Render → **New → Blueprint** → pick `gumballchief/brain` → it reads
   `render.yaml` and creates `company-brain-web`, `company-brain-worker`, and the
   `company-brain` env group.
 - **Apply**, then open the env group and set every secret (`sync:false`):
 
 | Var | Value |
 |---|---|
-| `DATABASE_URL` | Neon connection string |
+| `DATABASE_URL` | Supabase session-pooler string (`?sslmode=require`) |
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://krrtszbhekhthsgpooat.supabase.co` |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/publishable key (public by design) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service-role key (**secret**, server-only) |
 | `GEMINI_API_KEY` | your Gemini key |
 | `GITHUB_APP_ID` | from the GitHub App settings |
-| `GITHUB_APP_PRIVATE_KEY` | the PEM, with literal `\n` for newlines (or paste multi-line) |
+| `GITHUB_APP_PRIVATE_KEY` | the PEM, with literal `\n` for newlines |
 | `GITHUB_WEBHOOK_SECRET` | the App's webhook secret |
-| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | the App's OAuth creds |
-| `NEXTAUTH_SECRET` | `openssl rand -base64 32` |
 | `TOKEN_ENCRYPTION_KEY` | `openssl rand -base64 32` (32 bytes) |
 
-Non-secrets (provider, models, cron, etc.) are already baked into `render.yaml`.
+Non-secrets (provider, models, cron) are baked into `render.yaml`. The
+`NEXT_PUBLIC_*` values are inlined into the client bundle at build time —
+`Dockerfile.web` declares them as build args so Render passes them through.
 
 ## 4. Set the public-URL vars
 After the first deploy, the web service has a URL like
-`https://company-brain-web.onrender.com`. Set on the **web** service:
-- `NEXTAUTH_URL` = that URL
-- `APP_BASE_URL` = that URL
+`https://company-brain-web.onrender.com`. On the **web** service set:
+- `APP_BASE_URL` = that URL (redeploy the web service so it takes effect).
 
-(Redeploy the web service so they take effect.)
+Then in **Supabase → Authentication → URL Configuration**:
+- **Site URL** = the same URL.
+- **Redirect URLs** → add `https://company-brain-web.onrender.com/auth/callback`.
+
+(GitHub/Google OAuth callbacks point at Supabase's fixed
+`https://<ref>.supabase.co/auth/v1/callback` and do **not** change per deploy.)
 
 ## 5. Point the GitHub App at the deployment
-In the GitHub App settings (github.com/settings/apps/<your-app>):
+In the GitHub App settings (github.com/settings/apps/company-brain):
 - **Webhook URL** → `https://company-brain-web.onrender.com/api/github/webhooks`
-- **Callback URL** (OAuth) → `https://company-brain-web.onrender.com/api/auth/callback/github`
+  (this replaces the dev smee tunnel).
 - Confirm the **Webhook secret** matches `GITHUB_WEBHOOK_SECRET`.
-
-This replaces the dev smee tunnel — PR checks and `/brain dismiss` now fire
-automatically via GitHub → Render, no localhost.
+- Ensure **Pull requests** is subscribed under events.
 
 ## 6. Verify
-- `https://…onrender.com/api/health` → `{ ok: true }`.
-- Sign in with GitHub on the dashboard.
-- Open a test PR → Company Brain comments; reply `/brain dismiss` → the warning
-  resolves (check the worker logs in Render).
+- `https://…onrender.com/api/health` → `{ status: "ok", db: "ok" }`.
+- Sign in on the dashboard (GitHub / Google / email).
+- Open a PR on an allowlisted repo → Company Brain comments; the same result
+  appears under `/pull-requests`. Reply `/brain dismiss` → the warning resolves
+  (watch the worker logs in Render).
 
 ## 7. (Optional) Custom domain
-Web service → **Settings → Custom Domains** → add your domain → set the CNAME at
-your registrar (TLS is automatic). Then update `NEXTAUTH_URL`, `APP_BASE_URL`,
-and the two GitHub App URLs to the custom domain.
+Web service → **Settings → Custom Domains** → add your domain → set the CNAME
+(TLS is automatic). Then update `APP_BASE_URL`, the Supabase Site URL/redirects,
+and the GitHub App webhook URL to the custom domain.
 
 ## Notes
-- Keep **both** services on the Starter plan: the worker must stay up for the
-  queue + rescan/refresh cron, and the web receives webhooks where a free-tier
-  cold start would blow the <2s ack and trigger GitHub redeliveries.
-- `ALLOWLIST_REPOS` is empty in `render.yaml` (unrestricted). Set it to a
+- Keep **both** services on Starter: the worker must stay up for the queue +
+  rescan/refresh cron, and the web receives webhooks where a free-tier cold start
+  would blow the <2s ack and trigger GitHub redeliveries.
+- `ALLOWLIST_REPOS` is empty in `render.yaml` (unrestricted). Set a
   comma-separated list to scope which repos the bot may comment on.
+- The worker connects to Supabase's pooler with non-verifying TLS (the pooler
+  cert isn't in Node's default trust store) — handled in `queue/index.ts`.

@@ -1,6 +1,7 @@
 # Render blueprint: Next.js web + always-on pg-boss worker, sharing one env group.
-# DB is external Neon (pgvector). Deploy: Render dashboard → New → Blueprint → this repo.
-# Set every `sync: false` var (the secrets) in the dashboard after the first apply.
+# DB + Auth are Supabase (Postgres + pgvector + Supabase Auth). Deploy: Render
+# dashboard → New → Blueprint → this repo. Set every `sync: false` var (the
+# secrets) in the dashboard after the first apply.
 services:
   - type: web
     name: company-brain-web
@@ -11,9 +12,8 @@ services:
     autoDeploy: true
     envVars:
       - fromGroup: company-brain
-      # Set these to the web service's public URL once it's assigned:
-      - key: NEXTAUTH_URL
-        sync: false
+      # Set to the web service's public URL once it's assigned (also add it to
+      # Supabase Auth → URL Configuration as Site URL + redirect):
       - key: APP_BASE_URL
         sync: false
 
@@ -55,7 +55,15 @@ envVarGroups:
       - key: REFRESH_CRON
         value: 0 3 * * *
       # Secrets — set in the Render dashboard, never commit:
-      - key: DATABASE_URL # Neon connection string (?sslmode=require)
+      - key: DATABASE_URL # Supabase session-pooler string (?sslmode=require)
+        sync: false
+      # Supabase Auth + client. NEXT_PUBLIC_* are inlined at build time (public
+      # by design); the service-role key is a true secret (server-only).
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
       - key: GEMINI_API_KEY
         sync: false
@@ -68,8 +76,6 @@ envVarGroups:
       - key: GITHUB_CLIENT_ID
         sync: false
       - key: GITHUB_CLIENT_SECRET
-        sync: false
-      - key: NEXTAUTH_SECRET
         sync: false
       - key: TOKEN_ENCRYPTION_KEY # AES-256-GCM key, 32 bytes base64
         sync: false
