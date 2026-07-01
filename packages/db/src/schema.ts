@@ -430,7 +430,75 @@ export const repoKnowledge = pgTable("repo_knowledge", {
   generatedAt: timestamp("generated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+// ─────────────────────────── preflight ───────────────────────────
+export const preflightStatus = pgEnum("preflight_status", ["pass", "fail"]);
+export const preflightCheckStatus = pgEnum("preflight_check_status", ["pass", "fail", "skipped"]);
+
+/** One preflight invocation (one agent call / one gate run). */
+export const preflightRuns = pgTable("preflight_runs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  repoId: uuid("repo_id").references(() => repos.id, { onDelete: "cascade" }),
+  branch: text("branch"),
+  commitSha: text("commit_sha"),
+  status: preflightStatus("status").notNull(),
+  safeToCommit: boolean("safe_to_commit").notNull().default(false),
+  summary: text("summary").notNull().default(""),
+  attempt: integer("attempt").notNull().default(1),
+  maxAttempts: integer("max_attempts").notNull().default(5),
+  humanReviewRequired: boolean("human_review_required").notNull().default(false),
+  durationMs: integer("duration_ms").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const preflightChecks = pgTable("preflight_checks", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  runId: uuid("run_id").notNull().references(() => preflightRuns.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  status: preflightCheckStatus("status").notNull(),
+  command: text("command").notNull().default(""),
+  durationMs: integer("duration_ms").notNull().default(0),
+  skippedReason: text("skipped_reason"),
+});
+
+export const preflightErrors = pgTable("preflight_errors", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  runId: uuid("run_id").notNull().references(() => preflightRuns.id, { onDelete: "cascade" }),
+  checkName: text("check_name").notNull(),
+  file: text("file").notNull().default(""),
+  line: integer("line"),
+  code: text("code"),
+  message: text("message").notNull(),
+  priority: text("priority"),
+  instructionForAgent: text("instruction_for_agent"),
+  evidence: text("evidence"),
+});
+
+/** Loop-safety lineage: fingerprints of prior attempts on the same branch. */
+export const preflightAttempts = pgTable("preflight_attempts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  repoId: uuid("repo_id").references(() => repos.id, { onDelete: "cascade" }),
+  runId: uuid("run_id").notNull().references(() => preflightRuns.id, { onDelete: "cascade" }),
+  branch: text("branch"),
+  attempt: integer("attempt").notNull().default(1),
+  signature: text("signature").notNull().default(""),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const preflightDecisionViolations = pgTable("preflight_decision_violations", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  runId: uuid("run_id").notNull().references(() => preflightRuns.id, { onDelete: "cascade" }),
+  decisionId: text("decision_id").notNull(),
+  title: text("title").notNull().default(""),
+  violation: text("violation").notNull().default(""),
+  instructionForAgent: text("instruction_for_agent").notNull().default(""),
+  confidence: doublePrecision("confidence").notNull().default(0),
+  evidence: jsonb("evidence").notNull().default(sql`'[]'::jsonb`),
+});
+
 // ─────────────────────────── inferred types ───────────────────────────
+export type PreflightRun = typeof preflightRuns.$inferSelect;
+export type PreflightCheck = typeof preflightChecks.$inferSelect;
+export type PreflightErrorRow = typeof preflightErrors.$inferSelect;
 export type Organization = typeof organizations.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type Installation = typeof installations.$inferSelect;

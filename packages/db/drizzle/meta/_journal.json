@@ -57,6 +57,13 @@
       "when": 1782735416663,
       "tag": "0007_wakeful_virginia_dare",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1782916366467,
+      "tag": "0008_marvelous_the_hood",
+      "breakpoints": true
     }
   ]
 }

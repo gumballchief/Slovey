@@ -5,10 +5,12 @@
   "description": "Company Brain MCP server — the engineering knowledge layer coding agents call before writing code.",
   "type": "module",
   "bin": {
-    "company-brain-mcp": "src/index.ts"
+    "company-brain-mcp": "src/index.ts",
+    "companybrain": "src/cli.ts"
   },
   "scripts": {
     "start": "tsx src/index.ts",
+    "preflight": "tsx src/cli.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
