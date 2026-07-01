@@ -47,5 +47,11 @@ export async function GET(req: Request): Promise<Response> {
     }
   }
 
-  return NextResponse.redirect(new URL(next, url.origin));
+  // Redirect off the public base URL, not req.url: behind Render's proxy the
+  // request address is the container's internal bind (0.0.0.0:$PORT), which the
+  // browser can't reach. APP_BASE_URL is the canonical public origin; fall back
+  // to the request origin for local dev. Guard `next` against open redirects.
+  const base = process.env.APP_BASE_URL || url.origin;
+  const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/app";
+  return NextResponse.redirect(new URL(safeNext, base));
 }
