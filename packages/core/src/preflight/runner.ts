@@ -1,5 +1,27 @@
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { redact } from "./redact";
+
+const IS_WIN = process.platform === "win32";
+
+/**
+ * Kill the whole process tree, not just the immediate child. Tools like `pnpm`
+ * spawn nested shells/binaries (`next build`, etc.) — killing only the wrapper
+ * leaves orphans that hold locks (e.g. Next's build lock) and jam later runs.
+ * Windows: taskkill /T kills the tree. POSIX: the child is spawned detached in
+ * its own process group, so kill(-pid) reaches every descendant.
+ */
+function killTree(child: ReturnType<typeof spawn>): void {
+  if (!child.pid) return;
+  if (IS_WIN) {
+    execFile("taskkill", ["/pid", String(child.pid), "/t", "/f"], () => {});
+    return;
+  }
+  try {
+    process.kill(-child.pid, "SIGKILL");
+  } catch {
+    child.kill("SIGKILL"); // group kill failed (e.g. not the group leader) — best effort
+  }
+}
 
 /** Only these base binaries may be executed. Everything else is refused. */
 export const ALLOWED_BINS = new Set([
@@ -48,9 +70,12 @@ export function runCommand(cwd: string, command: string, timeoutMs: number): Pro
     // against SAFE_COMMAND so no metacharacters can reach the shell.
     const child = spawn(bin, tokens.slice(1), {
       cwd,
-      shell: process.platform === "win32",
+      shell: IS_WIN,
       windowsHide: true,
       env: process.env,
+      // POSIX: own process group so killTree() can kill(-pid) the whole tree.
+      // (Windows has no equivalent; taskkill /T handles it there instead.)
+      detached: !IS_WIN,
     });
 
     let stdout = "";
@@ -60,7 +85,7 @@ export function runCommand(cwd: string, command: string, timeoutMs: number): Pro
 
     const timer = setTimeout(() => {
       timedOut = true;
-      child.kill("SIGKILL");
+      killTree(child);
     }, timeoutMs);
 
     child.stdout?.on("data", (d) => (stdout = cap(stdout, d.toString())));

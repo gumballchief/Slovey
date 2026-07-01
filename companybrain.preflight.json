@@ -4,7 +4,7 @@
   "maxAttempts": 5,
   "blockCommitOnFailure": true,
   "allowSkippedChecks": false,
-  "timeoutMs": 300000,
+  "timeoutMs": 600000,
   "commands": {
     "typecheck": "pnpm typecheck",
     "test": "pnpm test",

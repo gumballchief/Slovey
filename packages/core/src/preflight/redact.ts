@@ -20,10 +20,20 @@ export function redact(text: string): string {
   return out;
 }
 
+/**
+ * Env-var templates (.env.example / .sample / .template) exist to document the
+ * *shape* of secrets — placeholder connection strings and key blocks are their
+ * whole point, not a leak. Real secrets live in the gitignored .env, which never
+ * reaches a diff. Skip templates so editing one doesn't trip the scanner.
+ */
+const ENV_TEMPLATE_FILES = new Set([".env.example", ".env.sample", ".env.template"]);
+
 /** Scan changed source files for hardcoded secrets. Returns one error per hit. */
 export function scanForSecrets(files: { path: string; content: string }[]): PreflightError[] {
   const errors: PreflightError[] = [];
   for (const { path, content } of files) {
+    const base = path.split(/[\\/]/).pop() ?? path;
+    if (ENV_TEMPLATE_FILES.has(base)) continue;
     const lines = content.split("\n");
     for (const { label, re } of SECRET_PATTERNS) {
       for (let i = 0; i < lines.length; i++) {
