@@ -2,7 +2,6 @@
 
 import { Brain } from "lucide-react";
 import { useState, useEffect } from "react";
-import { AuthButton } from "@/components/auth/AuthButton";
 
 export function PublicNav() {
   const [isDark, setIsDark] = useState(false);
@@ -90,24 +89,26 @@ export function PublicNav() {
               )}
             </svg>
           </button>
-          <AuthButton
-            className={`label-mono px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+          <a
+            href="/login"
+            className={`label-mono px-3 py-1.5 rounded-lg transition-colors ${
               onHero
                 ? "text-white/70 hover:text-white hover:bg-white/10"
                 : "text-[var(--text-muted)] hover:text-[var(--cb-text)] hover:bg-[var(--bg-subtle)]"
             }`}
           >
             Sign in
-          </AuthButton>
-          <AuthButton
-            className={`label-mono px-4 py-1.5 rounded-lg transition-colors cursor-pointer ${
+          </a>
+          <a
+            href="/login"
+            className={`label-mono px-4 py-1.5 rounded-lg transition-colors ${
               onHero
                 ? "bg-white text-[#04101E] hover:bg-white/90"
                 : "bg-[var(--primary)] text-[var(--on-primary)] hover:bg-[var(--primary-hover)]"
             }`}
           >
             Get started
-          </AuthButton>
+          </a>
         </div>
       </div>
     </nav>

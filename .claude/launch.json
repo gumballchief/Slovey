@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "company-brain",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--", "-p", "3008"],
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@company-brain/web", "exec", "next", "dev", "-p", "3008"],
       "port": 3008
     }
   ]
