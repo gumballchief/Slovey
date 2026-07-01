@@ -430,6 +430,33 @@ export const repoKnowledge = pgTable("repo_knowledge", {
   generatedAt: timestamp("generated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+// ─────────────────────────── agent runs ───────────────────────────
+export const agentRunStatus = pgEnum("agent_run_status", ["queued", "running", "ready", "failed"]);
+
+/** One auto-PR agent task: intent in → draft PR + self-review verdict out. */
+export const agentRuns = pgTable("agent_runs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  repoId: uuid("repo_id")
+    .notNull()
+    .references(() => repos.id, { onDelete: "cascade" }),
+  intent: text("intent").notNull(),
+  status: agentRunStatus("status").notNull().default("queued"),
+  branch: text("branch"),
+  prNumber: integer("pr_number"),
+  prUrl: text("pr_url"),
+  draft: boolean("draft").notNull().default(true),
+  filePath: text("file_path"),
+  isNewFile: boolean("is_new_file"),
+  decisionsUsed: integer("decisions_used").notNull().default(0),
+  /** checkPr's self-review verdict on the agent's own PR (clear/conflict/…). */
+  verdict: text("verdict"),
+  reviewPosted: boolean("review_posted").notNull().default(false),
+  error: text("error"),
+  requestedBy: text("requested_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 // ─────────────────────────── preflight ───────────────────────────
 export const preflightStatus = pgEnum("preflight_status", ["pass", "fail"]);
 export const preflightCheckStatus = pgEnum("preflight_check_status", ["pass", "fail", "skipped"]);
@@ -496,6 +523,7 @@ export const preflightDecisionViolations = pgTable("preflight_decision_violation
 });
 
 // ─────────────────────────── inferred types ───────────────────────────
+export type AgentRun = typeof agentRuns.$inferSelect;
 export type PreflightRun = typeof preflightRuns.$inferSelect;
 export type PreflightCheck = typeof preflightChecks.$inferSelect;
 export type PreflightErrorRow = typeof preflightErrors.$inferSelect;

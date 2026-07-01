@@ -2,6 +2,7 @@ import { loadEnv } from "@company-brain/config";
 import {
   JOBS,
   checkPr,
+  executeAgentRun,
   getBoss,
   logger as rootLogger,
   recordFeedback,
@@ -12,6 +13,7 @@ import {
   runRefreshMemory,
   runRescanPrs,
   syncInstallation,
+  type AgentTaskJob,
   type CheckPrJob,
   type ExtractJob,
   type FeedbackJob,
@@ -110,6 +112,13 @@ async function main() {
       reason: job.data.reason,
     });
     log.info("feedback recorded", { repo: repo.fullName, pr: job.data.prNumber, action: job.data.action });
+  });
+
+  await boss.work<AgentTaskJob>(JOBS.agentTask, async ([job]) => {
+    if (!job) return;
+    log.info("agent task start", { runId: job.data.runId });
+    await executeAgentRun(job.data.runId);
+    log.info("agent task done", { runId: job.data.runId });
   });
 
   await boss.work<IngestConnectorJob>(JOBS.ingestConnector, async ([job]) => {

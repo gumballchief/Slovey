@@ -105,6 +105,32 @@ export function fetchPreflight(repoId: string): Promise<PreflightData> {
   return getJSON<PreflightData>(`/api/repos/${repoId}/preflight`, () => ({ runs: [], latest: null }));
 }
 
+// ── Agent tasks (auto-PR) ──
+export interface AgentRunRow {
+  id: string;
+  intent: string;
+  status: "queued" | "running" | "ready" | "failed";
+  branch: string | null;
+  prNumber: number | null;
+  prUrl: string | null;
+  draft: boolean;
+  filePath: string | null;
+  isNewFile: boolean | null;
+  decisionsUsed: number;
+  verdict: string | null;
+  reviewPosted: boolean;
+  error: string | null;
+  requestedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+export function fetchAgentRuns(repoId: string): Promise<AgentRunRow[]> {
+  return getJSON<AgentRunRow[]>(`/api/repos/${repoId}/tasks`, () => []);
+}
+export function createAgentTask(repoId: string, intent: string): Promise<AgentRunRow> {
+  return send<AgentRunRow>(`/api/repos/${repoId}/tasks`, "POST", { intent });
+}
+
 export function fetchDecisions(
   repoId: string,
   opts: { query?: string; source?: string } = {},

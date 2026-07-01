@@ -207,6 +207,8 @@ export default function LandingPage() {
           <div className="flex gap-6">
             <a href="/demo" className="label-mono text-white/50 transition-colors hover:text-[var(--primary)]">Demo</a>
             <a href="/app" className="label-mono text-white/50 transition-colors hover:text-[var(--primary)]">App</a>
+            <a href="/privacy" className="label-mono text-white/50 transition-colors hover:text-[var(--primary)]">Privacy</a>
+            <a href="/terms" className="label-mono text-white/50 transition-colors hover:text-[var(--primary)]">Terms</a>
           </div>
         </div>
       </footer>
