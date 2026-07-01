@@ -4,6 +4,8 @@ export { upsertDecisions, DEDUP_DISTANCE } from "./upsert-decisions";
 export type { UpsertItem, DecisionSource } from "./upsert-decisions";
 export { runIndexRepo } from "./index-repo";
 export type { RepoArchitecture, DependencyGraph } from "./index-repo";
+export { runAgentTask } from "./agent";
+export type { AgentParams, AgentResult } from "./agent";
 export { retrieveDecisions, categorizePr } from "./retrieve";
 export type { RetrievedDecision } from "./retrieve";
 export { checkPr, statusForVerdict } from "./check";
