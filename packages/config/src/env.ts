@@ -1,11 +1,22 @@
 import { config as loadDotenv } from "dotenv";
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { z } from "zod";
 
-// Load .env from the monorepo root (works regardless of which app imports us).
+// Load .env from the monorepo root. Try the caller's cwd first (apps run from
+// their own dir or the root), then the monorepo root located relative to THIS
+// file — so entrypoints launched from a foreign cwd (e.g. the MCP server
+// started inside another repo by Claude Code/Cursor) still find it.
+// dotenv never overrides variables that are already set.
 loadDotenv({ path: resolve(process.cwd(), ".env") });
 loadDotenv({ path: resolve(process.cwd(), "../../.env") });
+try {
+  const here = dirname(fileURLToPath(import.meta.url)); // packages/config/src
+  loadDotenv({ path: resolve(here, "../../../.env") }); // monorepo root
+} catch {
+  /* non-file URL (bundled) — cwd-based loading above already ran */
+}
 
 const bool = z
   .union([z.boolean(), z.string()])
