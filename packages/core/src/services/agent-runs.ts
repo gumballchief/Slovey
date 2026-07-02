@@ -67,13 +67,17 @@ export async function executeAgentRun(runId: string): Promise<void> {
         draft: r.draft,
         filePath: r.path,
         isNewFile: r.isNew,
+        files: r.files,
         decisionsUsed: r.decisionsUsed,
         verdict: r.verdict ?? null,
         reviewPosted: r.reviewPosted,
+        reviseRounds: r.reviseRounds,
+        ciState: r.ciState,
+        ciSummary: r.ciSummary,
         updatedAt: new Date(),
       })
       .where(eq(agentRuns.id, runId));
-    log.info("agent run ready", { pr: r.prNumber, verdict: r.verdict });
+    log.info("agent run ready", { pr: r.prNumber, verdict: r.verdict, reviseRounds: r.reviseRounds, ci: r.ciState });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     await db.update(agentRuns).set({ status: "failed", error: message, updatedAt: new Date() }).where(eq(agentRuns.id, runId));

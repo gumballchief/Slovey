@@ -6,6 +6,7 @@ import { useRepo } from "@/app/app/RepoProvider";
 import { fetchDecisions, fetchPRs } from "@/lib/api-client";
 import { Stat } from "@/components/ui/Stat";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { ConnectRepoButton } from "@/components/ui/ConnectRepoButton";
 import { VerdictPill } from "@/components/ui/VerdictPill";
 import { Brain, GitPullRequest, AlertTriangle, Clock } from "lucide-react";
 import { formatRelativeTime } from "@/lib/utils";
@@ -39,6 +40,7 @@ export default function OverviewPage() {
           icon={<Brain size={22} />}
           title="No repository connected"
           description="Install the GitHub App on a repository to start capturing decisions — or import existing ADRs from the Memory page."
+          action={<ConnectRepoButton />}
         />
       </div>
     );

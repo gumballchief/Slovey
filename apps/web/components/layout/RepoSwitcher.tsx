@@ -13,10 +13,15 @@ export function RepoSwitcher() {
   // No repositories connected yet — honest empty state (no mock repo).
   if (!current) {
     return (
-      <div className="flex items-center gap-2 w-full px-3 py-2 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border)] text-sm text-[var(--text-muted)]">
+      <a
+        href="https://github.com/apps/company-brain/installations/new"
+        target="_blank"
+        rel="noreferrer"
+        className="flex items-center gap-2 w-full px-3 py-2 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border)] text-sm text-[var(--text-muted)] hover:text-[var(--primary)] hover:border-[var(--primary)] transition-colors"
+      >
         <GitBranch size={14} className="shrink-0" />
-        No repositories
-      </div>
+        Connect a repository
+      </a>
     );
   }
 

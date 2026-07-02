@@ -5,6 +5,7 @@ import { AlertTriangle, CheckCircle2, MinusCircle, ShieldCheck, ShieldX, XCircle
 import { useRepo } from "@/app/app/RepoProvider";
 import { fetchPreflight, type PreflightData } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
+import { ConnectRepoButton } from "@/components/ui/ConnectRepoButton";
 
 export default function PreflightPage() {
   const { activeRepoId, activeRepo, loading: repoLoading } = useRepo();
@@ -45,7 +46,7 @@ export default function PreflightPage() {
       {repoLoading || loading ? (
         <p className="mt-8 text-sm text-[var(--text-muted)]">Loading…</p>
       ) : !activeRepo ? (
-        <EmptyState title="No repository connected" body="Connect a repo to see Preflight runs." />
+        <EmptyState title="No repository connected" body="Connect a repo to see Preflight runs." cta />
       ) : !latest ? (
         <EmptyState
           title="No Preflight runs yet"
@@ -194,11 +195,12 @@ function PriorityDot({ priority }: { priority: string | null }) {
   return <span className={cn("mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full", color)} />;
 }
 
-function EmptyState({ title, body }: { title: string; body: string }) {
+function EmptyState({ title, body, cta }: { title: string; body: string; cta?: boolean }) {
   return (
     <div className="mt-8 rounded-xl border border-dashed border-[var(--border)] px-6 py-10 text-center">
       <p className="text-sm font-medium text-[var(--cb-text)]">{title}</p>
       <p className="mx-auto mt-1 max-w-md text-xs text-[var(--text-muted)]">{body}</p>
+      {cta && <div className="mt-4 flex justify-center"><ConnectRepoButton /></div>}
     </div>
   );
 }

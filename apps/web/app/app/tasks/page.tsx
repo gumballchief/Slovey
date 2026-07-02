@@ -12,8 +12,15 @@ import {
   ShieldX,
 } from "lucide-react";
 import { useRepo } from "@/app/app/RepoProvider";
-import { createAgentTask, fetchAgentRuns, type AgentRunRow } from "@/lib/api-client";
+import {
+  createAgentTask,
+  fetchAgentRuns,
+  fetchTaskSuggestions,
+  type AgentRunRow,
+  type SuggestedTaskRow,
+} from "@/lib/api-client";
 import { cn } from "@/lib/utils";
+import { ConnectRepoButton } from "@/components/ui/ConnectRepoButton";
 
 const EXAMPLES = [
   "Add a GET /api/ping route that returns { ok: true }",
@@ -24,6 +31,7 @@ const EXAMPLES = [
 export default function TasksPage() {
   const { activeRepoId, activeRepo, loading: repoLoading } = useRepo();
   const [runs, setRuns] = useState<AgentRunRow[]>([]);
+  const [suggestions, setSuggestions] = useState<SuggestedTaskRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [intent, setIntent] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -48,6 +56,9 @@ export default function TasksPage() {
     fetchAgentRuns(activeRepoId)
       .then((rows) => !cancelled && setRuns(rows))
       .finally(() => !cancelled && setLoading(false));
+    // Proactive suggestions load in the background — slower (walks the repo).
+    setSuggestions([]);
+    fetchTaskSuggestions(activeRepoId).then((s) => !cancelled && setSuggestions(s));
     return () => {
       cancelled = true;
     };
@@ -102,6 +113,7 @@ export default function TasksPage() {
         <div className="mt-8 rounded-xl border border-dashed border-[var(--border)] px-6 py-10 text-center">
           <p className="text-sm font-medium text-[var(--cb-text)]">No repository connected</p>
           <p className="mt-1 text-xs text-[var(--text-muted)]">Connect a repo to give the agent something to work on.</p>
+          <div className="mt-4 flex justify-center"><ConnectRepoButton /></div>
         </div>
       ) : (
         <>
@@ -144,6 +156,29 @@ export default function TasksPage() {
           <p className="mt-2 text-xs text-[var(--text-muted)]">
             The agent opens a <strong className="text-[var(--cb-text)]">draft PR</strong> — nothing merges without you.
           </p>
+
+          {/* Proactive: rejected patterns still in the code → one-click cleanup tasks */}
+          {suggestions.length > 0 && (
+            <div className="mt-5 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+              <p className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+                Suggested by memory — rejected patterns still in the code
+              </p>
+              <div className="mt-2 space-y-2">
+                {suggestions.map((s) => (
+                  <div key={s.intent} className="flex items-start justify-between gap-3">
+                    <p className="text-sm leading-snug text-[var(--cb-text)]">{s.intent}</p>
+                    <button
+                      onClick={() => submit(s.intent)}
+                      disabled={submitting}
+                      className="shrink-0 cursor-pointer rounded-lg bg-[var(--primary)] px-3 py-1 text-xs font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:opacity-40"
+                    >
+                      Run
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Runs */}
           {runs.length === 0 ? (
@@ -212,15 +247,21 @@ function RunCard({ run }: { run: AgentRunRow }) {
               {run.draft ? "Draft PR" : "PR"} #{run.prNumber}
             </a>
           )}
-          {run.filePath && (
-            <span className="inline-flex items-center gap-1">
+          {(run.files?.length ? run.files : run.filePath ? [{ path: run.filePath, isNew: !!run.isNewFile }] : []).map((f) => (
+            <span key={f.path} className="inline-flex items-center gap-1">
               <FileCode2 size={11} />
-              {run.filePath}
-              {run.isNewFile ? " (new)" : ""}
+              {f.path}
+              {f.isNew ? " (new)" : ""}
             </span>
-          )}
+          ))}
           <span>{run.decisionsUsed} decision{run.decisionsUsed === 1 ? "" : "s"} honored</span>
           {run.verdict && <VerdictChip verdict={run.verdict} />}
+          {run.reviseRounds > 0 && (
+            <span className="rounded-full bg-[var(--primary-soft)] px-2 py-0.5 font-medium text-[var(--primary-strong)]">
+              self-revised ×{run.reviseRounds}
+            </span>
+          )}
+          {run.ciState && run.ciState !== "unknown" && <span>{run.ciSummary}</span>}
         </div>
       )}
 

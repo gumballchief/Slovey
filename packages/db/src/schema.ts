@@ -447,10 +447,16 @@ export const agentRuns = pgTable("agent_runs", {
   draft: boolean("draft").notNull().default(true),
   filePath: text("file_path"),
   isNewFile: boolean("is_new_file"),
+  /** Every file the change touches: [{path, isNew}]. filePath keeps the first. */
+  files: jsonb("files").notNull().default(sql`'[]'::jsonb`),
   decisionsUsed: integer("decisions_used").notNull().default(0),
   /** checkPr's self-review verdict on the agent's own PR (clear/conflict/…). */
   verdict: text("verdict"),
   reviewPosted: boolean("review_posted").notNull().default(false),
+  /** Post-PR revise-until-clean rounds performed. */
+  reviseRounds: integer("revise_rounds").notNull().default(0),
+  ciState: text("ci_state"),
+  ciSummary: text("ci_summary"),
   error: text("error"),
   requestedBy: text("requested_by"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
