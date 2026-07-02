@@ -4,6 +4,7 @@ import {
   preflightChecks,
   preflightDecisionViolations,
   preflightErrors,
+  preflightFixInstructions,
   preflightRuns,
 } from "@company-brain/db";
 import { and, desc, eq } from "drizzle-orm";
@@ -27,17 +28,18 @@ export async function getLatestAttempt(repoId: string, branch: string | null) {
   return row ?? null;
 }
 
-/** Latest run + its checks/errors/violations, for the dashboard and status tools. */
+/** Latest run + its checks/errors/fixes/violations, for the dashboard and status tools. */
 export async function getRunDetail(runId: string) {
   const db = getDb();
   const [run] = await db.select().from(preflightRuns).where(eq(preflightRuns.id, runId)).limit(1);
   if (!run) return null;
-  const [checks, errors, violations] = await Promise.all([
+  const [checks, errors, fixInstructions, violations] = await Promise.all([
     db.select().from(preflightChecks).where(eq(preflightChecks.runId, runId)),
     db.select().from(preflightErrors).where(eq(preflightErrors.runId, runId)),
+    db.select().from(preflightFixInstructions).where(eq(preflightFixInstructions.runId, runId)),
     db.select().from(preflightDecisionViolations).where(eq(preflightDecisionViolations.runId, runId)),
   ]);
-  return { run, checks, errors, violations };
+  return { run, checks, errors, fixInstructions, violations };
 }
 
 /** Find one stored error by its fingerprint (for `preflight explain <errorId>`). */
@@ -95,42 +97,58 @@ export async function persistRun(input: {
     .returning({ id: preflightRuns.id });
   const runId = run!.id;
 
+  // Checks (returning ids so raw errors can link to the exact check row).
+  const checkIdByName = new Map<string, string>();
   if (checks.length) {
-    await db.insert(preflightChecks).values(
-      checks.map((c) => ({
-        runId,
-        name: c.name,
-        status: c.status,
-        command: c.command,
-        blocking: c.blocking,
-        durationMs: c.durationMs,
-        skippedReason: c.skippedReason ?? null,
-        stdoutSummary: c.stdoutSummary ?? null,
-        stderrSummary: c.stderrSummary ?? null,
-      })),
-    );
-  }
-  // One row per fix instruction, joined back to its parsed error where possible.
-  if (result.fixInstructions.length) {
-    const errorsByFp = new Map(result.checks.flatMap((c) => c.errors.map((e) => [e.id ?? "", e] as const)));
-    await db.insert(preflightErrors).values(
-      result.fixInstructions.map((f) => {
-        const e = errorsByFp.get(f.id);
-        return {
+    const rows = await db
+      .insert(preflightChecks)
+      .values(
+        checks.map((c) => ({
           runId,
-          checkName: f.checkId ?? f.evidence.split(" · ")[0] ?? "check",
-          file: f.file,
-          line: e?.line ?? null,
-          code: e?.code ?? null,
-          category: e?.category ?? null,
-          fingerprint: f.id,
-          message: f.problem,
-          rawRedacted: e?.raw ?? null,
-          priority: f.priority,
-          instructionForAgent: f.instructionForAgent,
-          evidence: f.evidence,
-        };
-      }),
+          name: c.name,
+          status: c.status,
+          command: c.command,
+          blocking: c.blocking,
+          durationMs: c.durationMs,
+          skippedReason: c.skippedReason ?? null,
+          stdoutSummary: c.stdoutSummary ?? null,
+          stderrSummary: c.stderrSummary ?? null,
+        })),
+      )
+      .returning({ id: preflightChecks.id, name: preflightChecks.name });
+    for (const r of rows) checkIdByName.set(r.name, r.id);
+  }
+  // Raw parsed errors, one per parser hit, linked to their check.
+  const errorRows = checks.flatMap((c) =>
+    c.errors.map((e) => ({
+      runId,
+      checkId: checkIdByName.get(c.name) ?? null,
+      checkName: c.name,
+      file: e.file,
+      line: e.line ?? null,
+      col: e.column ?? null,
+      code: e.code ?? null,
+      category: e.category ?? null,
+      fingerprint: e.id ?? null,
+      message: e.message,
+      rawRedacted: e.raw ?? null,
+      blocking: c.blocking,
+    })),
+  );
+  if (errorRows.length) await db.insert(preflightErrors).values(errorRows.slice(0, 200));
+  // Agent-directed fix instructions (already deduped by fingerprint).
+  if (result.fixInstructions.length) {
+    await db.insert(preflightFixInstructions).values(
+      result.fixInstructions.map((f) => ({
+        runId,
+        fingerprint: f.id,
+        checkName: f.checkId ?? null,
+        priority: f.priority,
+        file: f.file,
+        problem: f.problem,
+        instructionForAgent: f.instructionForAgent,
+        evidence: f.evidence,
+      })),
     );
   }
   if (result.decisionViolations.length) {

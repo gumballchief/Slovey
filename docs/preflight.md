@@ -107,10 +107,20 @@ Errors carry a stable `id` (fingerprint) — pass it to
 - **Static:** `secret-scan` (skips `.env.example`-style templates),
   `env-check`, `route-check`, `deps`.
 - **`architecture-check`** — deterministic, rule-based (no LLM), against changed
-  files only. Rules in config:
+  files only. Rules come from **config** and are **auto-derived from REJECTED
+  decisions in the graph** (`architectureChecks.deriveFromDecisions`, default
+  true): a whole-word reappearance of a rejected decision's distinctive term
+  blocks even when the AI provider is down. Config rules:
   - `{ "type": "forbidden-import", "module": "ioredis", "in": "apps/web/**", "reason": "Redis was rejected — use CacheService." }`
-  - `{ "type": "forbidden-content", "pattern": "db\\.query\\(", "in": "**/*.tsx", "reason": "UI must not access the DB directly." }`
+  - `{ "type": "forbidden-content", "pattern": "db\\.query\\(", "in": "**/*.tsx", "flags": "i", "reason": "UI must not access the DB directly." }`
   - `{ "type": "forbidden-path", "glob": "legacy/**", "reason": "legacy/ was removed; do not reintroduce." }`
+  - Trade-off: derived keyword rules can't tell code from comments — a comment
+    mentioning the rejected tech will flag. Set `deriveFromDecisions: false` to
+    rely solely on explicit rules + the AI decision-check.
+- **`smoke`** — optional runtime smoke test: add a `smoke` / `test:smoke` /
+  `healthcheck` script (boot the app or ping health, exit non-zero on failure)
+  and Preflight runs it in full/push mode. Docker or a11y checks work the same
+  way: point a script at them and add the command to `allowlistedCommands`.
 - **`decision-check`** — the diff vs the Decision Graph: active constraints and
   **rejected/deprecated** approaches, with confidence. Only violations at/above
   `decisionChecks.minimumBlockingConfidence` (default 0.85) block; lower ones
@@ -195,9 +205,22 @@ skip gracefully with a notice.
 ## Persistence & dashboard
 
 Runs persist to `preflight_runs / preflight_checks / preflight_errors /
-preflight_attempts / preflight_decision_violations`. **`/app/preflight`** shows
-recent runs, checks, files with errors, decision violations, and
-safe-to-commit status.
+preflight_fix_instructions / preflight_attempts / preflight_decision_violations`
+(raw parsed errors link to their check row; agent fix instructions are their own
+table). **`/app/preflight`** shows recent runs, checks, files with errors,
+decision violations, and safe-to-commit status.
+
+## HTTP API (server-side)
+
+- `POST /api/repos/:id/preflight/run` — **remote knowledge preflight**: send
+  `{ diff?, changedFiles?, files?: [{path, content}] }` and the server runs the
+  checks that don't need a workspace — decision-graph, architecture rules
+  (config + derived), secret scan — returning the same result contract
+  (`mode: "remote"`). Command checks are reported as *skipped with reason*;
+  this complements the local gate, it does not replace it.
+- `GET /api/repos/:id/preflight` — recent runs + latest detail.
+- `GET /api/repos/:id/preflight/runs/:runId` — one run's full detail.
+- `GET /api/repos/:id/preflight/errors/:fingerprint` — explain one stored error.
 
 ## Troubleshooting
 
@@ -212,12 +235,15 @@ safe-to-commit status.
 
 ## Limitations (current)
 
-- Local repositories + MCP/CLI only — no CI/GitHub-Actions orchestration yet
-  (extension points exist; the CLI's exit code works in CI today).
+- No CI/GitHub-Actions orchestration yet (the CLI's exit code works in CI
+  today; the remote API covers knowledge checks server-side).
 - Error parsers are strongest for tsc/ESLint/vitest/jest/Next; unknown tools
   fall back to a raw-output tail, category `unknown`.
-- `decision-check` needs a connected repo + AI/DB.
-- Architecture checks are config-rule-based; they don't yet derive rules from
-  the Decision Graph automatically.
+- The AI half of `decision-check` needs a connected repo + AI quota; when the
+  provider is down it degrades to the keyword engine + derived architecture
+  rules (deterministic, still blocking) and says so in the check note.
+- The decision-check diff is capped (~12KB); on very large changesets, later
+  files may fall outside the AI window — the architecture-check has no such cap
+  and remains the deterministic backstop.
 - The loop is agent-driven: Preflight tracks state and instructs, but does not
   itself re-invoke the agent.

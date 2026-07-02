@@ -1,11 +1,13 @@
 export * from "./types";
 export { runPreflight, evaluateLoop, detectUnrelatedChanges, detectRegression, listChecks } from "./engine";
-export { rejectedKeywordHit } from "./decisions";
+export { rejectedKeywordHit, distinctiveTerms, toEvidenceRefs } from "./decisions";
+export { runRemotePreflight } from "./remote";
+export type { RemotePreflightPayload } from "./remote";
 export { loadPreflightConfig, defaultConfigJson, CONFIG_FILENAME } from "./config";
 export { getLatestRun, getRunDetail, listRuns, findErrorByFingerprint } from "./persist";
 export { detectProject, getChangedFiles, getBranch, getCommitSha } from "./detect";
 export { redact, scanForSecrets } from "./redact";
 export { parseErrors, toFixInstructions, fingerprint } from "./parse";
 export { runDecisionCheck } from "./decisions";
-export { architectureCheck, globToRegex } from "./architecture";
+export { architectureCheck, architectureCheckContents, rulesFromRejectedDecisions, globToRegex } from "./architecture";
 export { ALLOWED_BINS, runCommand } from "./runner";

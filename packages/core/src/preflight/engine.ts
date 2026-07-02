@@ -1,6 +1,6 @@
 import { decisions as decisionsTable, getDb } from "@company-brain/db";
 import { and, eq, inArray } from "drizzle-orm";
-import { architectureCheck } from "./architecture";
+import { architectureCheck, rulesFromRejectedDecisions } from "./architecture";
 import { loadPreflightConfig } from "./config";
 import { depsCheck, envCheck, routeCheck, runCommandCheck, secretScanCheck, type RawCheck } from "./checks";
 import { runDecisionCheck } from "./decisions";
@@ -22,10 +22,10 @@ import {
   type RunPreflightOptions,
 } from "./types";
 
-// Cheap/static + fast checks first; slow (test/build) then; decision graph last.
+// Cheap/static + fast checks first; slow (test/build/smoke) then; decision graph last.
 const SAFE_ORDER = [
   "secret-scan", "architecture-check", "format", "lint", "typecheck",
-  "env-check", "route-check", "deps", "test", "build", "decision-check",
+  "env-check", "route-check", "deps", "test", "build", "smoke", "decision-check",
 ];
 
 /** Run the full preflight gate. Never throws — failures become structured results. */
@@ -124,6 +124,13 @@ async function runPreflightInner(opts: RunPreflightOptions): Promise<PreflightRe
   const requiredSet = new Set(config.requiredChecks);
   const stamp = (c: RawCheck): CheckResult => ({ ...c, blocking: requiredSet.has(c.name) });
 
+  // Architecture rules = config rules + rules derived from this repo's REJECTED
+  // decisions (deterministic guard that works even when the AI judge is down).
+  let archRules = config.architectureChecks.rules;
+  if (repoId && config.architectureChecks.deriveFromDecisions && wanted.has("architecture-check")) {
+    archRules = [...archRules, ...rulesFromRejectedDecisions(await fetchRejected(repoId))];
+  }
+
   const checks: CheckResult[] = [];
   const decisionViolations: DecisionViolation[] = [];
 
@@ -147,7 +154,7 @@ async function runPreflightInner(opts: RunPreflightOptions): Promise<PreflightRe
       continue;
     }
     if (name === "architecture-check") {
-      checks.push(stamp(architectureCheck(cwd, changed, config.architectureChecks.rules)));
+      checks.push(stamp(architectureCheck(cwd, changed, archRules)));
       continue;
     }
     if ((COMMAND_CHECKS as readonly string[]).includes(name)) {
@@ -260,6 +267,17 @@ async function runPreflightInner(opts: RunPreflightOptions): Promise<PreflightRe
   return result;
 }
 
+/** Rejected decisions for a repo (drives derived architecture rules). */
+async function fetchRejected(repoId: string): Promise<{ id: string; decision: string }[]> {
+  const db = getDb();
+  return db
+    .select({ id: decisionsTable.id, decision: decisionsTable.decision })
+    .from(decisionsTable)
+    .where(and(eq(decisionsTable.repoId, repoId), eq(decisionsTable.status, "rejected")))
+    .limit(50)
+    .catch(() => [] as { id: string; decision: string }[]);
+}
+
 /** Pre-code context: the decisions + rules that govern this repo. */
 async function buildPlanningContext(repoId: string | null, config: PreflightConfig): Promise<PlanningContext> {
   const checksThatWillRun = [...new Set([...config.requiredChecks, ...config.optionalChecks])];
@@ -273,10 +291,14 @@ async function buildPlanningContext(repoId: string | null, config: PreflightConf
     .where(and(eq(decisionsTable.repoId, repoId), inArray(decisionsTable.status, ["approved", "proposed", "rejected"])))
     .limit(120)
     .catch(() => [] as { id: string; decision: string; evidence: string[] | null; status: string }[]);
+  const rejected = rows.filter((r) => r.status === "rejected");
   return {
     activeDecisions: rows.filter((r) => r.status !== "rejected").map((r) => ({ id: r.id, decision: r.decision, evidence: r.evidence ?? [] })),
-    rejectedApproaches: rows.filter((r) => r.status === "rejected").map((r) => ({ id: r.id, decision: r.decision, evidence: r.evidence ?? [] })),
-    architectureRules: config.architectureChecks.rules,
+    rejectedApproaches: rejected.map((r) => ({ id: r.id, decision: r.decision, evidence: r.evidence ?? [] })),
+    architectureRules: [
+      ...config.architectureChecks.rules,
+      ...(config.architectureChecks.deriveFromDecisions ? rulesFromRejectedDecisions(rejected) : []),
+    ],
     checksThatWillRun,
   };
 }

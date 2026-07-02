@@ -5,9 +5,11 @@ import { describe, expect, it } from "vitest";
 import {
   ALLOWED_BINS,
   architectureCheck,
+  architectureCheckContents,
   defaultConfigJson,
   detectRegression,
   detectUnrelatedChanges,
+  distinctiveTerms,
   evaluateLoop,
   fingerprint,
   globToRegex,
@@ -15,9 +17,11 @@ import {
   parseErrors,
   redact,
   rejectedKeywordHit,
+  rulesFromRejectedDecisions,
   runCommand,
   runPreflight,
   scanForSecrets,
+  toEvidenceRefs,
   toFixInstructions,
 } from "../src/preflight";
 
@@ -197,6 +201,47 @@ describe("decision violation (rejected pattern)", () => {
   it("detects a rejected term reintroduced in the diff", () => {
     expect(rejectedKeywordHit("Redis was rejected; use CacheService instead.", "import Redis from 'ioredis'")).toBe("redis");
     expect(rejectedKeywordHit("Redis was rejected", "no cache here")).toBeNull();
+  });
+  it("classifies evidence strings into typed refs", () => {
+    const refs = toEvidenceRefs(["PR #296", "ADR-17", "docs/decisions.md", "https://example.com/x", "we tried it in 2024"]);
+    expect(refs.map((r) => r.type)).toEqual(["pr", "adr", "doc", "doc", "decision"]);
+    expect(refs[3]!.url).toBe("https://example.com/x");
+  });
+  it("derives deterministic forbidden-pattern rules from rejected decisions", () => {
+    const rules = rulesFromRejectedDecisions([{ id: "d1", decision: "Redis was banned for billing caching." }]);
+    expect(rules.length).toBeGreaterThan(0);
+    const dir = tmp({ "cache.ts": "import Redis from 'ioredis'" });
+    const c = architectureCheck(dir, ["cache.ts"], rules);
+    expect(c.status).toBe("fail"); // "Redis" matches case-insensitively via derived rule
+    expect(c.errors[0]!.message).toContain("Rejected by team decision");
+  });
+  it("distinctiveTerms drops connective words and keeps tech tokens", () => {
+    const terms = distinctiveTerms("Redis was rejected because it causes operational complexity");
+    expect(terms).toContain("redis");
+    expect(terms).not.toContain("because");
+  });
+});
+
+describe("architectureCheckContents (server-side)", () => {
+  it("runs rules against in-memory contents with no disk access", () => {
+    const c = architectureCheckContents(
+      [{ path: "src/billing/cache.ts", content: "import Redis from 'ioredis';" }],
+      ["src/billing/cache.ts"],
+      [{ type: "forbidden-import", module: "ioredis", reason: "rejected" }],
+    );
+    expect(c.status).toBe("fail");
+    expect(c.errors[0]!.file).toBe("src/billing/cache.ts");
+  });
+});
+
+describe("smoke check detection", () => {
+  it("runs a package.json smoke script as an optional command check", async () => {
+    const dir = tmp({ "package.json": JSON.stringify({ scripts: { smoke: "node --version" } }) });
+    const r = await runPreflight({ cwd: dir, repoId: null, configOverride: { requiredChecks: [], optionalChecks: ["smoke"] } });
+    const smoke = r.checks.find((c) => c.name === "smoke");
+    expect(smoke?.status).toBe("pass");
+    expect(smoke?.blocking).toBe(false);
+    expect(smoke?.command).toContain("smoke");
   });
 });
 
