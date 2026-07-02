@@ -1,5 +1,5 @@
 import { loadEnv } from "@company-brain/config";
-import { decisionApi, logger, preflight, resolveRepo } from "@company-brain/core";
+import { AGENTS, decisionApi, logger, preflight, resolveRepo } from "@company-brain/core";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
@@ -292,6 +292,17 @@ function registerTools(server: McpServer) {
       inputSchema: {},
     },
     safe("preflight_list_checks", async () => json(preflight.listChecks(REPO_PATH))),
+  );
+
+  server.registerTool(
+    "list_agents",
+    {
+      title: "List supervisor agents",
+      description:
+        "List Company Brain's AI-supervisor agent roster — one specialized agent per job (Security, Memory, Architecture, Tooling, Review) — with each agent's mission, stage, and the Preflight checks it owns.",
+      inputSchema: {},
+    },
+    safe("list_agents", async () => json(AGENTS)),
   );
 
   server.registerTool(

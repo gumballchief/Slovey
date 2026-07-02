@@ -42,8 +42,10 @@ envVarGroups:
         value: gemini
       - key: GEMINI_MODEL
         value: gemini-3.5-flash
+      # Cheap tier = the FAST model (security-review, categorization). 3.5-flash
+      # is a thinking model (~2min/call); 2.5-flash answers in seconds.
       - key: GEMINI_MODEL_CHEAP
-        value: gemini-3.5-flash
+        value: gemini-2.5-flash
       - key: EMBEDDING_PROVIDER
         value: gemini
       - key: EMBEDDING_DIMENSIONS

@@ -58,6 +58,8 @@ export interface CheckResult {
   status: CheckStatus;
   command: string; // "" for static (non-command) checks
   durationMs: number;
+  /** Which supervisor agent owns this check (security/memory/architecture/tooling). */
+  agent?: string;
   /** Whether a failure of this check blocks the commit gate (required check). */
   blocking: boolean;
   errors: PreflightError[];
@@ -181,7 +183,7 @@ export interface PreflightConfig {
 
 export const DEFAULT_CONFIG: PreflightConfig = {
   requiredChecks: ["typecheck", "lint", "test", "build", "decision-check", "architecture-check"],
-  optionalChecks: ["secret-scan", "format", "env-check", "route-check", "deps", "smoke"],
+  optionalChecks: ["secret-scan", "security-review", "format", "env-check", "route-check", "deps", "smoke"],
   maxAttempts: 5,
   blockCommitOnFailure: true,
   blockPushOnFailure: true,
