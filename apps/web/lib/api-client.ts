@@ -71,8 +71,11 @@ export interface PreflightRunRow {
 export interface PreflightCheckRow {
   id: string;
   name: string;
-  status: "pass" | "fail" | "skipped";
+  /** Owning supervisor agent (build/security/decision/architecture/performance/testing/context). */
+  agent?: string;
+  status: "pass" | "fail" | "skipped" | "error";
   command: string;
+  blocking?: boolean;
   durationMs: number;
   skippedReason: string | null;
 }
@@ -116,9 +119,11 @@ export interface PreflightData {
     fixInstructions: PreflightFixRow[];
     violations: PreflightViolationRow[];
   } | null;
+  /** Agent presentation order (Build → … → Context). */
+  pipeline?: string[];
 }
 export function fetchPreflight(repoId: string): Promise<PreflightData> {
-  return getJSON<PreflightData>(`/api/repos/${repoId}/preflight`, () => ({ runs: [], latest: null }));
+  return getJSON<PreflightData>(`/api/repos/${repoId}/preflight`, () => ({ runs: [], latest: null, pipeline: [] }));
 }
 
 // ── Agent tasks (auto-PR) ──

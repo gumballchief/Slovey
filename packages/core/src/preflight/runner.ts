@@ -76,11 +76,22 @@ export function runCommand(
   return new Promise<CommandOutcome>((resolvePromise) => {
     // shell:true only on Windows (pnpm/npm are .cmd); args are already validated
     // against SAFE_COMMAND so no metacharacters can reach the shell.
+    // Checked commands must behave like a fresh terminal. Our own process has
+    // NODE_ENV=development loaded from Company Brain's .env (dotenv side
+    // effect), and leaking that into `next build` produces development-mode
+    // prerender corruption ("Cannot read useContext of null" on /_global-error)
+    // that no human shell reproduces. Tools that need NODE_ENV set it
+    // themselves (next build → production, vitest → test).
+    const { NODE_ENV: _stripped, ...rest } = process.env;
+    void _stripped;
+    // Next's type augmentation marks NODE_ENV as required on ProcessEnv;
+    // omitting it is exactly the point here, so assert the narrower shape.
+    const childEnv = rest as NodeJS.ProcessEnv;
     const child = spawn(bin, tokens.slice(1), {
       cwd,
       shell: IS_WIN,
       windowsHide: true,
-      env: process.env,
+      env: childEnv,
       // POSIX: own process group so killTree() can kill(-pid) the whole tree.
       // (Windows has no equivalent; taskkill /T handles it there instead.)
       detached: !IS_WIN,
