@@ -167,6 +167,57 @@ export default function LandingPage() {
         </div>
       </Section>
 
+      {/* ───────── §04 THE SUPERVISOR ───────── */}
+      <Section
+        index="§04"
+        title={
+          <>
+            Your AI writes the code.
+            <br />
+            <span className="text-[var(--primary)]">Ours makes sure it ships safe.</span>
+          </>
+        }
+      >
+        <Reveal delay={80} className="mb-12 max-w-lg leading-relaxed text-white/55 sm:ml-14">
+          Preflight is the guardrail between AI-generated code and your repository. Seven
+          specialized agents check every change — against your build, your security bar, and the
+          decisions your team already made — before a commit, a push, or a human review.
+        </Reveal>
+
+        <div className="grid items-start gap-12 lg:grid-cols-2">
+          {/* value bullets */}
+          <div className="space-y-8 sm:ml-14">
+            {[
+              {
+                t: "Before code",
+                d: "Agents ask what applies here first — rejected approaches never get re-implemented.",
+              },
+              {
+                t: "Before commit",
+                d: "Build, security, decisions, architecture, performance, tests, context. Fail → exact fix instructions. The agent fixes and re-runs until it's clean.",
+              },
+              {
+                t: "Before humans",
+                d: "Reviewers see PRs that already compile, pass tests, and respect the rules — not first drafts.",
+              },
+            ].map((b, i) => (
+              <Reveal key={b.t} delay={i * 80} className="flex gap-5">
+                <span className="label-mono pt-1 text-[var(--primary)]">{String(i + 1).padStart(2, "0")}</span>
+                <div>
+                  <h3 className="font-display text-lg tracking-[-0.02em] text-white">{b.t}</h3>
+                  <p className="mt-1 max-w-md text-sm leading-relaxed text-white/50">{b.d}</p>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+
+          {/* signature artifact: the gate, as imagery */}
+          <Reveal delay={160}>
+            <GateCard />
+          </Reveal>
+        </div>
+      </Section>
+
       {/* ───────── CLOSING ───────── */}
       <section className="relative overflow-hidden">
         <div aria-hidden className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(ellipse 70% 60% at 50% 120%, rgba(77,162,255,0.16), transparent 60%)" }} />
@@ -228,6 +279,59 @@ function Section({ index, title, children }: { index: string; title: React.React
       </Reveal>
       {children}
     </section>
+  );
+}
+
+/* ── Signature: the Preflight gate blocking a bad AI change (the supervisor, as imagery) ── */
+function GateCard() {
+  const rows: Array<{ agent: string; check: string; ok: boolean }> = [
+    { agent: "build", check: "typecheck · tests", ok: true },
+    { agent: "security", check: "secret-scan · ai review", ok: true },
+    { agent: "decision", check: "decision-check", ok: false },
+    { agent: "architecture", check: "forbidden patterns", ok: true },
+  ];
+  return (
+    <div className="relative mx-auto w-full max-w-md">
+      <div aria-hidden className="absolute -inset-6 rounded-[32px] bg-[var(--primary)]/10 blur-3xl" />
+      <div className="relative rounded-3xl border border-white/10 bg-white/[0.04] p-6 shadow-2xl backdrop-blur-xl sm:p-7">
+        <div className="flex items-center justify-between">
+          <span className="label-mono text-white/40">preflight · mode: commit</span>
+          <span className="rounded-full bg-[#F43F5E]/15 px-2.5 py-1 text-xs font-semibold text-[#FF6B8A]">
+            DO NOT COMMIT
+          </span>
+        </div>
+
+        <div className="mt-5 space-y-2.5 font-mono text-[13px]">
+          {rows.map((r) => (
+            <div key={r.agent} className="flex items-center gap-3">
+              <span className={r.ok ? "text-emerald-400" : "text-[#FF6B8A]"}>{r.ok ? "✓" : "✗"}</span>
+              <span className="w-28 shrink-0 text-white/45">{r.agent} agent</span>
+              <span className="truncate text-white/70">{r.check}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-5 rounded-xl border border-[#F43F5E]/25 bg-[#F43F5E]/5 p-4">
+          <p className="text-sm leading-relaxed text-white/80">
+            Agent, do not commit. This reintroduces a <span className="font-semibold text-[#FF6B8A]">rejected</span>{" "}
+            approach: <span className="text-white">&ldquo;Redis was rejected for caching&rdquo;</span>. Replace it with
+            the approved CacheService, then run Preflight again.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            <span className="chip">DEC-17</span>
+            <span className="chip">PR #296</span>
+          </div>
+        </div>
+
+        <div className="mt-4 flex items-center gap-2 text-sm text-white/50">
+          <span className="text-emerald-400">✓</span>
+          <span>
+            revision 2 · all agents pass ·{" "}
+            <span className="font-semibold text-emerald-400">safe to commit</span>
+          </span>
+        </div>
+      </div>
+    </div>
   );
 }
 
