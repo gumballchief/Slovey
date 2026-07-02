@@ -1,9 +1,10 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { setAI, type AIProvider } from "../src/ai";
 import { AGENTS, agentForCheck } from "../src/agents/registry";
+import { perfCheck } from "../src/preflight/performance";
 import { securityReviewCheck } from "../src/preflight/security";
 import {
   ALLOWED_BINS,
@@ -275,14 +276,49 @@ describe("fingerprints", () => {
 });
 
 describe("agent roster", () => {
-  it("every preflight check belongs to exactly one agent", () => {
+  it("matches the pipeline: Build/Security/Decision → Architecture → Performance → Testing → Context", () => {
     const owned = AGENTS.flatMap((a) => a.checks);
     expect(new Set(owned).size).toBe(owned.length); // no double ownership
+    expect(agentForCheck("typecheck")).toBe("build");
+    expect(agentForCheck("build")).toBe("build");
     expect(agentForCheck("secret-scan")).toBe("security");
     expect(agentForCheck("security-review")).toBe("security");
-    expect(agentForCheck("decision-check")).toBe("memory");
+    expect(agentForCheck("decision-check")).toBe("decision");
     expect(agentForCheck("architecture-check")).toBe("architecture");
-    expect(agentForCheck("typecheck")).toBe("tooling");
+    expect(agentForCheck("perf-check")).toBe("performance");
+    expect(agentForCheck("test")).toBe("testing");
+    expect(agentForCheck("smoke")).toBe("testing");
+    expect(agentForCheck("env-check")).toBe("context");
+    expect(agentForCheck("route-check")).toBe("context");
+  });
+});
+
+describe("perf-check (Performance Agent)", () => {
+  it("flags sync fs calls in request-handler paths only", () => {
+    const dir = tmp({});
+    mkdirSync(join(dir, "app", "api"), { recursive: true });
+    const handler = 'import { readFileSync } from "node:fs";\nconst x = readFileSync("a.txt");\n';
+    writeFileSync(join(dir, "app", "api", "route.ts"), handler);
+    writeFileSync(join(dir, "script.ts"), handler); // same code outside a handler path → fine
+    const c = perfCheck(dir, ["app/api/route.ts", "script.ts"]);
+    expect(c.status).toBe("fail");
+    expect(c.errors).toHaveLength(1);
+    expect(c.errors[0]).toMatchObject({ file: "app/api/route.ts", code: "perf-sync-in-handler" });
+  });
+  it("flags .map(async) without Promise.all, JSON deep-clone, SELECT *", () => {
+    const dir = tmp({
+      "util.ts": [
+        "const r = items.map(async (i) => fetch(i));",
+        "const clone = JSON.parse(JSON.stringify(obj));",
+        'const rows = sql`SELECT * FROM users`;',
+        "const ok = await Promise.all(items.map(async (i) => fetch(i)));", // fine
+        "// const bad = JSON.parse(JSON.stringify(x)) — comment, ignored",
+      ].join("\n"),
+    });
+    const c = perfCheck(dir, ["util.ts"]);
+    expect(c.status).toBe("fail");
+    const codes = c.errors.map((e) => e.code).sort();
+    expect(codes).toEqual(["perf-json-deep-clone", "perf-map-async", "perf-select-star"]);
   });
 });
 

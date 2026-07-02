@@ -14,3 +14,4 @@ export { runDecisionCheck } from "./decisions";
 export { architectureCheck, architectureCheckContents, rulesFromRejectedDecisions, globToRegex } from "./architecture";
 export { ALLOWED_BINS, runCommand } from "./runner";
 export { securityReviewCheck } from "./security";
+export { perfCheck } from "./performance";

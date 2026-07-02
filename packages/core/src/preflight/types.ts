@@ -27,6 +27,7 @@ export type ErrorCategory =
   | "deps"
   | "format"
   | "runtime"
+  | "performance"
   | "timeout"
   | "unknown";
 
@@ -183,7 +184,7 @@ export interface PreflightConfig {
 
 export const DEFAULT_CONFIG: PreflightConfig = {
   requiredChecks: ["typecheck", "lint", "test", "build", "decision-check", "architecture-check"],
-  optionalChecks: ["secret-scan", "security-review", "format", "env-check", "route-check", "deps", "smoke"],
+  optionalChecks: ["secret-scan", "security-review", "format", "env-check", "route-check", "deps", "smoke", "perf-check", "perf"],
   maxAttempts: 5,
   blockCommitOnFailure: true,
   blockPushOnFailure: true,
@@ -197,7 +198,7 @@ export const DEFAULT_CONFIG: PreflightConfig = {
 };
 
 /** Checks that run a shell command (detected from package.json or config). */
-export const COMMAND_CHECKS = ["typecheck", "lint", "test", "build", "format", "smoke"] as const;
+export const COMMAND_CHECKS = ["typecheck", "lint", "test", "build", "format", "smoke", "perf"] as const;
 /** Package.json script name candidates per command check, in priority order. */
 export const SCRIPT_CANDIDATES: Record<string, string[]> = {
   typecheck: ["typecheck", "type-check", "tsc", "check-types"],
@@ -207,10 +208,12 @@ export const SCRIPT_CANDIDATES: Record<string, string[]> = {
   format: ["format:check", "format", "prettier:check", "fmt"],
   // Runtime smoke test — boots the app / pings health and exits non-zero on failure.
   smoke: ["smoke", "smoke-test", "test:smoke", "healthcheck", "health-check"],
+  // Performance budget / benchmark script (Performance Agent's command check).
+  perf: ["perf", "perf:budget", "test:perf", "benchmark"],
 };
 
 /** Slow checks excluded from quick/commit modes. */
-export const SLOW_CHECKS = new Set(["test", "build", "smoke"]);
+export const SLOW_CHECKS = new Set(["test", "build", "smoke", "perf"]);
 
 export interface RunPreflightOptions {
   /** Local repo directory the checks run in. */

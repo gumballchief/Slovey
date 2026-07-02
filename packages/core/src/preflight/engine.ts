@@ -8,6 +8,7 @@ import { fetchRejectedDecisions, runDecisionCheck } from "./decisions";
 import { detectProject, getBranch, getChangedFiles, getCommitSha, getDiff, scriptCommand, type ProjectInfo } from "./detect";
 import { fingerprint, toFixInstructions } from "./parse";
 import { getLatestAttempt, getLatestRun, persistRun } from "./persist";
+import { perfCheck } from "./performance";
 import { securityReviewCheck } from "./security";
 import {
   COMMAND_CHECKS,
@@ -24,10 +25,10 @@ import {
   type RunPreflightOptions,
 } from "./types";
 
-// Cheap/static + fast checks first; slow (test/build/smoke) then; AI passes last.
+// Cheap/static + fast checks first; slow (test/build/smoke/perf) then; AI passes last.
 const SAFE_ORDER = [
-  "secret-scan", "architecture-check", "format", "lint", "typecheck",
-  "env-check", "route-check", "deps", "test", "build", "smoke",
+  "secret-scan", "architecture-check", "perf-check", "format", "lint", "typecheck",
+  "env-check", "route-check", "deps", "test", "build", "smoke", "perf",
   "security-review", "decision-check",
 ];
 
@@ -165,6 +166,10 @@ async function runPreflightInner(opts: RunPreflightOptions): Promise<PreflightRe
     }
     if (name === "security-review") {
       checks.push(stamp(await securityReviewCheck(getDiff(cwd, changed), changed)));
+      continue;
+    }
+    if (name === "perf-check") {
+      checks.push(stamp(perfCheck(cwd, changed)));
       continue;
     }
     if ((COMMAND_CHECKS as readonly string[]).includes(name)) {

@@ -2,7 +2,7 @@
 import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { preflight, resolveRepo } from "@company-brain/core";
+import { agentPipelineIndex, preflight, resolveRepo } from "@company-brain/core";
 import { closeDb } from "@company-brain/db";
 
 type PreflightResult = preflight.PreflightResult;
@@ -114,10 +114,19 @@ function printHuman(r: PreflightResult): void {
   console.log(
     `safe to commit: ${r.safeToCommit ? "YES" : "NO"} · safe to push: ${r.safeToPush ? "YES" : "NO"} · attempt ${r.attempt.attemptNumber}/${r.attempt.maxAttempts}${r.humanReviewRequired ? " · HUMAN REVIEW REQUIRED" : ""}\n`,
   );
-  for (const c of r.checks) {
+  // Present in agent-pipeline order (Build → Security → Decision → Architecture
+  // → Performance → Testing → Context), regardless of execution interleaving.
+  const ordered = [...r.checks].sort((a, b) => agentPipelineIndex(a.agent ?? "") - agentPipelineIndex(b.agent ?? ""));
+  let lastAgent = "";
+  for (const c of ordered) {
+    if ((c.agent ?? "") !== lastAgent) {
+      lastAgent = c.agent ?? "";
+      console.log(`  ── ${lastAgent} agent ──`);
+    }
     const s = c.status === "pass" ? "✓" : c.status === "fail" ? "✗" : "–";
-    console.log(`  ${s} ${c.name.padEnd(19)} ${(c.agent ?? "").padEnd(13)} ${c.status.padEnd(8)} ${String(c.durationMs).padStart(6)}ms${c.blocking ? "  [blocking]" : ""}${c.skippedReason ? `  (${c.skippedReason})` : ""}`);
+    console.log(`  ${s} ${c.name.padEnd(19)} ${c.status.padEnd(8)} ${String(c.durationMs).padStart(6)}ms${c.blocking ? "  [blocking]" : ""}${c.skippedReason ? `  (${c.skippedReason})` : ""}`);
   }
+  console.log(`  ── final verdict: ${r.safeToCommit ? "SAFE TO COMMIT" : "DO NOT COMMIT"} ──`);
   if (r.decisionViolations.length) {
     console.log("\nDecision violations:");
     for (const v of r.decisionViolations) console.log(`  ! [${v.decisionStatus}] ${v.title} — ${v.violation}`);
