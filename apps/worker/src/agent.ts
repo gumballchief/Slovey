@@ -28,6 +28,7 @@ async function main() {
   console.log(`  file: ${r.path} (${r.isNew ? "new" : "modified"})`);
   console.log(`  branch: ${r.branch}  ·  decisions honored: ${r.decisionsUsed}`);
   console.log(`  self-review: ${r.verdict ?? "n/a"}${r.reviewPosted ? " (comment posted)" : ""}`);
+  if (r.preflightRevised) console.log("  preflight: first draft blocked — revised before opening the PR");
   await closeDb();
 }
 

@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { getAI } from "../ai";
 import { getInstallationOctokit } from "../github";
 import { commitFilesToNewBranch, getFileContent, openPullRequest } from "../github/write";
+import { checkGeneratedFile } from "../preflight/generated";
 import { checkPr } from "./check";
 import { retrieveDecisions, type RetrievedDecision } from "./retrieve";
 
@@ -28,6 +29,8 @@ export interface AgentResult {
   /** Result of the agent self-reviewing its own PR (undefined if review failed). */
   verdict?: string;
   reviewPosted: boolean;
+  /** Preflight blocked the first draft and the agent revised it before opening the PR. */
+  preflightRevised: boolean;
 }
 
 interface Plan {
@@ -153,8 +156,38 @@ Target file: ${plan.path}${current !== null ? `\n\nCurrent contents:\n${current}
 Output the COMPLETE new contents of ${plan.path} and NOTHING else — no prose, no markdown code fences.`,
     { tier: "premium", maxTokens: 4000, temperature: 0.2 },
   );
-  const contents = stripFence(raw);
+  let contents = stripFence(raw);
   if (!contents.trim()) throw new Error("agent: code generation returned empty output");
+
+  // 2.5 PREFLIGHT the generated file BEFORE the PR exists (secret scan +
+  // architecture rules + decision graph — the knowledge checks; typecheck/test
+  // can't run on in-memory content). One revise attempt with the violations fed
+  // back as hard feedback; still blocked after that → fail the run rather than
+  // open a PR that reintroduces something the team rejected.
+  let revised = false;
+  let gate = await checkGeneratedFile(repoId, plan.path, contents);
+  if (gate.blocked) {
+    const rawRevised = await getAI().complete(
+      `Your previous draft of ${plan.path} was BLOCKED by the team's Preflight gate:
+
+${gate.problems.map((p) => `- ${p}`).join("\n")}
+
+Rewrite the file to fully resolve every problem above while still accomplishing the task: ${intent}
+
+Team decisions you MUST follow:
+${constraints}
+
+Output the COMPLETE corrected contents of ${plan.path} and NOTHING else — no prose, no markdown code fences.`,
+      { tier: "premium", maxTokens: 4000, temperature: 0.2 },
+    );
+    contents = stripFence(rawRevised);
+    if (!contents.trim()) throw new Error("agent: revision returned empty output");
+    revised = true;
+    gate = await checkGeneratedFile(repoId, plan.path, contents);
+    if (gate.blocked) {
+      throw new Error(`agent: generated code failed Preflight after one revision — ${gate.problems.slice(0, 3).join(" | ")}`);
+    }
+  }
 
   // 3. Branch → commit → PR.
   const branch = `agent/${slugify(intent)}-${Date.now().toString(36)}`;
@@ -173,6 +206,7 @@ Output the COMPLETE new contents of ${plan.path} and NOTHING else — no prose, 
     "",
     `**File:** \`${plan.path}\` (${plan.isNew ? "new" : "modified"}) — ${plan.reason}`,
     decisions.length ? `\n**Decisions honored:**\n${decisions.map((d) => `- ${d.decision}`).join("\n")}` : "",
+    revised ? "\n_Preflight blocked the first draft; this is the revised version that passes the knowledge checks._" : "",
     "",
     "_Review before merging — Company Brain will also auto-check this PR against memory._",
   ]
@@ -219,5 +253,6 @@ Output the COMPLETE new contents of ${plan.path} and NOTHING else — no prose, 
     decisionsUsed: decisions.length,
     verdict,
     reviewPosted,
+    preflightRevised: revised,
   };
 }

@@ -184,11 +184,12 @@ describe("architecture checks", () => {
     expect(architectureCheck(dir, ["ui.tsx"], rules).status).toBe("fail");
     expect(architectureCheck(dir, ["ui.tsx"], [{ ...rules[0]!, in: "server/**" }]).status).toBe("pass"); // out of scope
   });
-  it("flags forbidden paths and skips cleanly with no rules", () => {
+  it("flags forbidden paths; zero rules passes vacuously (must not block the gate)", () => {
     const dir = tmp({});
     const c = architectureCheck(dir, ["legacy/auth.ts"], [{ type: "forbidden-path", glob: "legacy/**", reason: "legacy/ was removed; do not reintroduce." }]);
     expect(c.status).toBe("fail");
-    expect(architectureCheck(dir, ["a.ts"], []).status).toBe("skipped");
+    // "skipped" would fail a required check — an empty rule set is a valid state.
+    expect(architectureCheck(dir, ["a.ts"], []).status).toBe("pass");
   });
   it("glob semantics: * stays in a segment, ** crosses", () => {
     expect(globToRegex("src/*.ts").test("src/a.ts")).toBe(true);

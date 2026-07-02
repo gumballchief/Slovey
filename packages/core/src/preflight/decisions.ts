@@ -29,6 +29,17 @@ interface RawViolation {
   confidence: number;
 }
 
+/** Rejected decisions for a repo — drives derived architecture rules + the agent gate. */
+export async function fetchRejectedDecisions(repoId: string): Promise<{ id: string; decision: string }[]> {
+  const db = getDb();
+  return db
+    .select({ id: decisionsTable.id, decision: decisionsTable.decision })
+    .from(decisionsTable)
+    .where(and(eq(decisionsTable.repoId, repoId), eq(decisionsTable.status, "rejected")))
+    .limit(50)
+    .catch(() => [] as { id: string; decision: string }[]);
+}
+
 /**
  * Check the working-tree diff against the Engineering Decision Graph: active
  * constraints, rejected approaches, deprecated/removed patterns, architecture
