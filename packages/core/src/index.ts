@@ -16,8 +16,8 @@ export * from "./connectors";
 export * from "./pipelines";
 // Preflight — the agent-gating check system (checks + decision graph + loop safety)
 export * as preflight from "./preflight";
-// AI-supervisor agent roster (security/memory/architecture/tooling/review)
-export { AGENTS, agentForCheck } from "./agents/registry";
+// AI-supervisor agent roster (build/security/decision/architecture/performance/testing/context/review)
+export { AGENTS, AGENT_PIPELINE, agentForCheck, agentPipelineIndex } from "./agents/registry";
 export type { SupervisorAgent } from "./agents/registry";
 // Engineering Decision Graph (the core asset) + Decision API
 export * as graph from "./graph";

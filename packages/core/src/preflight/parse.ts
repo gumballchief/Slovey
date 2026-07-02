@@ -30,6 +30,8 @@ const CATEGORY_BY_CHECK: Record<string, ErrorCategory> = {
   "route-check": "route",
   deps: "deps",
   smoke: "runtime",
+  "perf-check": "performance",
+  perf: "performance",
 };
 
 /** Stable short fingerprint of an error (file+code+message) for repeat detection. */
@@ -134,6 +136,8 @@ const PRIORITY_BY_CHECK: Record<string, Priority> = {
   "env-check": "medium",
   deps: "medium",
   smoke: "high",
+  "perf-check": "medium",
+  perf: "medium",
   format: "low",
 };
 

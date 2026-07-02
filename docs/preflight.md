@@ -98,21 +98,54 @@ to the CLI (`companybrain preflight --json`) and read the identical JSON.
 Errors carry a stable `id` (fingerprint) — pass it to
 `preflight_explain_failure` / `companybrain preflight explain <id>`.
 
-## The agent roster
+## The agent pipeline
 
-Preflight is organized as an **AI-supervisor roster** — one specialized agent per
-job, each owning its checks (`list_agents` MCP tool returns this):
+Preflight is organized as an **AI-supervisor pipeline** — one specialized agent
+per job, each owning its checks (`list_agents` MCP tool returns the roster):
+
+```
+Claude writes code
+          │
+          ▼
+    Company Brain
+          │
+ ┌────────┼────────┐
+ │        │        │
+ ▼        ▼        ▼
+Build   Security  Decision
+Agent     Agent     Agent
+ │        │        │
+ └────────┼────────┘
+          ▼
+ Architecture Agent
+          │
+          ▼
+  Performance Agent
+          │
+          ▼
+    Testing Agent
+          │
+          ▼
+    Context Agent
+          │
+          ▼
+   Final Verdict      safeToCommit + agentInstruction
+```
 
 | Agent | Mission | Owns |
 |---|---|---|
+| **Build** | it must compile, lint, resolve | `typecheck` `lint` `build` `format` `deps` |
 | **Security** | secrets, injection, authz, unsafe patterns | `secret-scan`, `security-review` (AI) |
-| **Memory** | the Engineering Decision Graph — active + rejected | `decision-check` |
+| **Decision** | the Engineering Decision Graph — active + rejected | `decision-check` |
 | **Architecture** | structural rules, config-defined + derived from rejected decisions | `architecture-check` |
-| **Tooling** | the project's own verification + static hygiene | `typecheck` `lint` `test` `build` `format` `smoke` `deps` `env-check` `route-check` |
+| **Performance** | known footguns: sync calls in handlers, unawaited parallelism, wasteful patterns | `perf-check`, `perf` (script) |
+| **Testing** | the test suite + runtime smoke | `test`, `smoke` |
+| **Context** | route contracts, env-var contract, pre-code planning context | `env-check`, `route-check` |
 | **Review** | post-PR: reviews every pull request against memory (checkPr) | — |
 
-Every check result carries its owning `agent`, so an AI agent (or the dashboard)
-can attribute failures: "the Security Agent blocked this."
+Every check result carries its owning `agent`, results are presented in pipeline
+order (execution interleaves cheap checks first for latency), and the **Final
+Verdict** aggregates all agents into `safeToCommit` + `agentInstruction`.
 
 **`security-review`** is the Security Agent's AI pass — it reviews the diff for
 what pattern-matching can't see: injection, missing authn/authz, unsafe
