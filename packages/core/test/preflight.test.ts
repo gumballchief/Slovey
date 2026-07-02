@@ -1,7 +1,10 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { setAI, type AIProvider } from "../src/ai";
+import { AGENTS, agentForCheck } from "../src/agents/registry";
+import { securityReviewCheck } from "../src/preflight/security";
 import {
   ALLOWED_BINS,
   architectureCheck,
@@ -268,6 +271,53 @@ describe("fingerprints", () => {
     const a = fingerprint({ file: "a.ts", code: "TS1", message: "boom" });
     expect(fingerprint({ file: "a.ts", code: "TS1", message: "boom" })).toBe(a);
     expect(fingerprint({ file: "b.ts", code: "TS1", message: "boom" })).not.toBe(a);
+  });
+});
+
+describe("agent roster", () => {
+  it("every preflight check belongs to exactly one agent", () => {
+    const owned = AGENTS.flatMap((a) => a.checks);
+    expect(new Set(owned).size).toBe(owned.length); // no double ownership
+    expect(agentForCheck("secret-scan")).toBe("security");
+    expect(agentForCheck("security-review")).toBe("security");
+    expect(agentForCheck("decision-check")).toBe("memory");
+    expect(agentForCheck("architecture-check")).toBe("architecture");
+    expect(agentForCheck("typecheck")).toBe("tooling");
+  });
+});
+
+describe("security-review (AI pass)", () => {
+  afterEach(() => setAI(null));
+  const fake = (result: unknown | null, throwErr = false): AIProvider => ({
+    name: "fake",
+    async complete() {
+      return "";
+    },
+    async completeJSON<T>() {
+      if (throwErr) throw new Error("provider down");
+      return result as T | null;
+    },
+  });
+
+  it("maps AI findings to security errors and drops low-confidence ones", async () => {
+    setAI(
+      fake({
+        findings: [
+          { file: "src/api.ts", line: 12, issue: "SQL built by string concatenation from user input.", severity: "critical", confidence: 0.95 },
+          { file: "src/api.ts", issue: "maybe an issue", severity: "low", confidence: 0.3 },
+        ],
+      }),
+    );
+    const c = await securityReviewCheck("+ db.query('SELECT * FROM x WHERE id=' + req.params.id)", ["src/api.ts"]);
+    expect(c.status).toBe("fail");
+    expect(c.errors).toHaveLength(1); // low-confidence dropped
+    expect(c.errors[0]).toMatchObject({ file: "src/api.ts", line: 12, category: "security" });
+  });
+  it("passes on empty findings and skips when the provider is down", async () => {
+    setAI(fake({ findings: [] }));
+    expect((await securityReviewCheck("+ const x = 1;", ["a.ts"])).status).toBe("pass");
+    setAI(fake(null));
+    expect((await securityReviewCheck("+ const x = 1;", ["a.ts"])).status).toBe("skipped");
   });
 });
 

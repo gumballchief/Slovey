@@ -98,6 +98,28 @@ to the CLI (`companybrain preflight --json`) and read the identical JSON.
 Errors carry a stable `id` (fingerprint) — pass it to
 `preflight_explain_failure` / `companybrain preflight explain <id>`.
 
+## The agent roster
+
+Preflight is organized as an **AI-supervisor roster** — one specialized agent per
+job, each owning its checks (`list_agents` MCP tool returns this):
+
+| Agent | Mission | Owns |
+|---|---|---|
+| **Security** | secrets, injection, authz, unsafe patterns | `secret-scan`, `security-review` (AI) |
+| **Memory** | the Engineering Decision Graph — active + rejected | `decision-check` |
+| **Architecture** | structural rules, config-defined + derived from rejected decisions | `architecture-check` |
+| **Tooling** | the project's own verification + static hygiene | `typecheck` `lint` `test` `build` `format` `smoke` `deps` `env-check` `route-check` |
+| **Review** | post-PR: reviews every pull request against memory (checkPr) | — |
+
+Every check result carries its owning `agent`, so an AI agent (or the dashboard)
+can attribute failures: "the Security Agent blocked this."
+
+**`security-review`** is the Security Agent's AI pass — it reviews the diff for
+what pattern-matching can't see: injection, missing authn/authz, unsafe
+eval/deserialization, SSRF, path traversal, weak crypto. Optional by default,
+runs in commit/full modes, low-confidence findings are dropped, and it skips
+gracefully (never fails the gate) when the AI provider is down.
+
 ## Checks
 
 - **Command-based** (auto-detected from `package.json` by package manager —

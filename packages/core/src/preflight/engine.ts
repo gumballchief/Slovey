@@ -1,5 +1,6 @@
 import { decisions as decisionsTable, getDb } from "@company-brain/db";
 import { and, eq, inArray } from "drizzle-orm";
+import { agentForCheck } from "../agents/registry";
 import { architectureCheck, rulesFromRejectedDecisions } from "./architecture";
 import { loadPreflightConfig } from "./config";
 import { depsCheck, envCheck, routeCheck, runCommandCheck, secretScanCheck, type RawCheck } from "./checks";
@@ -7,6 +8,7 @@ import { fetchRejectedDecisions, runDecisionCheck } from "./decisions";
 import { detectProject, getBranch, getChangedFiles, getCommitSha, getDiff, scriptCommand, type ProjectInfo } from "./detect";
 import { fingerprint, toFixInstructions } from "./parse";
 import { getLatestAttempt, getLatestRun, persistRun } from "./persist";
+import { securityReviewCheck } from "./security";
 import {
   COMMAND_CHECKS,
   SCRIPT_CANDIDATES,
@@ -22,10 +24,11 @@ import {
   type RunPreflightOptions,
 } from "./types";
 
-// Cheap/static + fast checks first; slow (test/build/smoke) then; decision graph last.
+// Cheap/static + fast checks first; slow (test/build/smoke) then; AI passes last.
 const SAFE_ORDER = [
   "secret-scan", "architecture-check", "format", "lint", "typecheck",
-  "env-check", "route-check", "deps", "test", "build", "smoke", "decision-check",
+  "env-check", "route-check", "deps", "test", "build", "smoke",
+  "security-review", "decision-check",
 ];
 
 /** Run the full preflight gate. Never throws — failures become structured results. */
@@ -118,11 +121,14 @@ async function runPreflightInner(opts: RunPreflightOptions): Promise<PreflightRe
   if (!config.secretScan.enabled) wanted.delete("secret-scan");
   if (mode === "quick" || mode === "commit") {
     for (const slow of SLOW_CHECKS) wanted.delete(slow);
-    if (mode === "quick") wanted.delete("decision-check");
+    if (mode === "quick") {
+      wanted.delete("decision-check");
+      wanted.delete("security-review"); // AI passes belong to commit/full, not the seconds-fast gate
+    }
   }
   const ordered = SAFE_ORDER.filter((c) => wanted.has(c));
   const requiredSet = new Set(config.requiredChecks);
-  const stamp = (c: RawCheck): CheckResult => ({ ...c, blocking: requiredSet.has(c.name) });
+  const stamp = (c: RawCheck): CheckResult => ({ ...c, agent: agentForCheck(c.name), blocking: requiredSet.has(c.name) });
 
   // Architecture rules = config rules + rules derived from this repo's REJECTED
   // decisions (deterministic guard that works even when the AI judge is down).
@@ -155,6 +161,10 @@ async function runPreflightInner(opts: RunPreflightOptions): Promise<PreflightRe
     }
     if (name === "architecture-check") {
       checks.push(stamp(architectureCheck(cwd, changed, archRules)));
+      continue;
+    }
+    if (name === "security-review") {
+      checks.push(stamp(await securityReviewCheck(getDiff(cwd, changed), changed)));
       continue;
     }
     if ((COMMAND_CHECKS as readonly string[]).includes(name)) {
@@ -332,10 +342,11 @@ export function detectRegression(priorSignature: string | null, currentSignature
   return !overlap;
 }
 
-/** Describe every configured check for this repo: what would run, with what command. */
+/** Describe every configured check for this repo: what would run, with what command, owned by which agent. */
 export function listChecks(cwd: string): {
   name: string;
-  kind: "command" | "static" | "decision-graph";
+  agent: string;
+  kind: "command" | "static" | "decision-graph" | "ai-review";
   required: boolean;
   command: string | null;
   available: boolean;
@@ -346,28 +357,36 @@ export function listChecks(cwd: string): {
   const requiredSet = new Set(config.requiredChecks);
   const wanted = [...new Set([...config.requiredChecks, ...config.optionalChecks])];
   return SAFE_ORDER.filter((c) => wanted.includes(c)).map((name) => {
+    const agent = agentForCheck(name);
     if ((COMMAND_CHECKS as readonly string[]).includes(name)) {
       const command = resolveCommand(name, config, project);
       return {
-        name, kind: "command" as const, required: requiredSet.has(name), command,
+        name, agent, kind: "command" as const, required: requiredSet.has(name), command,
         available: !!command,
         note: command ? undefined : `No script/command configured (candidates: ${SCRIPT_CANDIDATES[name]?.join(", ")}).`,
       };
     }
     if (name === "decision-check") {
       return {
-        name, kind: "decision-graph" as const, required: requiredSet.has(name), command: null,
+        name, agent, kind: "decision-graph" as const, required: requiredSet.has(name), command: null,
         available: config.decisionChecks.enabled,
         note: config.decisionChecks.enabled ? "Checks the diff against the Decision Graph." : "Disabled in config.",
       };
     }
+    if (name === "security-review") {
+      return {
+        name, agent, kind: "ai-review" as const, required: requiredSet.has(name), command: null,
+        available: true,
+        note: "AI security pass on the diff (injection, authz, unsafe patterns). Skips gracefully if AI is unavailable.",
+      };
+    }
     const available =
       name === "architecture-check"
-        ? config.architectureChecks.enabled && config.architectureChecks.rules.length > 0
+        ? config.architectureChecks.enabled
         : name === "secret-scan"
           ? config.secretScan.enabled
           : true;
-    return { name, kind: "static" as const, required: requiredSet.has(name), command: null, available };
+    return { name, agent, kind: "static" as const, required: requiredSet.has(name), command: null, available };
   });
 }
 

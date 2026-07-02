@@ -116,7 +116,7 @@ function printHuman(r: PreflightResult): void {
   );
   for (const c of r.checks) {
     const s = c.status === "pass" ? "✓" : c.status === "fail" ? "✗" : "–";
-    console.log(`  ${s} ${c.name.padEnd(19)} ${c.status.padEnd(8)} ${String(c.durationMs).padStart(6)}ms${c.blocking ? "  [blocking]" : ""}${c.skippedReason ? `  (${c.skippedReason})` : ""}`);
+    console.log(`  ${s} ${c.name.padEnd(19)} ${(c.agent ?? "").padEnd(13)} ${c.status.padEnd(8)} ${String(c.durationMs).padStart(6)}ms${c.blocking ? "  [blocking]" : ""}${c.skippedReason ? `  (${c.skippedReason})` : ""}`);
   }
   if (r.decisionViolations.length) {
     console.log("\nDecision violations:");

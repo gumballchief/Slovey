@@ -4,6 +4,7 @@ import { fetchRejectedDecisions, runDecisionCheck } from "./decisions";
 import { toFixInstructions } from "./parse";
 import { persistRun } from "./persist";
 import { scanForSecrets } from "./redact";
+import { securityReviewCheck } from "./security";
 import type { CheckResult, FixInstruction, PreflightResult } from "./types";
 
 export interface RemotePreflightPayload {
@@ -46,8 +47,11 @@ export async function runRemotePreflight(repoId: string, payload: RemotePrefligh
   if (config.secretScan.enabled && files.length) {
     const start = Date.now();
     const errors = scanForSecrets(files);
-    checks.push({ name: "secret-scan", command: "", durationMs: Date.now() - start, blocking: false, status: errors.length ? "fail" : "pass", errors });
+    checks.push({ name: "secret-scan", agent: "security", command: "", durationMs: Date.now() - start, blocking: false, status: errors.length ? "fail" : "pass", errors });
   }
+
+  // AI security pass on the supplied diff.
+  checks.push({ ...(await securityReviewCheck(diff, changed)), agent: "security", blocking: false });
 
   // architecture-check: config rules + rules derived from this repo's rejected decisions.
   const rejected = await fetchRejectedDecisions(repoId);

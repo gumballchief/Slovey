@@ -23,6 +23,7 @@ const CATEGORY_BY_CHECK: Record<string, ErrorCategory> = {
   build: "build-error",
   format: "format",
   "secret-scan": "security",
+  "security-review": "security",
   "decision-check": "decision",
   "architecture-check": "architecture",
   "env-check": "env",
@@ -122,6 +123,7 @@ export function parseErrors(check: string, output: string): PreflightError[] {
 
 const PRIORITY_BY_CHECK: Record<string, Priority> = {
   "secret-scan": "critical",
+  "security-review": "critical",
   "decision-check": "critical",
   "architecture-check": "critical",
   typecheck: "high",
