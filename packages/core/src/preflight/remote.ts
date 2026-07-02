@@ -1,8 +1,6 @@
-import { decisions as decisionsTable, getDb } from "@company-brain/db";
-import { and, eq } from "drizzle-orm";
 import { architectureCheckContents, rulesFromRejectedDecisions } from "./architecture";
 import { loadPreflightConfig } from "./config";
-import { runDecisionCheck } from "./decisions";
+import { fetchRejectedDecisions, runDecisionCheck } from "./decisions";
 import { toFixInstructions } from "./parse";
 import { persistRun } from "./persist";
 import { scanForSecrets } from "./redact";
@@ -52,13 +50,7 @@ export async function runRemotePreflight(repoId: string, payload: RemotePrefligh
   }
 
   // architecture-check: config rules + rules derived from this repo's rejected decisions.
-  const db = getDb();
-  const rejected = await db
-    .select({ id: decisionsTable.id, decision: decisionsTable.decision })
-    .from(decisionsTable)
-    .where(and(eq(decisionsTable.repoId, repoId), eq(decisionsTable.status, "rejected")))
-    .limit(50)
-    .catch(() => [] as { id: string; decision: string }[]);
+  const rejected = await fetchRejectedDecisions(repoId);
   const rules = [
     ...config.architectureChecks.rules,
     ...(config.architectureChecks.deriveFromDecisions ? rulesFromRejectedDecisions(rejected) : []),

@@ -1,6 +1,8 @@
 export * from "./types";
 export { runPreflight, evaluateLoop, detectUnrelatedChanges, detectRegression, listChecks } from "./engine";
-export { rejectedKeywordHit, distinctiveTerms, toEvidenceRefs } from "./decisions";
+export { rejectedKeywordHit, distinctiveTerms, toEvidenceRefs, fetchRejectedDecisions } from "./decisions";
+export { checkGeneratedFile } from "./generated";
+export type { GeneratedGateVerdict } from "./generated";
 export { runRemotePreflight } from "./remote";
 export type { RemotePreflightPayload } from "./remote";
 export { loadPreflightConfig, defaultConfigJson, CONFIG_FILENAME } from "./config";

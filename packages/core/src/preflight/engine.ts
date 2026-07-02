@@ -3,7 +3,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { architectureCheck, rulesFromRejectedDecisions } from "./architecture";
 import { loadPreflightConfig } from "./config";
 import { depsCheck, envCheck, routeCheck, runCommandCheck, secretScanCheck, type RawCheck } from "./checks";
-import { runDecisionCheck } from "./decisions";
+import { fetchRejectedDecisions, runDecisionCheck } from "./decisions";
 import { detectProject, getBranch, getChangedFiles, getCommitSha, getDiff, scriptCommand, type ProjectInfo } from "./detect";
 import { fingerprint, toFixInstructions } from "./parse";
 import { getLatestAttempt, getLatestRun, persistRun } from "./persist";
@@ -128,7 +128,7 @@ async function runPreflightInner(opts: RunPreflightOptions): Promise<PreflightRe
   // decisions (deterministic guard that works even when the AI judge is down).
   let archRules = config.architectureChecks.rules;
   if (repoId && config.architectureChecks.deriveFromDecisions && wanted.has("architecture-check")) {
-    archRules = [...archRules, ...rulesFromRejectedDecisions(await fetchRejected(repoId))];
+    archRules = [...archRules, ...rulesFromRejectedDecisions(await fetchRejectedDecisions(repoId))];
   }
 
   const checks: CheckResult[] = [];
@@ -265,17 +265,6 @@ async function runPreflightInner(opts: RunPreflightOptions): Promise<PreflightRe
     }
   }
   return result;
-}
-
-/** Rejected decisions for a repo (drives derived architecture rules). */
-async function fetchRejected(repoId: string): Promise<{ id: string; decision: string }[]> {
-  const db = getDb();
-  return db
-    .select({ id: decisionsTable.id, decision: decisionsTable.decision })
-    .from(decisionsTable)
-    .where(and(eq(decisionsTable.repoId, repoId), eq(decisionsTable.status, "rejected")))
-    .limit(50)
-    .catch(() => [] as { id: string; decision: string }[]);
 }
 
 /** Pre-code context: the decisions + rules that govern this repo. */

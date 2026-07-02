@@ -22,9 +22,14 @@ export function architectureCheckContents(
   const start = Date.now();
   const errors: PreflightError[] = [];
   if (rules.length === 0) {
+    // Vacuously true — with no rules there is nothing to violate. This must NOT
+    // be "skipped": a skipped required check fails the gate, and an empty rule
+    // set is a valid state (unlike a missing typecheck script, no coverage is
+    // lost). Found by dogfooding: the empty-rule state blocked every commit.
     return {
       name: "architecture-check", command: "", durationMs: Date.now() - start,
-      status: "skipped", errors, skippedReason: "No architecture rules configured (architectureChecks.rules) or derivable from rejected decisions.",
+      status: "pass", errors,
+      skippedReason: "No architecture rules configured or derivable from rejected decisions — nothing to enforce.",
     };
   }
 
