@@ -67,6 +67,11 @@ const schema = z.object({
   // Token encryption at rest
   TOKEN_ENCRYPTION_KEY: z.string().optional(),
 
+  // Stripe billing (optional — billing endpoints 503 until configured)
+  STRIPE_SECRET_KEY: z.string().optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  STRIPE_PRICE_PRO: z.string().optional(),
+
   // App
   APP_BASE_URL: z.string().default("http://localhost:3000"),
   // Comma-separated allowlist; the bot only comments on these repos.

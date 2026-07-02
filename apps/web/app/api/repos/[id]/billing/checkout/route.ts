@@ -1,0 +1,51 @@
+import { dashboard, logAudit } from "@company-brain/core";
+import { assertRepoAccessWithRole, requireViewer } from "@/lib/server/auth";
+import { HttpError, handle, ok } from "@/lib/server/respond";
+import { appBaseUrl, getStripe, proPriceId } from "@/lib/server/stripe";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+/** Start a Stripe Checkout session for the Pro plan. Owner/admin only. */
+export async function POST(_req: Request, ctx: { params: Promise<{ id: string }> }): Promise<Response> {
+  return handle(async () => {
+    const viewer = await requireViewer();
+    const { id } = await ctx.params;
+    const { role } = await assertRepoAccessWithRole(id, viewer);
+    if (role !== "owner" && role !== "admin") throw new HttpError(403, "Only owners or admins can change the plan");
+
+    const org = await dashboard.getOrgForRepo(id);
+    if (!org) throw new HttpError(404, "No organization for this repo");
+    const stripeState = await dashboard.getOrgStripe(org.id);
+    if (stripeState?.plan === "pro") throw new HttpError(400, "Already on Pro — use Manage billing");
+
+    const stripe = getStripe();
+    let customerId = stripeState?.stripeCustomerId ?? null;
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        name: org.name,
+        metadata: { orgId: org.id, requestedBy: viewer.login },
+      });
+      customerId = customer.id;
+      await dashboard.setOrgStripe(org.id, { stripeCustomerId: customerId });
+    }
+
+    const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      customer: customerId,
+      line_items: [{ price: proPriceId(), quantity: 1 }],
+      success_url: `${appBaseUrl()}/app/billing?checkout=success`,
+      cancel_url: `${appBaseUrl()}/app/billing?checkout=cancelled`,
+      metadata: { orgId: org.id },
+      subscription_data: { metadata: { orgId: org.id } },
+    });
+    await logAudit({
+      orgId: org.id,
+      action: "billing.checkout_started",
+      actorUser: viewer.login,
+      metadata: { plan: "pro" },
+    });
+    if (!session.url) throw new HttpError(502, "Stripe did not return a checkout URL");
+    return ok({ url: session.url });
+  });
+}

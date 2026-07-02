@@ -1,4 +1,4 @@
-import { JOBS, createAgentRun, enqueue, listAgentRuns } from "@company-brain/core";
+import { JOBS, createAgentRun, dashboard, enqueue, listAgentRuns } from "@company-brain/core";
 import { assertRepoAccess, assertRepoWrite, requireViewer } from "@/lib/server/auth";
 import { HttpError, handle, ok } from "@/lib/server/respond";
 
@@ -25,6 +25,18 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     const intent = body.intent?.trim() ?? "";
     if (!intent) throw new HttpError(400, "intent is required");
     if (intent.length > 500) throw new HttpError(400, "intent is too long (max 500 characters)");
+    // Plan gating: agent runs are metered per org per calendar month.
+    const org = await dashboard.getOrgForRepo(id);
+    if (org) {
+      const billing = await dashboard.getOrgStripe(org.id);
+      const limit = dashboard.AGENT_RUNS_PER_MONTH[billing?.plan ?? "free"];
+      if (limit >= 0) {
+        const used = await dashboard.countAgentRunsThisMonth(org.id);
+        if (used >= limit) {
+          throw new HttpError(402, `Monthly agent-run limit reached (${used}/${limit} on the ${billing?.plan ?? "free"} plan). Upgrade on the Billing page.`);
+        }
+      }
+    }
     const run = await createAgentRun({ repoId: id, intent, requestedBy: viewer.login });
     await enqueue(JOBS.agentTask, { runId: run.id }, { retryLimit: 0 });
     return ok(run, { status: 201 });
