@@ -85,18 +85,47 @@ export default function PreflightPage() {
             )}
           </div>
 
-          {/* checks */}
-          <Section title="Checks">
-            <div className="divide-y divide-[var(--border)] rounded-xl border border-[var(--border)]">
-              {latest.checks.map((c) => (
-                <div key={c.id} className="flex items-center gap-3 px-4 py-2.5">
-                  <CheckIcon status={c.status} />
-                  <span className="text-sm font-medium text-[var(--cb-text)]">{c.name}</span>
-                  <span className="label-mono text-[var(--text-muted)]">{c.command || "static"}</span>
-                  <span className="ml-auto text-xs text-[var(--text-muted)]">{c.durationMs}ms</span>
+          {/* agent instruction — what Preflight told the agent to do */}
+          {latest.run.agentInstruction && (
+            <p className="mt-3 rounded-xl border border-[var(--border)] bg-[var(--bg-subtle)] px-4 py-2.5 text-sm text-[var(--cb-text)]">
+              {latest.run.agentInstruction}
+            </p>
+          )}
+
+          {/* checks, grouped by supervisor agent in pipeline order */}
+          <Section title="Agent pipeline">
+            {groupByAgent(latest.checks, data.pipeline ?? []).map(([agent, checks]) => (
+              <div key={agent} className="mb-3">
+                <p className="label-mono mb-1 flex items-center gap-2 text-[var(--text-muted)]">
+                  <span
+                    className={cn(
+                      "inline-block h-1.5 w-1.5 rounded-full",
+                      checks.some((c) => c.status === "fail")
+                        ? "bg-[#F43F5E]"
+                        : checks.every((c) => c.status === "skipped")
+                          ? "bg-[var(--text-muted)]"
+                          : "bg-emerald-500",
+                    )}
+                  />
+                  {agent} agent
+                </p>
+                <div className="divide-y divide-[var(--border)] rounded-xl border border-[var(--border)]">
+                  {checks.map((c) => (
+                    <div key={c.id} className="flex items-center gap-3 px-4 py-2.5">
+                      <CheckIcon status={c.status} />
+                      <span className="text-sm font-medium text-[var(--cb-text)]">{c.name}</span>
+                      {c.blocking && (
+                        <span className="rounded-full bg-[var(--bg-subtle)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--text-muted)]">
+                          blocking
+                        </span>
+                      )}
+                      <span className="label-mono text-[var(--text-muted)]">{c.command || "static"}</span>
+                      <span className="ml-auto text-xs text-[var(--text-muted)]">{c.durationMs}ms</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
             {latest.checks.some((c) => c.status === "skipped") && (
               <p className="mt-2 text-xs text-[var(--text-muted)]">
                 Skipped: {latest.checks.filter((c) => c.status === "skipped").map((c) => `${c.name} (${c.skippedReason})`).join("; ")}
@@ -168,6 +197,21 @@ export default function PreflightPage() {
   );
 }
 
+/** Group checks by owning agent, ordered by the pipeline (unknown agents last). */
+function groupByAgent<T extends { agent?: string }>(checks: T[], pipeline: string[]): [string, T[]][] {
+  const groups = new Map<string, T[]>();
+  for (const c of checks) {
+    const agent = c.agent ?? "other";
+    if (!groups.has(agent)) groups.set(agent, []);
+    groups.get(agent)!.push(c);
+  }
+  const order = (a: string) => {
+    const i = pipeline.indexOf(a);
+    return i === -1 ? pipeline.length : i;
+  };
+  return [...groups.entries()].sort((a, b) => order(a[0]) - order(b[0]));
+}
+
 function groupByFile<T extends { file: string }>(errors: T[]): Record<string, T[]> {
   const out: Record<string, T[]> = {};
   for (const e of errors) (out[e.file] ??= []).push(e);
@@ -183,9 +227,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function CheckIcon({ status }: { status: "pass" | "fail" | "skipped" }) {
+function CheckIcon({ status }: { status: "pass" | "fail" | "skipped" | "error" }) {
   if (status === "pass") return <CheckCircle2 size={15} className="text-emerald-500" />;
-  if (status === "fail") return <XCircle size={15} className="text-[#F43F5E]" />;
+  if (status === "fail" || status === "error") return <XCircle size={15} className="text-[#F43F5E]" />;
   return <MinusCircle size={15} className="text-[var(--text-muted)]" />;
 }
 

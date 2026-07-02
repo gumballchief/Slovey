@@ -8,7 +8,7 @@
   "scripts": {
     "dev:web": "pnpm --filter @company-brain/web dev",
     "dev:worker": "pnpm --filter @company-brain/worker dev",
-    "build": "pnpm -r --filter ./packages/* --if-present build && pnpm --filter @company-brain/web build",
+    "build": "node -e \"require('fs').rmSync('apps/web/.next',{recursive:true,force:true})\" && pnpm -r --filter ./packages/* --if-present build && pnpm --filter @company-brain/web build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "db:generate": "pnpm --filter @company-brain/db generate",
