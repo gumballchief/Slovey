@@ -63,7 +63,9 @@ export function perfCheck(cwd: string, changed: string[]): RawCheck {
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i]!;
         if (!rule.lineRe.test(line)) continue;
-        if (rule.unlessRe?.test(line)) continue;
+        // The mitigating pattern often sits on the previous line —
+        // `await Promise.all(\n  items.map(async …` — so test a small window.
+        if (rule.unlessRe?.test(`${lines[i - 1] ?? ""}\n${line}`)) continue;
         if (/^\s*(\/\/|\*|\/\*)/.test(line)) continue; // comments don't run
         const e = { file: path, line: i + 1, code: rule.code, message: rule.message };
         errors.push({ ...e, id: fingerprint(e), category: "performance", raw: line.trim().slice(0, 200) });

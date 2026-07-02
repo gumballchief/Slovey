@@ -132,16 +132,28 @@ export interface AgentRunRow {
   draft: boolean;
   filePath: string | null;
   isNewFile: boolean | null;
+  files: { path: string; isNew: boolean }[];
   decisionsUsed: number;
   verdict: string | null;
   reviewPosted: boolean;
+  reviseRounds: number;
+  ciState: string | null;
+  ciSummary: string | null;
   error: string | null;
   requestedBy: string | null;
   createdAt: string;
   updatedAt: string;
 }
+export interface SuggestedTaskRow {
+  intent: string;
+  reason: string;
+  files: string[];
+}
 export function fetchAgentRuns(repoId: string): Promise<AgentRunRow[]> {
   return getJSON<AgentRunRow[]>(`/api/repos/${repoId}/tasks`, () => []);
+}
+export function fetchTaskSuggestions(repoId: string): Promise<SuggestedTaskRow[]> {
+  return getJSON<SuggestedTaskRow[]>(`/api/repos/${repoId}/tasks/suggestions`, () => []);
 }
 export function createAgentTask(repoId: string, intent: string): Promise<AgentRunRow> {
   return send<AgentRunRow>(`/api/repos/${repoId}/tasks`, "POST", { intent });

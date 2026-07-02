@@ -1,8 +1,15 @@
-import { getDb, repoKnowledge } from "@company-brain/db";
+import { getDb, prChecks, repoKnowledge } from "@company-brain/db";
 import { eq } from "drizzle-orm";
 import { getAI } from "../ai";
 import { getInstallationOctokit } from "../github";
-import { commitFilesToNewBranch, getFileContent, openPullRequest } from "../github/write";
+import {
+  commitFilesToBranch,
+  commitFilesToNewBranch,
+  getCiStatus,
+  getFileContent,
+  openPullRequest,
+  type FileChange,
+} from "../github/write";
 import { checkGeneratedFile } from "../preflight/generated";
 import { checkPr } from "./check";
 import { retrieveDecisions, type RetrievedDecision } from "./retrieve";
@@ -23,21 +30,31 @@ export interface AgentResult {
   prNumber: number;
   prUrl: string;
   draft: boolean;
+  /** Every file the change touches. */
+  files: { path: string; isNew: boolean }[];
+  /** First file, kept for existing consumers (DB columns, CLI). */
   path: string;
   isNew: boolean;
   decisionsUsed: number;
-  /** Result of the agent self-reviewing its own PR (undefined if review failed). */
+  /** Final self-review verdict after any revise rounds (undefined if review failed). */
   verdict?: string;
   reviewPosted: boolean;
   /** Preflight blocked the first draft and the agent revised it before opening the PR. */
   preflightRevised: boolean;
+  /** Post-PR revise-until-clean rounds performed (0 = clean on first review). */
+  reviseRounds: number;
+  ciState: string;
+  ciSummary: string;
 }
 
-interface Plan {
+interface PlanFile {
   path: string;
   isNew: boolean;
   reason: string;
 }
+
+const MAX_FILES = 3;
+const MAX_REVISE_ROUNDS = 2;
 
 // Never let the agent touch CI, secrets, deps, or migrations.
 const PROTECTED_PATH = /(^|\/)(\.github\/workflows|\.env|node_modules|migrations?)(\/|$)|package-lock|pnpm-lock/i;
@@ -48,12 +65,16 @@ function stripFence(s: string): string {
   return `${(m?.[1] ?? t).trim()}\n`;
 }
 
-/** Parse the plan JSON out of the model's reply, tolerating fences/prose. */
-function parsePlan(raw: string): Plan | null {
+/** Parse the plan out of the model's reply — {files:[…]} or the legacy single-file shape. */
+export function parsePlanFiles(raw: string): PlanFile[] | null {
   for (const candidate of [stripFence(raw), raw.match(/\{[\s\S]*\}/)?.[0]]) {
     if (!candidate) continue;
     try {
-      return JSON.parse(candidate) as Plan;
+      const parsed = JSON.parse(candidate) as { files?: PlanFile[]; path?: string; isNew?: boolean; reason?: string };
+      if (Array.isArray(parsed.files) && parsed.files.length > 0) {
+        return parsed.files.filter((f) => f?.path).slice(0, MAX_FILES);
+      }
+      if (parsed.path) return [{ path: parsed.path, isNew: !!parsed.isNew, reason: parsed.reason ?? "" }];
     } catch {
       /* try next */
     }
@@ -97,11 +118,20 @@ async function getArchitectureContext(repoId: string): Promise<string> {
     .join("\n");
 }
 
+function otherFilesBlock(files: FileChange[], except: string): string {
+  const others = files.filter((f) => f.path !== except);
+  if (others.length === 0) return "";
+  return `\n\nOther files in this same change (keep imports/exports consistent with them):\n${others
+    .map((f) => `--- ${f.path} ---\n${f.content.slice(0, 3000)}`)
+    .join("\n")}`;
+}
+
 /**
- * The auto-PR agent. Given a plain-language intent, retrieve the repo's decisions
- * + architecture, plan a single target file, generate its contents (constrained by
- * those decisions), commit to a new branch, and open a draft PR. The existing
- * checkPr pipeline then reviews the PR automatically. MVP: single-file changes.
+ * The auto-PR agent, Phase 2. Given a plain-language intent: retrieve decisions
+ * + architecture → plan 1–3 files → generate each (memory-constrained, coherent
+ * with its siblings) → Preflight-gate the generated contents (revise once if
+ * blocked) → branch + draft PR → self-review via checkPr → if the review finds a
+ * conflict, revise the branch until clean (bounded) → read the repo's CI signal.
  */
 export async function runAgentTask(params: AgentParams): Promise<AgentResult> {
   const { repoId, installationId, owner, name, fullName, defaultBranch, intent } = params;
@@ -112,12 +142,10 @@ export async function runAgentTask(params: AgentParams): Promise<AgentResult> {
   ]);
   const constraints = decisionsBlock(decisions);
 
-  // 1. PLAN — choose one file to create or modify. Uses complete() (not
-  // completeJSON, which swallows provider errors into null) so a real failure —
-  // e.g. "Gemini 429: quota exceeded" — surfaces verbatim in the run's error
-  // instead of a misleading "no target file chosen".
+  // 1. PLAN — 1..3 files. Uses complete() (not completeJSON, which swallows
+  // provider errors into null) so real failures surface verbatim.
   const planRaw = await getAI().complete(
-    `You are a senior engineer planning a SMALL, single-file change to the repository "${fullName}".
+    `You are a senior engineer planning a SMALL, focused change to the repository "${fullName}".
 
 Repository architecture:
 ${architecture}
@@ -127,21 +155,28 @@ ${constraints}
 
 Task: ${intent}
 
-Choose exactly ONE file to create or modify. Prefer creating a new, self-contained file when reasonable. Respond ONLY as JSON: {"path":"relative/path/from/repo/root","isNew":true|false,"reason":"one sentence"}`,
-    { tier: "premium", maxTokens: 400 },
+Choose the SMALLEST set of files (1 to ${MAX_FILES}) to create or modify. Prefer one file when possible. Respond ONLY as JSON: {"files":[{"path":"relative/path","isNew":true|false,"reason":"one sentence"}]}`,
+    { tier: "premium", maxTokens: 700 },
   );
-  const plan = parsePlan(planRaw);
-  if (!plan?.path) throw new Error(`agent: planning returned no usable file target (raw: ${planRaw.slice(0, 160)})`);
-  if (PROTECTED_PATH.test(plan.path)) throw new Error(`agent: refusing to edit protected path: ${plan.path}`);
+  const plan = parsePlanFiles(planRaw);
+  if (!plan || plan.length === 0) {
+    throw new Error(`agent: planning returned no usable file targets (raw: ${planRaw.slice(0, 160)})`);
+  }
+  for (const f of plan) {
+    if (PROTECTED_PATH.test(f.path)) throw new Error(`agent: refusing to edit protected path: ${f.path}`);
+  }
 
   const octokit = await getInstallationOctokit(installationId);
-  const current = plan.isNew
-    ? null
-    : await getFileContent(octokit, { owner, repo: name }, plan.path, defaultBranch);
+  const currentContents = new Map<string, string | null>();
+  for (const f of plan) {
+    currentContents.set(f.path, f.isNew ? null : await getFileContent(octokit, { owner, repo: name }, f.path, defaultBranch));
+  }
 
-  // 2. CODE — generate the full file contents.
-  const raw = await getAI().complete(
-    `You are a senior engineer writing production code for "${fullName}".
+  // 2. CODE — generate each file, feeding the siblings for coherence.
+  const generate = async (target: PlanFile, generated: FileChange[], feedback?: string): Promise<string> => {
+    const current = currentContents.get(target.path) ?? null;
+    const raw = await getAI().complete(
+      `You are a senior engineer writing production code for "${fullName}".
 
 Team decisions you MUST follow (violating any will fail review):
 ${constraints}
@@ -151,45 +186,47 @@ ${architecture}
 
 Task: ${intent}
 
-Target file: ${plan.path}${current !== null ? `\n\nCurrent contents:\n${current}` : "\n\n(this is a new file)"}
+Target file: ${target.path} — ${target.reason}${current !== null ? `\n\nCurrent contents:\n${current}` : "\n\n(this is a new file)"}${otherFilesBlock(generated, target.path)}${feedback ? `\n\nYour previous draft was rejected. You MUST resolve every one of these problems:\n${feedback}` : ""}
 
-Output the COMPLETE new contents of ${plan.path} and NOTHING else — no prose, no markdown code fences.`,
-    { tier: "premium", maxTokens: 4000, temperature: 0.2 },
-  );
-  let contents = stripFence(raw);
-  if (!contents.trim()) throw new Error("agent: code generation returned empty output");
-
-  // 2.5 PREFLIGHT the generated file BEFORE the PR exists (secret scan +
-  // architecture rules + decision graph — the knowledge checks; typecheck/test
-  // can't run on in-memory content). One revise attempt with the violations fed
-  // back as hard feedback; still blocked after that → fail the run rather than
-  // open a PR that reintroduces something the team rejected.
-  let revised = false;
-  let gate = await checkGeneratedFile(repoId, plan.path, contents);
-  if (gate.blocked) {
-    const rawRevised = await getAI().complete(
-      `Your previous draft of ${plan.path} was BLOCKED by the team's Preflight gate:
-
-${gate.problems.map((p) => `- ${p}`).join("\n")}
-
-Rewrite the file to fully resolve every problem above while still accomplishing the task: ${intent}
-
-Team decisions you MUST follow:
-${constraints}
-
-Output the COMPLETE corrected contents of ${plan.path} and NOTHING else — no prose, no markdown code fences.`,
+Output the COMPLETE new contents of ${target.path} and NOTHING else — no prose, no markdown code fences.`,
       { tier: "premium", maxTokens: 4000, temperature: 0.2 },
     );
-    contents = stripFence(rawRevised);
-    if (!contents.trim()) throw new Error("agent: revision returned empty output");
-    revised = true;
-    gate = await checkGeneratedFile(repoId, plan.path, contents);
-    if (gate.blocked) {
-      throw new Error(`agent: generated code failed Preflight after one revision — ${gate.problems.slice(0, 3).join(" | ")}`);
+    const contents = stripFence(raw);
+    if (!contents.trim()) throw new Error(`agent: code generation returned empty output for ${target.path}`);
+    return contents;
+  };
+
+  let files: FileChange[] = [];
+  for (const f of plan) files.push({ path: f.path, content: await generate(f, files) });
+
+  // 2.5 PREFLIGHT every generated file BEFORE the PR exists. One revise pass
+  // scoped to the failing files; still blocked after that → fail the run rather
+  // than open a PR that reintroduces something the team rejected.
+  const gateAll = async (fs: FileChange[]) => {
+    const problems = new Map<string, string[]>();
+    for (const f of fs) {
+      const g = await checkGeneratedFile(repoId, f.path, f.content);
+      if (g.blocked) problems.set(f.path, g.problems);
+    }
+    return problems;
+  };
+  let preflightRevised = false;
+  let blockedFiles = await gateAll(files);
+  if (blockedFiles.size > 0) {
+    preflightRevised = true;
+    for (const [path, problems] of blockedFiles) {
+      const target = plan.find((f) => f.path === path)!;
+      const idx = files.findIndex((f) => f.path === path);
+      files[idx] = { path, content: await generate(target, files, problems.map((p) => `- ${p}`).join("\n")) };
+    }
+    blockedFiles = await gateAll(files);
+    if (blockedFiles.size > 0) {
+      const first = [...blockedFiles.values()][0]!;
+      throw new Error(`agent: generated code failed Preflight after one revision — ${first.slice(0, 3).join(" | ")}`);
     }
   }
 
-  // 3. Branch → commit → PR.
+  // 3. Branch → commit → draft PR.
   const branch = `agent/${slugify(intent)}-${Date.now().toString(36)}`;
   await commitFilesToNewBranch(octokit, {
     owner,
@@ -197,16 +234,19 @@ Output the COMPLETE corrected contents of ${plan.path} and NOTHING else — no p
     baseBranch: defaultBranch,
     newBranch: branch,
     message: `${intent}\n\nOpened by the Company Brain agent.`,
-    files: [{ path: plan.path, content: contents }],
+    files,
   });
 
+  const filesBlock = plan
+    .map((f) => `- \`${f.path}\` (${f.isNew ? "new" : "modified"}) — ${f.reason}`)
+    .join("\n");
   const body = [
     "**Company Brain agent** drafted this from the request:",
     `> ${intent}`,
     "",
-    `**File:** \`${plan.path}\` (${plan.isNew ? "new" : "modified"}) — ${plan.reason}`,
+    `**Files:**\n${filesBlock}`,
     decisions.length ? `\n**Decisions honored:**\n${decisions.map((d) => `- ${d.decision}`).join("\n")}` : "",
-    revised ? "\n_Preflight blocked the first draft; this is the revised version that passes the knowledge checks._" : "",
+    preflightRevised ? "\n_Preflight blocked the first draft; this is the revised version that passes the knowledge checks._" : "",
     "",
     "_Review before merging — Company Brain will also auto-check this PR against memory._",
   ]
@@ -222,25 +262,52 @@ Output the COMPLETE corrected contents of ${plan.path} and NOTHING else — no p
     body,
   });
 
-  // 4. Self-review. GitHub does NOT deliver a webhook to the same App that
-  // opened the PR, so trigger the memory check directly rather than relying on
-  // the webhook. The PR is already open, so a review failure is non-fatal.
+  // 4. Self-review + revise-until-clean. GitHub doesn't deliver webhooks to the
+  // acting App, so run checkPr directly. On a conflict verdict, feed the
+  // reviewer's own explanation back into codegen, push a revision to the branch,
+  // and re-review — bounded so a stubborn conflict ends with the honest verdict.
   let verdict: string | undefined;
   let reviewPosted = false;
+  let reviseRounds = 0;
   try {
-    const review = await checkPr({
-      repoId,
-      installationId,
-      owner,
-      name,
-      fullName,
-      prNumber: pr.number,
-      action: "opened",
-    });
+    let review = await checkPr({ repoId, installationId, owner, name, fullName, prNumber: pr.number, action: "opened" });
     verdict = review.verdict;
     reviewPosted = review.posted;
+    while (review.verdict === "conflict" && reviseRounds < MAX_REVISE_ROUNDS) {
+      const feedback = await getReviewFeedback(review.checkId);
+      if (!feedback) break;
+      reviseRounds += 1;
+      for (let i = 0; i < files.length; i++) {
+        const target = plan.find((f) => f.path === files[i]!.path)!;
+        files[i] = { path: files[i]!.path, content: await generate(target, files, feedback) };
+      }
+      const stillBlocked = await gateAll(files);
+      if (stillBlocked.size > 0) break; // don't push a revision that fails the knowledge gate
+      await commitFilesToBranch(octokit, {
+        owner,
+        repo: name,
+        branch,
+        message: `Revise per Company Brain review (round ${reviseRounds})\n\n${feedback.slice(0, 400)}`,
+        files,
+      });
+      review = await checkPr({ repoId, installationId, owner, name, fullName, prNumber: pr.number, action: "synchronize" });
+      verdict = review.verdict;
+      reviewPosted = review.posted || reviewPosted;
+    }
   } catch {
     /* PR is open; self-review is best-effort */
+  }
+
+  // 5. CI signal (single poll after a short settle; repos without CI report so).
+  let ciState = "unknown";
+  let ciSummary = "CI status unavailable.";
+  try {
+    await new Promise((r) => setTimeout(r, 15_000));
+    const ci = await getCiStatus(octokit, { owner, repo: name, ref: branch });
+    ciState = ci.state;
+    ciSummary = ci.summary;
+  } catch {
+    /* best-effort */
   }
 
   return {
@@ -248,11 +315,28 @@ Output the COMPLETE corrected contents of ${plan.path} and NOTHING else — no p
     prNumber: pr.number,
     prUrl: pr.url,
     draft: pr.draft,
-    path: plan.path,
-    isNew: !!plan.isNew,
+    files: plan.map((f) => ({ path: f.path, isNew: !!f.isNew })),
+    path: plan[0]!.path,
+    isNew: !!plan[0]!.isNew,
     decisionsUsed: decisions.length,
     verdict,
     reviewPosted,
-    preflightRevised: revised,
+    preflightRevised,
+    reviseRounds,
+    ciState,
+    ciSummary,
   };
+}
+
+/** The reviewer's own words for the revise prompt (explanation + suggested fix). */
+async function getReviewFeedback(checkId: string | null | undefined): Promise<string | null> {
+  if (!checkId) return null;
+  const db = getDb();
+  const [row] = await db
+    .select({ explanation: prChecks.explanation, suggestedFix: prChecks.suggestedFix })
+    .from(prChecks)
+    .where(eq(prChecks.id, checkId))
+    .limit(1);
+  if (!row?.explanation) return null;
+  return `${row.explanation}${row.suggestedFix ? `\nSuggested fix: ${row.suggestedFix}` : ""}`;
 }

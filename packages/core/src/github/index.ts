@@ -11,5 +11,5 @@ export {
 export type { ClosedPr, DocFile, PrForCheck } from "./fetchers";
 export { verifySignature, parseWebhook } from "./webhooks";
 export type { WebhookIntent } from "./webhooks";
-export { getFileContent, commitFilesToNewBranch, openPullRequest } from "./write";
+export { getFileContent, commitFilesToNewBranch, commitFilesToBranch, getCiStatus, openPullRequest } from "./write";
 export type { FileChange, RepoRef } from "./write";

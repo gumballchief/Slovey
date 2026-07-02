@@ -25,10 +25,11 @@ async function main() {
     intent,
   });
   console.log(`✓ ${r.draft ? "Draft PR" : "PR"} #${r.prNumber} opened: ${r.prUrl}`);
-  console.log(`  file: ${r.path} (${r.isNew ? "new" : "modified"})`);
+  for (const f of r.files) console.log(`  file: ${f.path} (${f.isNew ? "new" : "modified"})`);
   console.log(`  branch: ${r.branch}  ·  decisions honored: ${r.decisionsUsed}`);
-  console.log(`  self-review: ${r.verdict ?? "n/a"}${r.reviewPosted ? " (comment posted)" : ""}`);
+  console.log(`  self-review: ${r.verdict ?? "n/a"}${r.reviewPosted ? " (comment posted)" : ""}${r.reviseRounds ? `  ·  self-revised ×${r.reviseRounds}` : ""}`);
   if (r.preflightRevised) console.log("  preflight: first draft blocked — revised before opening the PR");
+  console.log(`  ci: ${r.ciSummary}`);
   await closeDb();
 }
 

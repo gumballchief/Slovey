@@ -34,6 +34,7 @@ export * from "./queue";
 // Services (installation sync, repo resolution, dashboard queries, users, orgs, audit)
 export * from "./services/sync";
 export * from "./services/agent-runs";
+export * from "./services/suggest-tasks";
 export * from "./services/users";
 export * from "./services/orgs";
 export * from "./services/audit";
