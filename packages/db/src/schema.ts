@@ -135,6 +135,9 @@ export const organizations = pgTable("organizations", {
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
   plan: orgPlan("plan").notNull().default("free"),
+  // Stripe linkage — set on first checkout; plan changes flow through webhooks.
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 

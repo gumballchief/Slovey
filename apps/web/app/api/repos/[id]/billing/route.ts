@@ -1,6 +1,7 @@
 import { dashboard, logAudit } from "@company-brain/core";
 import { assertRepoAccessWithRole, requireViewer } from "@/lib/server/auth";
 import { HttpError, handle, ok } from "@/lib/server/respond";
+import { isBillingConfigured } from "@/lib/server/stripe";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,6 +37,11 @@ export async function PATCH(
     }
     const body = (await req.json()) as { plan?: string };
     if (!body.plan || !PLANS.has(body.plan)) throw new HttpError(400, "invalid plan");
+    // With Stripe live, paid plans go through Checkout — the manual switch would
+    // grant Pro without payment. Downgrades/enterprise (sales-led) stay manual.
+    if (isBillingConfigured() && body.plan === "pro") {
+      throw new HttpError(400, "Upgrade to Pro via checkout (POST billing/checkout)");
+    }
 
     const org = await dashboard.getOrgForRepo(id);
     if (!org) throw new HttpError(404, "No organization for this repo");

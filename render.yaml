@@ -85,3 +85,9 @@ envVarGroups:
         sync: false
       - key: TOKEN_ENCRYPTION_KEY # AES-256-GCM key, 32 bytes base64
         sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_PRICE_PRO
+        sync: false

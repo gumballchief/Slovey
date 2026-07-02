@@ -1,4 +1,5 @@
 import {
+  agentRuns,
   auditLogs,
   decisions,
   feedback as feedbackTable,
@@ -432,6 +433,65 @@ export async function getBilling(orgId: string): Promise<ApiBilling> {
 export async function setOrgPlan(orgId: string, plan: OrgPlan): Promise<void> {
   const db = getDb();
   await db.update(organizations).set({ plan }).where(eq(organizations.id, orgId));
+}
+
+// ── Stripe linkage (plan changes themselves flow through the webhook) ──
+
+export async function getOrgStripe(
+  orgId: string,
+): Promise<{ plan: OrgPlan; stripeCustomerId: string | null; stripeSubscriptionId: string | null } | null> {
+  const db = getDb();
+  const [row] = await db
+    .select({
+      plan: organizations.plan,
+      stripeCustomerId: organizations.stripeCustomerId,
+      stripeSubscriptionId: organizations.stripeSubscriptionId,
+    })
+    .from(organizations)
+    .where(eq(organizations.id, orgId))
+    .limit(1);
+  return row ? { ...row, plan: row.plan as OrgPlan } : null;
+}
+
+export async function setOrgStripe(
+  orgId: string,
+  patch: { stripeCustomerId?: string | null; stripeSubscriptionId?: string | null },
+): Promise<void> {
+  const db = getDb();
+  await db.update(organizations).set(patch).where(eq(organizations.id, orgId));
+}
+
+export async function findOrgByStripeCustomer(customerId: string): Promise<{ id: string } | null> {
+  const db = getDb();
+  const [row] = await db
+    .select({ id: organizations.id })
+    .from(organizations)
+    .where(eq(organizations.stripeCustomerId, customerId))
+    .limit(1);
+  return row ?? null;
+}
+
+// ── Agent-run metering (per org, calendar month) ──
+
+/** -1 = unlimited. A business rail, not a technical constant. */
+export const AGENT_RUNS_PER_MONTH: Record<OrgPlan, number> = {
+  free: 20,
+  pro: 500,
+  enterprise: -1,
+};
+
+export async function countAgentRunsThisMonth(orgId: string): Promise<number> {
+  const db = getDb();
+  const monthStart = new Date();
+  monthStart.setUTCDate(1);
+  monthStart.setUTCHours(0, 0, 0, 0);
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(agentRuns)
+    .innerJoin(repos, eq(agentRuns.repoId, repos.id))
+    .innerJoin(installations, eq(repos.installationId, installations.id))
+    .where(and(eq(installations.orgId, orgId), sql`${agentRuns.createdAt} >= ${monthStart}`));
+  return row?.n ?? 0;
 }
 
 export interface ApiProfile {

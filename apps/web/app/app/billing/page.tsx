@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRepo } from "@/app/app/RepoProvider";
-import { fetchBilling, changePlan, type Billing, type OrgPlan } from "@/lib/api-client";
+import { fetchBilling, changePlan, startCheckout, openBillingPortal, type Billing, type OrgPlan } from "@/lib/api-client";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Check, Zap } from "lucide-react";
@@ -73,6 +73,13 @@ export default function BillingPage() {
   const { activeRepoId } = useRepo();
   const [data, setData] = useState<Billing | null>(null);
   const [busy, setBusy] = useState<OrgPlan | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("checkout");
+    if (q === "success") setNotice("Payment received — your plan updates within a few seconds. Refresh if it hasn’t.");
+    if (q === "cancelled") setNotice("Checkout cancelled — no changes made.");
+  }, []);
 
   function load() {
     fetchBilling(activeRepoId).then(setData);
@@ -81,13 +88,35 @@ export default function BillingPage() {
 
   async function selectPlan(plan: OrgPlan) {
     if (!data || plan === data.plan) return;
+    if (plan === "enterprise") {
+      window.location.href = "mailto:sales@your-domain.example?subject=Company%20Brain%20Enterprise";
+      return;
+    }
     setBusy(plan);
     try {
+      if (plan === "pro") {
+        // Real money: Stripe Checkout. The webhook flips the plan on success.
+        const { url } = await startCheckout(activeRepoId);
+        window.location.assign(url);
+        return;
+      }
+      // Downgrade to free stays a manual switch (cancel in the portal first).
       const updated = await changePlan(activeRepoId, plan);
       setData((d) => (d ? { ...d, ...updated } : d));
-    } catch {
-      /* surfaced via no state change */
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : "Something went wrong");
     } finally {
+      setBusy(null);
+    }
+  }
+
+  async function openPortal() {
+    setBusy("pro");
+    try {
+      const { url } = await openBillingPortal(activeRepoId);
+      window.location.assign(url);
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : "Billing portal unavailable");
       setBusy(null);
     }
   }
@@ -96,6 +125,9 @@ export default function BillingPage() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
+      {notice && (
+        <div className="rounded-xl border border-[var(--primary)]/40 bg-[var(--primary-soft)] px-4 py-3 text-sm text-[var(--cb-text)]">{notice}</div>
+      )}
       {/* Current usage */}
       <section className="card p-5 space-y-4">
         <div className="flex items-center justify-between">
@@ -110,6 +142,11 @@ export default function BillingPage() {
               {data?.org.name ? `Organization: ${data.org.name}` : "Usage this period"}
             </p>
           </div>
+          {current !== "free" && (
+            <Button variant="secondary" size="sm" onClick={openPortal} disabled={busy !== null}>
+              Manage billing
+            </Button>
+          )}
         </div>
         <div className="grid sm:grid-cols-2 gap-4">
           <Meter label="Repositories" used={data?.usage.repos ?? 0} limit={data?.limits.repos ?? 1} />
@@ -176,7 +213,7 @@ export default function BillingPage() {
                 ) : (
                   <>
                     <Zap size={13} />
-                    {plan.id === "enterprise" ? "Contact sales" : `Switch to ${plan.name}`}
+                    {plan.id === "enterprise" ? "Contact sales" : plan.id === "pro" ? "Upgrade — $" + "20/mo" : `Switch to ${plan.name}`}
                   </>
                 )}
               </Button>
@@ -186,7 +223,7 @@ export default function BillingPage() {
       </div>
 
       <p className="text-xs text-[var(--text-muted)] text-center">
-        Plan switching is instant and not connected to a payment processor in this build.
+        Payments are processed by Stripe. Cancel any time from Manage billing; your plan drops to Free at period end.
       </p>
     </div>
   );
