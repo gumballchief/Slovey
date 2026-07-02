@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 
 export type PackageManager = "pnpm" | "yarn" | "npm" | "bun";
@@ -82,8 +82,23 @@ export function getChangedFiles(cwd: string): string[] {
   return [...out];
 }
 
-/** Unified diff for a set of files, capped, for feeding the decision check. */
+/** Unified diff for a set of files, capped, for feeding the decision check.
+ *  Untracked files never appear in `git diff` — and brand-new files are exactly
+ *  what coding agents create — so their contents are appended as a pseudo-diff. */
 export function getDiff(cwd: string, files: string[], maxChars = 12_000): string {
-  const d = git(cwd, ["diff", "HEAD", "--", ...files]) || git(cwd, ["diff", "--cached", "--", ...files]);
+  let d = git(cwd, ["diff", "HEAD", "--", ...files]) || git(cwd, ["diff", "--cached", "--", ...files]);
+  const inDiff = new Set([...d.matchAll(/^\+\+\+ b\/(.+)$/gm)].map((m) => m[1]!));
+  for (const f of files) {
+    if (inDiff.has(f) || d.length >= maxChars) continue;
+    const abs = resolve(cwd, f);
+    try {
+      if (!existsSync(abs) || statSync(abs).size > 100_000) continue;
+      const content = readFileSync(abs, "utf8");
+      if (content.includes("\u0000")) continue; // binary
+      d += `\n+++ b/${f} (new file)\n${content.split("\n").map((l) => `+${l}`).join("\n")}`;
+    } catch {
+      /* unreadable → skip */
+    }
+  }
   return d.length > maxChars ? `${d.slice(0, maxChars)}\n…(diff truncated)` : d;
 }

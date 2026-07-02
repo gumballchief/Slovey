@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "company-brain": {
+      "command": "npx",
+      "args": ["-y", "tsx", "apps/mcp/src/index.ts"],
+      "env": {
+        "COMPANY_BRAIN_REPO": "gumballchief/brain",
+        "COMPANY_BRAIN_REPO_PATH": "C:/Users/youso/Claude Code/company-brain"
+      }
+    }
+  }
+}

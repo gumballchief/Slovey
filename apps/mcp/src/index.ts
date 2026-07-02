@@ -225,16 +225,30 @@ function registerTools(server: McpServer) {
       const run = await preflight.getLatestRun(REPO_ID, preflight.getBranch(REPO_PATH));
       if (!run) return text('No Preflight run yet. Call "preflight_run" first.');
       const detail = await preflight.getRunDetail(run.id);
+      // New runs store instructions in preflight_fix_instructions; fall back to
+      // the legacy merged columns for runs recorded before the split.
+      const fixes =
+        detail?.fixInstructions?.length
+          ? detail.fixInstructions.map((f) => ({
+              id: f.fingerprint,
+              priority: f.priority,
+              file: f.file,
+              problem: f.problem,
+              instructionForAgent: f.instructionForAgent,
+              evidence: f.evidence,
+            }))
+          : (detail?.errors ?? []).map((e) => ({
+              id: e.fingerprint,
+              priority: e.priority,
+              file: e.file,
+              problem: e.message,
+              instructionForAgent: e.instructionForAgent,
+              evidence: e.evidence,
+            }));
       return json({
         status: run.status,
         safeToCommit: run.safeToCommit,
-        fixInstructions: (detail?.errors ?? []).map((e) => ({
-          priority: e.priority,
-          file: e.file,
-          problem: e.message,
-          instructionForAgent: e.instructionForAgent,
-          evidence: e.evidence,
-        })),
+        fixInstructions: fixes,
         decisionViolations: (detail?.violations ?? []).map((v) => ({
           decisionId: v.decisionId,
           title: v.title,
@@ -321,7 +335,10 @@ function registerTools(server: McpServer) {
       const detail = await preflight.getRunDetail(run.id);
       const checks = (detail?.checks ?? []).filter((c) => (check ? c.name === check : c.status === "fail"));
       const failing = checks.map((c) => `- ${c.name}: ${c.status}${c.skippedReason ? ` (${c.skippedReason})` : ""}`);
-      const fixes = (detail?.errors ?? []).slice(0, 8).map((e) => `  • [${e.priority}] ${e.file || "(general)"}: ${e.message}`);
+      const fixSource = detail?.fixInstructions?.length
+        ? detail.fixInstructions.map((f) => ({ priority: f.priority, file: f.file, message: f.problem }))
+        : (detail?.errors ?? []).map((e) => ({ priority: e.priority, file: e.file, message: e.message }));
+      const fixes = fixSource.slice(0, 8).map((e) => `  • [${e.priority}] ${e.file || "(general)"}: ${e.message}`);
       const viol = (detail?.violations ?? []).map((v) => `  ! ${v.title}: ${v.violation}`);
       return text(
         `Preflight ${run.status.toUpperCase()} (attempt ${run.attempt}/${run.maxAttempts}). ${run.summary}\n\n` +

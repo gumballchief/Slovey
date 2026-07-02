@@ -1,4 +1,5 @@
 import { readChanged, type RawCheck } from "./checks";
+import { distinctiveTerms } from "./decisions";
 import type { ArchitectureRule, PreflightError } from "./types";
 
 /**
@@ -8,12 +9,22 @@ import type { ArchitectureRule, PreflightError } from "./types";
  * the repo doesn't block an unrelated commit.
  */
 export function architectureCheck(cwd: string, changed: string[], rules: ArchitectureRule[]): RawCheck {
+  return architectureCheckContents(readChanged(cwd, changed), changed, rules);
+}
+
+/** Same check against in-memory file contents — used by the server-side API,
+ *  which has no local working tree to read from. */
+export function architectureCheckContents(
+  files: { path: string; content: string }[],
+  changedPaths: string[],
+  rules: ArchitectureRule[],
+): RawCheck {
   const start = Date.now();
   const errors: PreflightError[] = [];
   if (rules.length === 0) {
     return {
       name: "architecture-check", command: "", durationMs: Date.now() - start,
-      status: "skipped", errors, skippedReason: "No architecture rules configured (architectureChecks.rules).",
+      status: "skipped", errors, skippedReason: "No architecture rules configured (architectureChecks.rules) or derivable from rejected decisions.",
     };
   }
 
@@ -22,7 +33,7 @@ export function architectureCheck(cwd: string, changed: string[], rules: Archite
 
   for (const rule of pathRules) {
     const re = globToRegex(rule.glob);
-    for (const f of changed) {
+    for (const f of changedPaths) {
       if (re.test(f)) {
         errors.push({
           file: f, code: "arch-path", category: "architecture",
@@ -33,14 +44,14 @@ export function architectureCheck(cwd: string, changed: string[], rules: Archite
   }
 
   if (contentRules.length > 0) {
-    for (const { path, content } of readChanged(cwd, changed)) {
+    for (const { path, content } of files) {
       const lines = content.split("\n");
       for (const rule of contentRules) {
         if (rule.in && !globToRegex(rule.in).test(path)) continue;
         const re =
           rule.type === "forbidden-import"
             ? importRegex(rule.module)
-            : safePattern(rule.pattern);
+            : safePattern(rule.pattern, rule.flags);
         if (!re) continue;
         for (let i = 0; i < lines.length; i++) {
           re.lastIndex = 0;
@@ -63,16 +74,39 @@ export function architectureCheck(cwd: string, changed: string[], rules: Archite
   return { name: "architecture-check", command: "", durationMs: Date.now() - start, status: errors.length ? "fail" : "pass", errors };
 }
 
+/**
+ * Derive deterministic forbidden-pattern rules from REJECTED decisions: a
+ * whole-word reappearance of a rejected decision's distinctive term in changed
+ * code is flagged without any LLM. Complements the (AI) decision-check, and
+ * keeps the rejected-pattern guard alive when the AI provider is down.
+ */
+export function rulesFromRejectedDecisions(
+  rejected: { id: string; decision: string }[],
+): ArchitectureRule[] {
+  const rules: ArchitectureRule[] = [];
+  for (const d of rejected) {
+    for (const term of distinctiveTerms(d.decision, 2)) {
+      rules.push({
+        type: "forbidden-content",
+        pattern: `\\b${term.replace(/[.*+?^${}()|[\]\\/@-]/g, "\\$&")}\\b`,
+        flags: "i",
+        reason: `Rejected by team decision: "${d.decision.slice(0, 110)}"`,
+      });
+    }
+  }
+  return rules;
+}
+
 /** Matches ESM imports, dynamic import(), and require() of a module (or subpath). */
 function importRegex(module: string): RegExp {
   const m = escapeRegex(module);
   return new RegExp(`(?:from\\s+|import\\s*\\(\\s*|require\\s*\\(\\s*)['"]${m}(?:/[^'"]*)?['"]`);
 }
 
-/** User-supplied regex; a bad pattern disables the rule instead of crashing the gate. */
-function safePattern(pattern: string): RegExp | null {
+/** User-supplied regex; a bad pattern or flags disables the rule instead of crashing the gate. */
+function safePattern(pattern: string, flags?: string): RegExp | null {
   try {
-    return new RegExp(pattern);
+    return new RegExp(pattern, flags);
   } catch {
     return null;
   }

@@ -50,6 +50,7 @@ export function defaultConfigJson(): string {
     ...DEFAULT_CONFIG,
     architectureChecks: {
       enabled: true,
+      deriveFromDecisions: true,
       rules: [
         // Examples — edit or remove. Rules run against changed files only.
         // { type: "forbidden-import", module: "lodash", reason: "Use native ES utilities instead." },

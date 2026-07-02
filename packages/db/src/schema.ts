@@ -494,19 +494,37 @@ export const preflightChecks = pgTable("preflight_checks", {
   stderrSummary: text("stderr_summary"),
 });
 
+/** Raw parsed errors, one per parser hit, linked to the check row that produced them. */
 export const preflightErrors = pgTable("preflight_errors", {
   id: uuid("id").defaultRandom().primaryKey(),
   runId: uuid("run_id").notNull().references(() => preflightRuns.id, { onDelete: "cascade" }),
+  checkId: uuid("check_id").references(() => preflightChecks.id, { onDelete: "cascade" }),
   checkName: text("check_name").notNull(),
   file: text("file").notNull().default(""),
   line: integer("line"),
+  col: integer("col"),
   code: text("code"),
   category: text("category"),
   fingerprint: text("fingerprint"),
   message: text("message").notNull(),
   rawRedacted: text("raw_redacted"),
+  blocking: boolean("blocking").notNull().default(false),
+  // Legacy (pre-split) columns — new writes use preflight_fix_instructions.
   priority: text("priority"),
   instructionForAgent: text("instruction_for_agent"),
+  evidence: text("evidence"),
+});
+
+/** Agent-directed fix instructions (deduped by fingerprint), one per action item. */
+export const preflightFixInstructions = pgTable("preflight_fix_instructions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  runId: uuid("run_id").notNull().references(() => preflightRuns.id, { onDelete: "cascade" }),
+  fingerprint: text("fingerprint").notNull().default(""),
+  checkName: text("check_name"),
+  priority: text("priority").notNull().default("medium"),
+  file: text("file").notNull().default(""),
+  problem: text("problem").notNull(),
+  instructionForAgent: text("instruction_for_agent").notNull(),
   evidence: text("evidence"),
 });
 

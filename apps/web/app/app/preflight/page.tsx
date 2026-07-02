@@ -118,10 +118,16 @@ export default function PreflightPage() {
             </Section>
           )}
 
-          {/* fix instructions / errors grouped by file */}
-          {latest.errors.length > 0 && (
+          {/* fix instructions grouped by file (new runs) with legacy-error fallback */}
+          {(latest.fixInstructions.length > 0 || latest.errors.length > 0) && (
             <Section title="Files with errors">
-              {Object.entries(groupByFile(latest.errors)).map(([file, errs]) => (
+              {Object.entries(
+                groupByFile(
+                  latest.fixInstructions.length > 0
+                    ? latest.fixInstructions.map((f) => ({ id: f.id, file: f.file, priority: f.priority, message: f.problem }))
+                    : latest.errors.map((e) => ({ id: e.id, file: e.file, priority: e.priority, message: e.message })),
+                ),
+              ).map(([file, errs]) => (
                 <div key={file} className="mb-3">
                   <p className="label-mono text-[var(--cb-text)]">{file || "(general)"}</p>
                   <ul className="mt-1 space-y-1">

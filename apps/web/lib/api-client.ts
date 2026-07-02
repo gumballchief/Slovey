@@ -82,8 +82,20 @@ export interface PreflightErrorRow {
   file: string;
   line: number | null;
   message: string;
+  category: string | null;
+  fingerprint: string | null;
   priority: string | null;
   instructionForAgent: string | null;
+  evidence: string | null;
+}
+export interface PreflightFixRow {
+  id: string;
+  fingerprint: string;
+  checkName: string | null;
+  priority: string;
+  file: string;
+  problem: string;
+  instructionForAgent: string;
   evidence: string | null;
 }
 export interface PreflightViolationRow {
@@ -101,6 +113,7 @@ export interface PreflightData {
     run: PreflightRunRow;
     checks: PreflightCheckRow[];
     errors: PreflightErrorRow[];
+    fixInstructions: PreflightFixRow[];
     violations: PreflightViolationRow[];
   } | null;
 }

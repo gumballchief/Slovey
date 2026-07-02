@@ -11,7 +11,8 @@ export type PreflightMode =
   | "commit" // quick + decision-check (used by pre-commit)
   | "push" // alias of full
   | "changed-files" // full, with file-scoped checks limited to the changed set
-  | "planning"; // pre-code: no commands — return governing decisions + what will be checked
+  | "planning" // pre-code: no commands — return governing decisions + what will be checked
+  | "remote"; // server-side: knowledge checks (decision/architecture/secret) on a supplied diff
 
 export type ErrorCategory =
   | "type-error"
@@ -25,8 +26,17 @@ export type ErrorCategory =
   | "route"
   | "deps"
   | "format"
+  | "runtime"
   | "timeout"
   | "unknown";
+
+/** A structured pointer to why a decision violation applies. */
+export interface EvidenceRef {
+  type: "adr" | "pr" | "doc" | "comment" | "decision";
+  id: string;
+  url?: string;
+  quote?: string;
+}
 
 /** A single parsed error from a check's output. `file` is "" when not scoped to a file. */
 export interface PreflightError {
@@ -76,7 +86,7 @@ export interface DecisionViolation {
   violation: string;
   instructionForAgent: string;
   confidence: number;
-  evidence: string[];
+  evidence: EvidenceRef[];
 }
 
 export interface AttemptInfo {
@@ -137,7 +147,7 @@ export interface PreflightResult {
 export type ArchitectureRule =
   | { type: "forbidden-import"; module: string; in?: string; reason: string }
   | { type: "forbidden-path"; glob: string; reason: string }
-  | { type: "forbidden-content"; pattern: string; in?: string; reason: string };
+  | { type: "forbidden-content"; pattern: string; in?: string; reason: string; flags?: string };
 
 // ─────────────────────────── config ───────────────────────────
 
@@ -163,13 +173,15 @@ export interface PreflightConfig {
   architectureChecks: {
     enabled: boolean;
     rules: ArchitectureRule[];
+    /** Also derive forbidden-pattern rules from REJECTED decisions in the graph (deterministic, no LLM). */
+    deriveFromDecisions: boolean;
   };
   secretScan: { enabled: boolean };
 }
 
 export const DEFAULT_CONFIG: PreflightConfig = {
   requiredChecks: ["typecheck", "lint", "test", "build", "decision-check", "architecture-check"],
-  optionalChecks: ["secret-scan", "format", "env-check", "route-check", "deps"],
+  optionalChecks: ["secret-scan", "format", "env-check", "route-check", "deps", "smoke"],
   maxAttempts: 5,
   blockCommitOnFailure: true,
   blockPushOnFailure: true,
@@ -178,12 +190,12 @@ export const DEFAULT_CONFIG: PreflightConfig = {
   commands: {},
   allowlistedCommands: [],
   decisionChecks: { enabled: true, blockOnHighConfidence: true, minimumBlockingConfidence: 0.85 },
-  architectureChecks: { enabled: true, rules: [] },
+  architectureChecks: { enabled: true, rules: [], deriveFromDecisions: true },
   secretScan: { enabled: true },
 };
 
 /** Checks that run a shell command (detected from package.json or config). */
-export const COMMAND_CHECKS = ["typecheck", "lint", "test", "build", "format"] as const;
+export const COMMAND_CHECKS = ["typecheck", "lint", "test", "build", "format", "smoke"] as const;
 /** Package.json script name candidates per command check, in priority order. */
 export const SCRIPT_CANDIDATES: Record<string, string[]> = {
   typecheck: ["typecheck", "type-check", "tsc", "check-types"],
@@ -191,10 +203,12 @@ export const SCRIPT_CANDIDATES: Record<string, string[]> = {
   test: ["test", "test:unit", "test:ci"],
   build: ["build"],
   format: ["format:check", "format", "prettier:check", "fmt"],
+  // Runtime smoke test — boots the app / pings health and exits non-zero on failure.
+  smoke: ["smoke", "smoke-test", "test:smoke", "healthcheck", "health-check"],
 };
 
 /** Slow checks excluded from quick/commit modes. */
-export const SLOW_CHECKS = new Set(["test", "build"]);
+export const SLOW_CHECKS = new Set(["test", "build", "smoke"]);
 
 export interface RunPreflightOptions {
   /** Local repo directory the checks run in. */

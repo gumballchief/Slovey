@@ -1,6 +1,6 @@
 {
-  "requiredChecks": ["typecheck", "test", "build", "decision-check"],
-  "optionalChecks": ["secret-scan", "lint", "format", "env-check", "route-check", "deps"],
+  "requiredChecks": ["typecheck", "test", "build", "decision-check", "architecture-check"],
+  "optionalChecks": ["secret-scan", "lint", "format", "env-check", "route-check", "deps", "smoke"],
   "maxAttempts": 5,
   "blockCommitOnFailure": true,
   "allowSkippedChecks": false,

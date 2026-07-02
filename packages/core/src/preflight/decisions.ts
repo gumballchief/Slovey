@@ -2,7 +2,19 @@ import { decisions as decisionsTable, getDb } from "@company-brain/db";
 import { and, eq } from "drizzle-orm";
 import { getAI } from "../ai";
 import { retrieveDecisions } from "../pipelines/retrieve";
-import type { DecisionViolation } from "./types";
+import type { DecisionViolation, EvidenceRef } from "./types";
+
+/** Classify a raw evidence string ("PR #296", "docs/adr-17.md", …) into a typed ref. */
+export function toEvidenceRefs(raw: string[]): EvidenceRef[] {
+  return raw.map((s) => {
+    const t = s.trim();
+    if (/^(pr\s*#|#)\d+/i.test(t) || /pull request/i.test(t)) return { type: "pr" as const, id: t };
+    if (/\badr\b|architecture decision record/i.test(t)) return { type: "adr" as const, id: t };
+    if (/^https?:\/\//i.test(t)) return { type: "doc" as const, id: t, url: t };
+    if (/[\\/]|\.(md|txt|ts|tsx|js|jsx|json|ya?ml)$/i.test(t)) return { type: "doc" as const, id: t };
+    return { type: "decision" as const, id: t };
+  });
+}
 
 interface CatalogEntry {
   id: string;
@@ -93,7 +105,7 @@ function toViolation(d: CatalogEntry, violation: string, confidence: number): De
     decisionStatus: d.status,
     violation,
     confidence,
-    evidence: d.evidence,
+    evidence: toEvidenceRefs(d.evidence),
     instructionForAgent:
       `Agent, do not commit. ${isRejected ? "This reintroduces a REJECTED approach" : "This violates an active team decision"}: ` +
       `"${d.title}". ${violation} Replace it with the approved pattern, then run Preflight again.`,
@@ -115,23 +127,33 @@ ${diff || "(no textual diff available)"}
 Return ONLY JSON: {"violations":[{"decisionId":"<id>","violation":"<one sentence on exactly what the diff does that breaks this decision>","confidence":<0..1>}]}. If nothing violates, return {"violations":[]}. Only flag clear violations.`;
 }
 
-const STOP = new Set(["with", "that", "this", "from", "code", "should", "must", "using", "used", "into", "than", "when", "team", "approach", "instead", "because", "rejected", "decision", "there", "their", "which", "where", "value", "values"]);
+const STOP = new Set(["with", "that", "this", "from", "code", "should", "must", "using", "used", "into", "than", "when", "team", "approach", "instead", "because", "rejected", "decision", "there", "their", "which", "where", "value", "values", "never", "always", "does", "will", "have", "been", "were", "more", "less", "only", "avoid", "cause", "causes"]);
+
+/** Distinctive terms of a decision's text — the words a violation would reuse
+ *  (tech/package names survive; connective English is stopped out). */
+export function distinctiveTerms(decisionText: string, max = 4): string[] {
+  return [...new Set(decisionText.toLowerCase().match(/[a-z][a-z0-9.+@/-]{3,}/g) ?? [])]
+    .filter((t) => !STOP.has(t))
+    .slice(0, max);
+}
 
 /** A distinctive term from a rejected decision that reappears in the diff, or null.
  *  E.g. rejectedKeywordHit("Redis was rejected…", "import Redis") → "redis". */
 export function rejectedKeywordHit(decisionText: string, diff: string): string | null {
   const hay = diff.toLowerCase();
-  const terms = [...new Set(decisionText.toLowerCase().match(/[a-z][a-z0-9.+-]{3,}/g) ?? [])].filter((t) => !STOP.has(t));
-  return terms.find((t) => new RegExp(`\\b${t.replace(/[.+-]/g, "\\$&")}\\b`).test(hay)) ?? null;
+  return distinctiveTerms(decisionText, 40).find((t) => new RegExp(`\\b${t.replace(/[.+@/-]/g, "\\$&")}\\b`).test(hay)) ?? null;
 }
 
-/** When AI is unavailable: flag rejected decisions whose term reappears in the diff. */
+/** When AI is unavailable: flag rejected decisions whose term reappears in the diff.
+ *  A whole-word match on a rejected decision's distinctive term is a strong signal,
+ *  so it carries blocking confidence (0.9) — the gate should not weaken when the
+ *  AI judge is down. */
 function keywordFallback(list: CatalogEntry[], diff: string): DecisionViolation[] {
   const out: DecisionViolation[] = [];
   for (const d of list) {
     if (d.status !== "rejected") continue;
     const hit = rejectedKeywordHit(d.decision, diff);
-    if (hit) out.push(toViolation(d, `The diff reintroduces "${hit}", which this rejected decision forbids.`, 0.5));
+    if (hit) out.push(toViolation(d, `The diff reintroduces "${hit}", which this rejected decision forbids.`, 0.9));
   }
   return out;
 }
