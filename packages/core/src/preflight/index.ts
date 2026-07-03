@@ -15,3 +15,5 @@ export { architectureCheck, architectureCheckContents, rulesFromRejectedDecision
 export { ALLOWED_BINS, runCommand } from "./runner";
 export { securityReviewCheck } from "./security";
 export { perfCheck } from "./performance";
+export { getActiveOverrides, applyOverrides, createOverride } from "./overrides";
+export type { ActiveOverride } from "./overrides";

@@ -8,6 +8,7 @@ import { fetchRejectedDecisions, runDecisionCheck } from "./decisions";
 import { detectProject, getBranch, getChangedFiles, getCommitSha, getDiff, scriptCommand, type ProjectInfo } from "./detect";
 import { fingerprint, toFixInstructions } from "./parse";
 import { getLatestAttempt, getLatestRun, persistRun } from "./persist";
+import { applyOverrides, getActiveOverrides } from "./overrides";
 import { perfCheck } from "./performance";
 import { securityReviewCheck } from "./security";
 import {
@@ -131,11 +132,17 @@ async function runPreflightInner(opts: RunPreflightOptions): Promise<PreflightRe
   const requiredSet = new Set(config.requiredChecks);
   const stamp = (c: RawCheck): CheckResult => ({ ...c, agent: agentForCheck(c.name), blocking: requiredSet.has(c.name) });
 
+  // Human overrides: attributed, time-boxed "I approve this despite the
+  // decision" records. They downgrade matching violations to warnings and
+  // suppress the derived rules for the overridden decision.
+  const overrides = repoId ? await getActiveOverrides(repoId, branch) : new Map<string, never>();
+
   // Architecture rules = config rules + rules derived from this repo's REJECTED
   // decisions (deterministic guard that works even when the AI judge is down).
   let archRules = config.architectureChecks.rules;
   if (repoId && config.architectureChecks.deriveFromDecisions && wanted.has("architecture-check")) {
-    archRules = [...archRules, ...rulesFromRejectedDecisions(await fetchRejectedDecisions(repoId))];
+    const rejected = (await fetchRejectedDecisions(repoId)).filter((d) => !overrides.has(d.id));
+    archRules = [...archRules, ...rulesFromRejectedDecisions(rejected)];
   }
 
   const checks: CheckResult[] = [];
@@ -149,14 +156,16 @@ async function runPreflightInner(opts: RunPreflightOptions): Promise<PreflightRe
       }
       const start = Date.now();
       const { violations, note } = await runDecisionCheck(repoId, getDiff(cwd, changed), changed);
-      decisionViolations.push(...violations);
+      const applied = applyOverrides(violations, overrides);
+      decisionViolations.push(...applied.blocking);
+      warnings.push(...applied.warnings);
       checks.push(stamp({
         name,
         command: "",
         durationMs: Date.now() - start,
-        status: violations.length ? "fail" : "pass",
+        status: applied.blocking.length ? "fail" : "pass",
         errors: [],
-        skippedReason: note && violations.length === 0 ? note : undefined,
+        skippedReason: note && applied.blocking.length === 0 ? note : undefined,
       }));
       continue;
     }
@@ -265,7 +274,16 @@ async function runPreflightInner(opts: RunPreflightOptions): Promise<PreflightRe
     fixInstructions,
     decisionViolations,
     warnings,
-    nextSteps: buildNextSteps({ status, safeToCommit, humanReviewRequired: loop.humanReviewRequired }),
+    nextSteps: [
+      ...buildNextSteps({ status, safeToCommit, humanReviewRequired: loop.humanReviewRequired }),
+      // The human's fast lane out of a decision block: an attributed, time-boxed
+      // override. Agents must SURFACE this to the human, never run it themselves.
+      ...(blockingViolations.length > 0
+        ? [
+            `If a human explicitly approves this change, THE HUMAN can record an override: companybrain preflight override ${blockingViolations[0]!.decisionId.slice(0, 8)} --reason "<why>" (add --hours 168 to time-box it). Agents: show this command to the human — do not run it yourself unless the human explicitly asks.`,
+          ]
+        : []),
+    ],
     branch,
     commitSha,
     runId: null,
