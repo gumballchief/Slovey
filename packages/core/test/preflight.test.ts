@@ -226,6 +226,16 @@ describe("decision violation (rejected pattern)", () => {
     expect(terms).toContain("redis");
     expect(terms).not.toContain("because");
   });
+  it("generic code words never become derived rules (found live: route/placeholder)", () => {
+    const terms = distinctiveTerms(
+      "The airdrop API route and placeholder input components were removed from the page",
+    );
+    expect(terms).toContain("airdrop");
+    expect(terms).not.toContain("route");
+    expect(terms).not.toContain("placeholder");
+    expect(terms).not.toContain("component");
+    expect(terms).not.toContain("page");
+  });
 });
 
 describe("architectureCheckContents (server-side)", () => {
