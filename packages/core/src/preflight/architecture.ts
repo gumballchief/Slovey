@@ -50,9 +50,13 @@ export function architectureCheckContents(
 
   if (contentRules.length > 0) {
     for (const { path, content } of files) {
+      // Content rules without an explicit `in` scope apply to CODE files only —
+      // keyword rules matching prose (notes, tweets.json, docs) is pure noise.
+      // An explicit `in` glob overrides this and scopes exactly as written.
       const lines = content.split("\n");
       for (const rule of contentRules) {
         if (rule.in && !globToRegex(rule.in).test(path)) continue;
+        if (!rule.in && !CODE_FILE.test(path)) continue;
         const re =
           rule.type === "forbidden-import"
             ? importRegex(rule.module)
@@ -101,6 +105,9 @@ export function rulesFromRejectedDecisions(
   }
   return rules;
 }
+
+/** Files whose contents are executable code (unscoped content rules apply here only). */
+const CODE_FILE = /\.(c|m)?(t|j)sx?$|\.(py|rb|go|rs|java|kt|swift|cs|php|sql|sh|vue|svelte)$/i;
 
 /** Matches ESM imports, dynamic import(), and require() of a module (or subpath). */
 function importRegex(module: string): RegExp {

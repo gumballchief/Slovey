@@ -247,7 +247,20 @@ export async function searchDecisions(
 
 export async function createDecision(
   repoId: string,
-  input: { decision: string; why?: string; examples?: string[]; evidence: string[]; source?: ApiDecision["source"]; category?: string; createdBy?: string },
+  input: {
+    decision: string;
+    why?: string;
+    examples?: string[];
+    evidence: string[];
+    source?: ApiDecision["source"];
+    category?: string;
+    createdBy?: string;
+    /** "rejected" records negative knowledge — the approach the team decided against. */
+    status?: "approved" | "rejected";
+    rejectionReason?: string;
+    /** What to use instead of the rejected approach. */
+    alternatives?: string[];
+  },
 ): Promise<ApiDecision> {
   const db = getDb();
   const text = [input.decision, input.why ?? "", (input.examples ?? []).join(" ")].join("\n");
@@ -262,7 +275,9 @@ export async function createDecision(
       evidence: input.evidence,
       source: input.source ?? "github_pr",
       category: input.category ?? null,
-      status: "approved",
+      status: input.status ?? "approved",
+      rejectionReason: input.rejectionReason ?? null,
+      alternatives: input.alternatives ?? [],
       embedding,
       createdBy: input.createdBy ?? "dashboard",
     })
