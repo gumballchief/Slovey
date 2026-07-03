@@ -38,8 +38,14 @@ export async function POST(
       evidence?: string[];
       source?: "github_pr" | "doc" | "linear" | "notion" | "slack" | "repo_analysis" | "manual";
       category?: string;
+      status?: string;
+      rejectionReason?: string;
+      alternatives?: string[];
     };
     if (!body.decision?.trim()) throw new HttpError(400, "decision is required");
+    if (body.status && body.status !== "approved" && body.status !== "rejected") {
+      throw new HttpError(400, 'status must be "approved" or "rejected"');
+    }
     const created = await dashboard.createDecision(id, {
       decision: body.decision,
       why: body.why,
@@ -47,6 +53,9 @@ export async function POST(
       evidence: body.evidence ?? [],
       source: body.source,
       category: body.category,
+      status: body.status as "approved" | "rejected" | undefined,
+      rejectionReason: body.rejectionReason,
+      alternatives: body.alternatives ?? [],
       createdBy: viewer.login,
     });
     await logAudit({ repoId: id, actorUser: viewer.login, action: "decision.create", targetType: "decision", targetId: created.id });
