@@ -4,7 +4,7 @@ import { agentForCheck } from "../agents/registry";
 import { architectureCheck, rulesFromRejectedDecisions } from "./architecture";
 import { loadPreflightConfig } from "./config";
 import { depsCheck, envCheck, routeCheck, runCommandCheck, secretScanCheck, type RawCheck } from "./checks";
-import { fetchRejectedDecisions, runDecisionCheck } from "./decisions";
+import { confirmDerivedHits, fetchRejectedDecisions, runDecisionCheck } from "./decisions";
 import { detectProject, getBranch, getChangedFiles, getCommitSha, getDiff, scriptCommand, type ProjectInfo } from "./detect";
 import { fingerprint, toFixInstructions } from "./parse";
 import { getLatestAttempt, getLatestRun, persistRun } from "./persist";
@@ -170,7 +170,27 @@ async function runPreflightInner(opts: RunPreflightOptions): Promise<PreflightRe
       continue;
     }
     if (name === "architecture-check") {
-      checks.push(stamp(architectureCheck(cwd, changed, archRules)));
+      const arch = architectureCheck(cwd, changed, archRules);
+      // Derived-keyword hits get vetted by the judge before they can block —
+      // keyword matches on comments/attributes/import-paths were interrupting
+      // humans with false positives. Explicit config rules are never vetted
+      // (the team wrote those deliberately); AI down → keep everything.
+      const derivedIdx = arch.errors
+        .map((e, i) => ({ e, i }))
+        .filter(({ e }) => e.message.includes("Rejected by team decision"))
+        .map(({ i }) => i);
+      if (derivedIdx.length > 0) {
+        const genuine = await confirmDerivedHits(derivedIdx.map((i) => arch.errors[i]!));
+        if (genuine !== null) {
+          const drop = new Set(derivedIdx.filter((_, pos) => !genuine.has(pos)));
+          if (drop.size > 0) {
+            warnings.push(`${drop.size} keyword match(es) on rejected decisions were dismissed by the judge as false positives (comments/attributes, not reintroductions).`);
+            arch.errors = arch.errors.filter((_, i) => !drop.has(i));
+            arch.status = arch.errors.length ? "fail" : "pass";
+          }
+        }
+      }
+      checks.push(stamp(arch));
       continue;
     }
     if (name === "security-review") {

@@ -140,11 +140,28 @@ Return ONLY JSON: {"violations":[{"decisionId":"<id>","violation":"<one sentence
 
 const STOP = new Set(["with", "that", "this", "from", "code", "should", "must", "using", "used", "into", "than", "when", "team", "approach", "instead", "because", "rejected", "decision", "there", "their", "which", "where", "value", "values", "never", "always", "does", "will", "have", "been", "were", "more", "less", "only", "avoid", "cause", "causes"]);
 
+/** Words that are everywhere in ordinary code — a derived rule on any of these
+ *  interrupts constantly with false positives (found live: "route" matched every
+ *  Next.js route file; "placeholder" matched every <input placeholder=…>).
+ *  A term this generic can never carry a rejected decision on its own — the AI
+ *  judge handles those semantically. */
+const GENERIC_CODE_TERMS = new Set([
+  "route", "routes", "router", "placeholder", "placeholders", "component", "components",
+  "endpoint", "endpoints", "page", "pages", "button", "input", "search", "handler",
+  "handlers", "request", "response", "service", "services", "server", "client",
+  "config", "import", "export", "index", "data", "user", "users", "market", "markets",
+  "function", "functions", "module", "modules", "helper", "helpers", "type", "types",
+  "test", "tests", "file", "files", "update", "updates", "create", "delete", "display",
+  "displayed", "logic", "state", "props", "auto", "sync", "async", "demo", "balance",
+  "balances", "product", "removed", "welcome", "modal", "presents", "currently",
+]);
+
 /** Distinctive terms of a decision's text — the words a violation would reuse
- *  (tech/package names survive; connective English is stopped out). */
+ *  (tech/package names survive; connective English + generic code words are
+ *  stopped out). */
 export function distinctiveTerms(decisionText: string, max = 4): string[] {
   return [...new Set(decisionText.toLowerCase().match(/[a-z][a-z0-9.+@/-]{3,}/g) ?? [])]
-    .filter((t) => !STOP.has(t))
+    .filter((t) => !STOP.has(t) && !GENERIC_CODE_TERMS.has(t))
     .slice(0, max);
 }
 
@@ -153,6 +170,38 @@ export function distinctiveTerms(decisionText: string, max = 4): string[] {
 export function rejectedKeywordHit(decisionText: string, diff: string): string | null {
   const hay = diff.toLowerCase();
   return distinctiveTerms(decisionText, 40).find((t) => new RegExp(`\\b${t.replace(/[.+@/-]/g, "\\$&")}\\b`).test(hay)) ?? null;
+}
+
+/**
+ * Vet derived-keyword hits with the judge before they block: keyword matching
+ * can't tell `requestAirdrop()` from a comment containing the word. Returns the
+ * indexes of GENUINE reintroductions, or null when AI is unavailable (caller
+ * keeps all hits — the deterministic guard must not weaken when AI is down).
+ */
+export async function confirmDerivedHits(
+  hits: { file: string; line?: number; raw?: string; message: string }[],
+): Promise<Set<number> | null> {
+  if (hits.length === 0) return new Set();
+  const list = hits
+    .map((h, i) => `${i}. ${h.file}${h.line ? `:${h.line}` : ""}\n   flagged line: ${(h.raw ?? "").slice(0, 160)}\n   rule: ${h.message.slice(0, 160)}`)
+    .join("\n");
+  try {
+    const r = await getAI().completeJSON<{ genuine: number[] }>(
+      `Keyword rules derived from REJECTED team decisions flagged these lines. Keyword matching is crude:
+a comment, an import path, a UI attribute (like <input placeholder=…>), or an unrelated identifier that
+merely CONTAINS the word is NOT a violation. A line only violates if it genuinely REINTRODUCES the
+rejected approach described in the rule.
+
+${list}
+
+Return ONLY JSON: {"genuine":[indexes of real violations]}. No real violations → {"genuine":[]}.`,
+      { tier: "cheap", maxTokens: 300 },
+    );
+    if (!r || !Array.isArray(r.genuine)) return null;
+    return new Set(r.genuine.filter((n) => Number.isInteger(n) && n >= 0 && n < hits.length));
+  } catch {
+    return null;
+  }
 }
 
 /** When AI is unavailable: flag rejected decisions whose term reappears in the diff.
