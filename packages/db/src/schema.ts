@@ -564,6 +564,23 @@ export const preflightDecisionViolations = pgTable("preflight_decision_violation
   evidence: jsonb("evidence").notNull().default(sql`'[]'::jsonb`),
 });
 
+/** Human overrides: "I approve this change despite the decision" — first-class,
+ *  attributed, time-boxed. Agents surface the override command; humans run it. */
+export const preflightOverrides = pgTable("preflight_overrides", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  repoId: uuid("repo_id")
+    .notNull()
+    .references(() => repos.id, { onDelete: "cascade" }),
+  decisionId: uuid("decision_id")
+    .notNull()
+    .references(() => decisions.id, { onDelete: "cascade" }),
+  branch: text("branch"),
+  reason: text("reason").notNull(),
+  grantedBy: text("granted_by").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 // ─────────────────────────── inferred types ───────────────────────────
 export type AgentRun = typeof agentRuns.$inferSelect;
 export type PreflightRun = typeof preflightRuns.$inferSelect;

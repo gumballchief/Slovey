@@ -65,6 +65,13 @@ export function secretScanCheck(cwd: string, changed: string[]): RawCheck {
   };
 }
 
+/** Provided by the OS/runtime/CI, not by app configuration — never belongs in
+ *  .env.example (found by dogfooding: flagged process.env.USERNAME). */
+const OS_PROVIDED_VARS = new Set([
+  "USER", "USERNAME", "HOME", "USERPROFILE", "PATH", "TEMP", "TMP", "TMPDIR",
+  "SHELL", "HOSTNAME", "PWD", "LANG", "TZ", "CI", "PORT", "NODE_ENV",
+]);
+
 /** env var check: process.env.X referenced in changed code but absent from .env.example. */
 export function envCheck(cwd: string, changed: string[]): RawCheck {
   const start = Date.now();
@@ -85,7 +92,7 @@ export function envCheck(cwd: string, changed: string[]): RawCheck {
     const seen = new Set<string>();
     for (const m of content.matchAll(ref)) {
       const key = m[1]!;
-      if (key.startsWith("NEXT_PUBLIC_") || declared.has(key) || seen.has(key)) continue;
+      if (key.startsWith("NEXT_PUBLIC_") || OS_PROVIDED_VARS.has(key) || declared.has(key) || seen.has(key)) continue;
       seen.add(key);
       if (declared.size > 0) {
         errors.push({ file: path, code: "env", category: "env", message: `Uses process.env.${key} but it is not documented in .env.example.` });

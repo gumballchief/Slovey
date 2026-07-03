@@ -233,6 +233,24 @@ Never installed automatically. `--install-hooks` writes `pre-commit`
 only hooks carrying the Company Brain marker. If the CLI isn't on PATH, hooks
 skip gracefully with a notice.
 
+## The override workflow (human-in-the-loop)
+
+A chat instruction to an agent is invisible to the gate — by design, or agents
+could claim approval and self-bypass. When a human genuinely approves a change
+a decision blocks, they make it official in one command (the gate prints it):
+
+```
+companybrain preflight override <decisionId> --reason "going devnet" [--hours 168] [--branch b]
+```
+
+- **Attributed** (git user.name) and **time-boxed** (default one week) — the
+  fast lane, not the fix. Permanent changes should update the decision itself.
+- The next gate run downgrades that decision's block to a warning:
+  `…OVERRIDDEN by <name>: <reason>`, and suppresses its derived rules.
+- **Agents must never run the override themselves** — they surface the command
+  to the human (the CLAUDE.md rule + the harness permission prompt enforce the
+  human click). Overrides are recorded in `preflight_overrides` for audit.
+
 ## Loop safety
 
 - `maxAttempts` (default 5) counts consecutive failing runs per branch; the

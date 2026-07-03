@@ -1,6 +1,7 @@
 import { architectureCheckContents, rulesFromRejectedDecisions } from "./architecture";
 import { loadPreflightConfig } from "./config";
 import { fetchRejectedDecisions, runDecisionCheck } from "./decisions";
+import { applyOverrides, getActiveOverrides } from "./overrides";
 import { toFixInstructions } from "./parse";
 import { persistRun } from "./persist";
 import { scanForSecrets } from "./redact";
@@ -53,8 +54,11 @@ export async function runRemotePreflight(repoId: string, payload: RemotePrefligh
   // AI security pass on the supplied diff.
   checks.push({ ...(await securityReviewCheck(diff, changed)), agent: "security", blocking: false });
 
+  // Human overrides apply server-side too.
+  const overrides = await getActiveOverrides(repoId, payload.branch ?? null);
+
   // architecture-check: config rules + rules derived from this repo's rejected decisions.
-  const rejected = await fetchRejectedDecisions(repoId);
+  const rejected = (await fetchRejectedDecisions(repoId)).filter((d) => !overrides.has(d.id));
   const rules = [
     ...config.architectureChecks.rules,
     ...(config.architectureChecks.deriveFromDecisions ? rulesFromRejectedDecisions(rejected) : []),
@@ -64,7 +68,9 @@ export async function runRemotePreflight(repoId: string, payload: RemotePrefligh
 
   // decision-check on the supplied diff.
   const startDec = Date.now();
-  const { violations, note } = await runDecisionCheck(repoId, diff, changed);
+  const decisionResult = await runDecisionCheck(repoId, diff, changed);
+  const { blocking: violations, warnings: overrideWarnings } = applyOverrides(decisionResult.violations, overrides);
+  const note = decisionResult.note;
   checks.push({
     name: "decision-check", command: "", durationMs: Date.now() - startDec, blocking: true,
     status: violations.length ? "fail" : "pass", errors: [],
@@ -98,7 +104,7 @@ export async function runRemotePreflight(repoId: string, payload: RemotePrefligh
     checks,
     fixInstructions,
     decisionViolations: violations,
-    warnings: [],
+    warnings: overrideWarnings,
     nextSteps: ["Run the full local gate before committing."],
     branch: payload.branch ?? null,
     commitSha: payload.commitSha ?? null,

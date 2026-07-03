@@ -8,6 +8,7 @@ import { perfCheck } from "../src/preflight/performance";
 import { securityReviewCheck } from "../src/preflight/security";
 import {
   ALLOWED_BINS,
+  applyOverrides,
   architectureCheck,
   architectureCheckContents,
   defaultConfigJson,
@@ -354,6 +355,33 @@ describe("security-review (AI pass)", () => {
     expect((await securityReviewCheck("+ const x = 1;", ["a.ts"])).status).toBe("pass");
     setAI(fake(null));
     expect((await securityReviewCheck("+ const x = 1;", ["a.ts"])).status).toBe("skipped");
+  });
+});
+
+describe("human overrides", () => {
+  const violation = {
+    decisionId: "d1",
+    title: "Redis rejected",
+    decisionStatus: "rejected" as const,
+    violation: "reintroduces redis",
+    instructionForAgent: "do not",
+    confidence: 0.9,
+    evidence: [],
+  };
+  it("downgrades overridden violations to attributed warnings; others still block", () => {
+    const overrides = new Map([
+      ["d1", { decisionId: "d1", grantedBy: "youso", reason: "approved for the demo branch", branch: null, expiresAt: null }],
+    ]);
+    const r = applyOverrides([violation, { ...violation, decisionId: "d2" }], overrides);
+    expect(r.blocking).toHaveLength(1);
+    expect(r.blocking[0]!.decisionId).toBe("d2");
+    expect(r.warnings[0]).toContain("OVERRIDDEN by youso");
+    expect(r.warnings[0]).toContain("approved for the demo branch");
+  });
+  it("no overrides → everything blocks", () => {
+    const r = applyOverrides([violation], new Map());
+    expect(r.blocking).toHaveLength(1);
+    expect(r.warnings).toHaveLength(0);
   });
 });
 

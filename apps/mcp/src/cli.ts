@@ -20,6 +20,9 @@ Usage:
   companybrain preflight init               write a starter companybrain.preflight.json
   companybrain preflight status             show the latest run without re-running
   companybrain preflight explain <errorId>  explain one stored error (id from fixInstructions)
+  companybrain preflight override <decisionId> --reason "<why>" [--hours 168] [--branch <b>]
+                                            HUMAN-ONLY: approve a change a decision blocks
+                                            (attributed + time-boxed; agents must not run this)
   companybrain preflight --install-hooks    install pre-commit (mode: commit) + pre-push (full) git hooks
   companybrain preflight --uninstall-hooks  remove Company Brain git hooks
 
@@ -136,6 +139,9 @@ function printHuman(r: PreflightResult): void {
     for (const f of r.fixInstructions.slice(0, 20)) console.log(`  • [${f.priority}] ${f.file || "(general)"}: ${f.problem}  (id: ${f.id})`);
   }
   for (const w of r.warnings) console.log(`\n⚠ ${w}`);
+  // Surface the human's override fast-lane in the human-readable output too.
+  const overrideStep = r.nextSteps.find((s) => s.includes("preflight override"));
+  if (overrideStep) console.log(`\n→ ${overrideStep}`);
   console.log(`\n${r.agentInstruction}\n`);
 }
 
@@ -174,6 +180,51 @@ async function showStatus(cwd: string): Promise<void> {
   console.log(`safe to commit: ${run.safeToCommit} · safe to push: ${run.safeToPush} · attempt ${run.attempt}/${run.maxAttempts}${run.humanReviewRequired ? " · HUMAN REVIEW REQUIRED" : ""}`);
   console.log(`branch: ${run.branch ?? "—"} · ${new Date(run.createdAt as unknown as string).toLocaleString()}`);
   console.log(`\n${run.agentInstruction}`);
+}
+
+/** HUMAN-ONLY: record an attributed, time-boxed override for a blocking decision. */
+async function recordOverride(cwd: string, args: string[]): Promise<void> {
+  const decisionId = args[0];
+  const flag = (name: string): string | undefined => {
+    const i = args.indexOf(name);
+    return i >= 0 ? args[i + 1] : undefined;
+  };
+  const reason = flag("--reason");
+  if (!decisionId || decisionId.startsWith("--") || !reason) {
+    console.error('Usage: companybrain preflight override <decisionId> --reason "<why>" [--hours 168] [--branch <b>]');
+    process.exitCode = 1;
+    return;
+  }
+  const repoId = await resolveRepoId(cwd);
+  if (!repoId) {
+    console.error("No connected repo — overrides require a repo connected to Company Brain.");
+    process.exitCode = 1;
+    return;
+  }
+  let grantedBy = "";
+  try {
+    grantedBy = execFileSync("git", ["config", "user.name"], { cwd, encoding: "utf8" }).trim();
+  } catch {
+    /* fall through */
+  }
+  if (!grantedBy) grantedBy = process.env.USERNAME || process.env.USER || "unknown";
+
+  const hours = flag("--hours") ? Number(flag("--hours")) : 168; // default: one week
+  const branch = flag("--branch") ?? null;
+  const r = await preflight.createOverride({
+    repoId,
+    decisionIdOrPrefix: decisionId,
+    reason,
+    grantedBy,
+    branch,
+    hours: Number.isFinite(hours) ? hours : 168,
+  });
+  console.log(`override recorded by ${grantedBy}`);
+  console.log(`  decision: ${r.decisionId.slice(0, 8)} — ${r.decision.slice(0, 90)}…`);
+  console.log(`  reason:   ${reason}`);
+  console.log(`  scope:    ${branch ?? "all branches"} · ${r.expiresAt ? `expires ${r.expiresAt.toISOString()}` : "no expiry"}`);
+  console.log("\nRe-run preflight — this decision's block is now downgraded to a warning.");
+  console.log("For a permanent change, update the decision itself in the dashboard instead.");
 }
 
 async function explainError(cwd: string, errorId: string): Promise<void> {
@@ -228,6 +279,11 @@ async function main() {
       return;
     }
     await explainError(cwd, id);
+    await closeDb();
+    return;
+  }
+  if (argv[0] === "override") {
+    await recordOverride(cwd, argv.slice(1));
     await closeDb();
     return;
   }
