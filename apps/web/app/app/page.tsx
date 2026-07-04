@@ -7,6 +7,7 @@ import { fetchDecisions, fetchPRs } from "@/lib/api-client";
 import { Stat } from "@/components/ui/Stat";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ConnectRepoButton } from "@/components/ui/ConnectRepoButton";
+import { ReconnectGitHubButton } from "@/components/ui/ReconnectGitHubButton";
 import { VerdictPill } from "@/components/ui/VerdictPill";
 import { Brain, GitPullRequest, AlertTriangle, Clock } from "lucide-react";
 import { formatRelativeTime } from "@/lib/utils";
@@ -38,10 +39,56 @@ export default function OverviewPage() {
       <div className="p-6 max-w-6xl mx-auto">
         <EmptyState
           icon={<Brain size={22} />}
-          title="No repository connected"
-          description="Install the GitHub App on a repository to start capturing decisions — or import existing ADRs from the Memory page."
-          action={<ConnectRepoButton />}
+          title="No repository connected yet"
+          description="Two things bring a repo in: (1) install the Company Brain GitHub App on it, and (2) make sure you signed in with GitHub — repo access is tied to your GitHub account. Already did both but don't see it? Reconnect GitHub to refresh."
+          action={
+            <div className="flex flex-col items-center gap-2.5 sm:flex-row">
+              <ConnectRepoButton />
+              <ReconnectGitHubButton />
+            </div>
+          }
         />
+      </div>
+    );
+  }
+
+  // First run: repo is connected but nothing has been indexed or checked yet.
+  // Without this, a brand-new repo shows "0 decisions" over an empty chart and
+  // reads as broken. Guide the user to their first decisions instead.
+  if (repo.decisionsCount === 0 && repo.prsChecked === 0) {
+    return (
+      <div className="p-6 max-w-6xl mx-auto space-y-6">
+        <div className="relative overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-6 py-6">
+          <span className="label-mono flex items-center gap-2 text-[var(--primary-strong)]">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--primary)]" /> {repo.name} · connected
+          </span>
+          <h2 className="mt-2 font-display text-[1.7rem] font-semibold tracking-[-0.02em] text-[var(--cb-text)]">
+            Building this repo&apos;s memory
+          </h2>
+          <p className="mt-1 max-w-lg text-sm leading-relaxed text-[var(--text-muted)]">
+            Company Brain is scanning your merged PRs and docs for the decisions your team already
+            made. This runs in the background on connect and can take a few minutes on a large
+            history — decisions will appear here as they&apos;re found.
+          </p>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-3">
+          {[
+            { n: "1", t: "History is indexing", d: "Merged PRs, review threads, and /docs are being read now. No action needed." },
+            { n: "2", t: "Add a decision yourself", d: "Know a rule already? Record it on the Memory page so the gate enforces it today.", href: "/app/memory" },
+            { n: "3", t: "Wire up Preflight", d: "Point your coding agent's MCP config at this repo so checks run before every commit.", href: "/app/preflight" },
+          ].map((s) => (
+            <a
+              key={s.n}
+              href={s.href ?? undefined}
+              className={`card p-5 ${s.href ? "transition-colors hover:border-[var(--primary)]/40" : "cursor-default"}`}
+            >
+              <span className="label-mono text-[var(--primary)]">Step {s.n}</span>
+              <h3 className="mt-2 font-display text-base tracking-[-0.02em] text-[var(--cb-text)]">{s.t}</h3>
+              <p className="mt-1 text-sm leading-relaxed text-[var(--text-muted)]">{s.d}</p>
+            </a>
+          ))}
+        </div>
       </div>
     );
   }
@@ -73,8 +120,7 @@ export default function OverviewPage() {
         <Stat
           label="Decisions Remembered"
           value={repo.decisionsCount}
-          trend={`+${Math.round(repo.decisionsCount * 0.12)} this month`}
-          trendUp
+          trend="in memory"
           icon={<Brain size={16} />}
         />
         <Stat
