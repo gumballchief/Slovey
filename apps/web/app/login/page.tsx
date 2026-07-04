@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Brain, Loader2, Mail } from "lucide-react";
+import { Brain, ChevronDown, Loader2, Mail } from "lucide-react";
 import { createSupabaseBrowser } from "@/lib/supabase-browser";
 
 type Mode = "signin" | "signup";
@@ -14,6 +14,7 @@ export default function LoginPage() {
   const [busy, setBusy] = useState<null | "github" | "google" | "email">(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [showMore, setShowMore] = useState(false);
 
   const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/auth/callback?next=/app` : undefined;
 
@@ -81,35 +82,58 @@ export default function LoginPage() {
             {mode === "signin" ? "Welcome back to your engineering memory." : "Start capturing your team's decisions."}
           </p>
 
-          {/* OAuth */}
-          <div className="mt-6 space-y-2.5">
+          {/* Primary path: GitHub. Company Brain connects to GitHub repos, so
+              repo access is derived from the GitHub identity — Google/email
+              sign-ins authenticate but can't reach repositories. Lead with the
+              path that actually works and say so, rather than offering three
+              co-equal buttons where two dead-end on an empty dashboard. */}
+          <div className="mt-6">
             <button
               onClick={() => oauth("github")}
               disabled={!!busy}
-              className="flex w-full cursor-pointer items-center justify-center gap-2.5 rounded-xl border border-white/12 bg-white/[0.04] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-white/[0.08] disabled:opacity-50"
+              className="btn-mesh flex w-full cursor-pointer items-center justify-center gap-2.5 rounded-xl px-4 py-3 text-sm font-semibold disabled:opacity-60"
             >
               {busy === "github" ? <Loader2 size={16} className="animate-spin" /> : <GitHubIcon />}
               Continue with GitHub
             </button>
-            <button
-              onClick={() => oauth("google")}
-              disabled={!!busy}
-              className="flex w-full cursor-pointer items-center justify-center gap-2.5 rounded-xl border border-white/12 bg-white/[0.04] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-white/[0.08] disabled:opacity-50"
-            >
-              {busy === "google" ? <Loader2 size={16} className="animate-spin" /> : <GoogleIcon />}
-              Continue with Google
-            </button>
+            <p className="mt-2 text-center text-xs text-white/40">
+              GitHub is required to connect your repositories.
+            </p>
           </div>
 
-          {/* divider */}
-          <div className="my-5 flex items-center gap-3 text-white/30">
-            <span className="h-px flex-1 bg-white/10" />
-            <span className="label-mono">or</span>
-            <span className="h-px flex-1 bg-white/10" />
-          </div>
+          {/* Secondary options — clearly labelled so nobody strands themselves. */}
+          <button
+            type="button"
+            onClick={() => setShowMore((v) => !v)}
+            className="mt-5 flex w-full items-center justify-center gap-1.5 text-xs text-white/45 hover:text-white/70"
+          >
+            {showMore ? "Hide other options" : "Other ways to sign in"}
+            <ChevronDown size={13} className={showMore ? "rotate-180 transition-transform" : "transition-transform"} />
+          </button>
 
-          {/* Email */}
-          <form onSubmit={submitEmail} className="space-y-3">
+          {showMore && (
+            <div className="mt-4">
+              <p className="mb-3 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs leading-relaxed text-white/45">
+                Google and email sign-in let you browse, but connecting repositories still requires GitHub.
+              </p>
+              <button
+                onClick={() => oauth("google")}
+                disabled={!!busy}
+                className="flex w-full cursor-pointer items-center justify-center gap-2.5 rounded-xl border border-white/12 bg-white/[0.04] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-white/[0.08] disabled:opacity-50"
+              >
+                {busy === "google" ? <Loader2 size={16} className="animate-spin" /> : <GoogleIcon />}
+                Continue with Google
+              </button>
+
+              {/* divider */}
+              <div className="my-5 flex items-center gap-3 text-white/30">
+                <span className="h-px flex-1 bg-white/10" />
+                <span className="label-mono">or</span>
+                <span className="h-px flex-1 bg-white/10" />
+              </div>
+
+              {/* Email */}
+              <form onSubmit={submitEmail} className="space-y-3">
             <input
               type="email"
               required
@@ -139,23 +163,25 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {error && <p className="mt-3 text-sm text-[#FF6B8A]">{error}</p>}
-          {notice && <p className="mt-3 text-sm text-[var(--primary)]">{notice}</p>}
+              <p className="mt-5 text-center text-sm text-white/50">
+                {mode === "signin" ? "Don't have an account? " : "Already have an account? "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode(mode === "signin" ? "signup" : "signin");
+                    setError(null);
+                    setNotice(null);
+                  }}
+                  className="cursor-pointer font-medium text-[var(--primary)] hover:underline"
+                >
+                  {mode === "signin" ? "Sign up" : "Sign in"}
+                </button>
+              </p>
+            </div>
+          )}
 
-          <p className="mt-5 text-center text-sm text-white/50">
-            {mode === "signin" ? "Don't have an account? " : "Already have an account? "}
-            <button
-              type="button"
-              onClick={() => {
-                setMode(mode === "signin" ? "signup" : "signin");
-                setError(null);
-                setNotice(null);
-              }}
-              className="cursor-pointer font-medium text-[var(--primary)] hover:underline"
-            >
-              {mode === "signin" ? "Sign up" : "Sign in"}
-            </button>
-          </p>
+          {error && <p className="mt-4 text-sm text-[#FF6B8A]">{error}</p>}
+          {notice && <p className="mt-4 text-sm text-[var(--primary)]">{notice}</p>}
         </div>
 
         <p className="mt-6 text-center text-xs text-white/35">
