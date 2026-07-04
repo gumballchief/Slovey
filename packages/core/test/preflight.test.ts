@@ -268,6 +268,25 @@ describe("secret handling", () => {
     expect(redact(`using ${fakeAwsKey} now`)).toContain("[REDACTED]");
     expect(redact(`using ${fakeAwsKey} now`)).not.toContain(fakeAwsKey);
   });
+  it("catches Stripe-style underscore secret keys (previously missed)", () => {
+    const stripe = ["sk", "live", "51H8xQ2eZvKYlo2CabcdEFGH1234ijkl"].join("_");
+    const errs = scanForSecrets([{ path: "billing.ts", content: `const s = "${stripe}";` }]);
+    expect(errs.some((e) => /Stripe/.test(e.message))).toBe(true);
+  });
+  it("does NOT flag placeholder/example secrets or fixtures (no false positives)", () => {
+    const errs = scanForSecrets([
+      { path: "README.md", content: "postgres://user:password@localhost:5432/db" },
+      { path: "config.example.ts", content: 'apiKey: "your-api-key-here"' },
+      { path: "auth.test.ts", content: 'const t = "eyJhbGciOi.eyJzdWIiOi.dummysignaturevalue"' },
+      { path: "docker-compose.yml", content: "DATABASE_URL: mysql://root:changeme@db:3306/app" },
+      { path: "Form.tsx", content: "interface P { password: string }" },
+    ]);
+    expect(errs).toEqual([]);
+  });
+  it("still flags a real hardcoded secret in ordinary source", () => {
+    const errs = scanForSecrets([{ path: "cfg.ts", content: 'const token = "aB3xR9tK2mQ7wL5pN8vC1zY";' }]);
+    expect(errs.length).toBeGreaterThan(0);
+  });
   it("scans changed source for hardcoded secrets but skips .env templates", () => {
     const errs = scanForSecrets([
       { path: "a.ts", content: `const k = "${fakeAwsKey}";` },
