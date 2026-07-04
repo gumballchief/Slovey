@@ -71,6 +71,27 @@ describe("parseWebhook", () => {
   it("ignores events with no installation", () => {
     expect(parseWebhook("pull_request", { action: "opened" })).toEqual([]);
   });
+
+  // Defensive parsing: untrusted-shaped payloads must never crash the parser.
+  it("never throws on malformed payloads", () => {
+    const inputs: [string, unknown][] = [
+      ["installation", null],
+      ["installation", undefined],
+      ["installation", {}],
+      ["installation", []],
+      ["installation", 42],
+      ["pull_request", { installation: { id: 1 }, action: "opened", pull_request: { number: 3 } }], // no repository
+      ["issue_comment", { installation: { id: 1 }, action: "created", issue: { number: 5, pull_request: {} }, comment: { body: "/brain dismiss", user: { login: "u" } } }], // no repository
+    ];
+    for (const [evt, payload] of inputs) {
+      expect(() => parseWebhook(evt, payload)).not.toThrow();
+    }
+  });
+
+  it("drops pull_request events with a non-numeric PR number or missing repo", () => {
+    expect(parseWebhook("pull_request", { installation: { id: 1 }, action: "opened", repository: { full_name: "a/b" }, pull_request: { number: "x" } })).toEqual([]);
+    expect(parseWebhook("pull_request", { installation: { id: 1 }, action: "opened", pull_request: { number: 3 } })).toEqual([]);
+  });
 });
 
 describe("buildComment", () => {
