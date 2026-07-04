@@ -285,14 +285,22 @@ async function doctor(cwd: string): Promise<void> {
       : { level: "warn", label: "Repository identity", detail: 'set COMPANY_BRAIN_REPO="owner/name" in .env or your .mcp.json env' },
   );
 
-  // 3. AI provider (optional — checks degrade to deterministic without it).
-  const provider = process.env.AI_PROVIDER || "anthropic";
-  const keyVar = provider === "gemini" ? "GEMINI_API_KEY" : provider === "openai" ? "OPENAI_API_KEY" : "ANTHROPIC_API_KEY";
-  lines.push(
-    process.env[keyVar]
-      ? { level: "pass", label: "AI provider", detail: `${provider} (key present)` }
-      : { level: "warn", label: "AI provider", detail: `${keyVar} not set — decision & security review fall back to deterministic checks` },
-  );
+  // API mode (external, self-serve): token set → knowledge checks run on the
+  // hosted API, so AI keys and a DB connection aren't the user's concern.
+  const api = preflight.apiModeFromEnv();
+
+  // 3. AI provider — only relevant in direct (self-hosted) mode.
+  if (api) {
+    lines.push({ level: "pass", label: "Mode", detail: `hosted API — ${api.apiUrl}` });
+  } else {
+    const provider = process.env.AI_PROVIDER || "anthropic";
+    const keyVar = provider === "gemini" ? "GEMINI_API_KEY" : provider === "openai" ? "OPENAI_API_KEY" : "ANTHROPIC_API_KEY";
+    lines.push(
+      process.env[keyVar]
+        ? { level: "pass", label: "AI provider", detail: `${provider} (key present)` }
+        : { level: "warn", label: "AI provider", detail: `${keyVar} not set — decision & security review fall back to deterministic checks` },
+    );
+  }
 
   // 4. Preflight config (optional — defaults are sensible).
   const { config, source } = preflight.loadPreflightConfig(cwd);
@@ -302,8 +310,10 @@ async function doctor(cwd: string): Promise<void> {
       : { level: "warn", label: "Preflight config", detail: "using built-in defaults — run 'companybrain preflight init' to customize" },
   );
 
-  // 5. Connection to Company Brain's decision store (optional — local checks run regardless).
-  if (slug) {
+  // 5. Connection to Company Brain's decision store.
+  if (api) {
+    lines.push({ level: "pass", label: "Hosted token", detail: "COMPANY_BRAIN_TOKEN set — knowledge checks run on the API" });
+  } else if (slug) {
     try {
       const r = await resolveRepo(slug);
       lines.push(
@@ -389,14 +399,49 @@ async function main() {
     | preflight.PreflightMode
     | undefined;
 
-  const repoId = await resolveRepoId(cwd);
-  const r = await preflight.runPreflight({
-    cwd,
-    repoId,
-    mode,
-    checkOnly: argv.includes("--check-only"),
-    maxAttempts,
-  });
+  const checkOnly = argv.includes("--check-only");
+  const apiCfg = preflight.apiModeFromEnv();
+  let r: PreflightResult;
+
+  if (apiCfg) {
+    // API mode (external, self-serve): run local command + static checks with no
+    // DB, then fetch decision-graph / security / architecture checks from the
+    // hosted API and merge. Falls back to local-only (with a clear warning) if
+    // the hosted service is unreachable — never blocks the developer on our uptime.
+    const local = await preflight.runPreflight({ cwd, repoId: null, mode, checkOnly, maxAttempts });
+    const wantsKnowledge = !checkOnly && mode !== "quick" && mode !== "planning";
+    if (wantsKnowledge) {
+      try {
+        const remote = await preflight.fetchRemoteKnowledge(apiCfg, preflight.collectChangePayload(cwd));
+        r = preflight.mergeRemote(local, remote);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        // Fail OPEN on transient hosted downtime — our uptime must not block a
+        // developer's commit. Downgrade the now-unverifiable decision-check from a
+        // blocking skip to non-blocking, keep a loud warning, and recompute the
+        // verdict from the checks we could actually run. The GitHub App re-checks
+        // the decision graph server-side at PR time as the backstop.
+        const checks = local.checks.map((c) =>
+          c.name === "decision-check" && c.status === "skipped" ? { ...c, blocking: false } : c,
+        );
+        const blocked = checks.some((c) => c.blocking && c.status === "fail");
+        const anyFail = checks.some((c) => c.status === "fail");
+        r = {
+          ...local,
+          checks,
+          safeToCommit: !blocked,
+          safeToPush: !blocked,
+          status: blocked ? "fail" : anyFail ? "partial" : "pass",
+          warnings: [...local.warnings, `Company Brain hosted checks unavailable (${msg.slice(0, 90)}) — ran local checks only; the decision graph was NOT verified (it will be re-checked on your PR).`],
+        };
+      }
+    } else {
+      r = local;
+    }
+  } else {
+    const repoId = await resolveRepoId(cwd);
+    r = await preflight.runPreflight({ cwd, repoId, mode, checkOnly, maxAttempts });
+  }
 
   if (argv.includes("--json")) console.log(JSON.stringify(r, null, 2));
   else if (argv.includes("--fix-agent")) printAgent(r);
