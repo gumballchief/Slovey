@@ -2,6 +2,7 @@
 import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { loadEnv } from "@company-brain/config";
 import { agentPipelineIndex, preflight, resolveRepo } from "@company-brain/core";
 import { closeDb } from "@company-brain/db";
 
@@ -25,6 +26,7 @@ Usage:
                                             (attributed + time-boxed; agents must not run this)
   companybrain preflight --install-hooks    install pre-commit (mode: commit) + pre-push (full) git hooks
   companybrain preflight --uninstall-hooks  remove Company Brain git hooks
+  companybrain doctor                       check your setup (git, repo, AI, config, connection)
 
 Exit code: 0 if safe to commit, 1 otherwise.`;
 
@@ -246,6 +248,92 @@ async function explainError(cwd: string, errorId: string): Promise<void> {
   console.log(`\n${e.instructionForAgent ?? "Fix the problem above, then run preflight again."}`);
 }
 
+/**
+ * `companybrain doctor` — one command that tells a new user whether their setup
+ * is ready, and exactly what to fix if not. Only "not a git repo" is a hard
+ * failure; everything else degrades gracefully (that's the design), so the rest
+ * are warnings with actionable guidance rather than blockers.
+ */
+async function doctor(cwd: string): Promise<void> {
+  loadEnv(); // ensure .env is applied before we read provider config
+  type Line = { level: "pass" | "warn" | "fail"; label: string; detail: string };
+  const lines: Line[] = [];
+
+  // 1. Git repository (the one hard requirement).
+  const branch = preflight.getBranch(cwd);
+  const isGit = existsSync(resolve(cwd, ".git")) || Boolean(branch);
+  lines.push(
+    isGit
+      ? { level: "pass", label: "Git repository", detail: `branch: ${branch ?? "unknown"}` }
+      : { level: "fail", label: "Git repository", detail: "no .git found — run this from your repo root" },
+  );
+
+  // 2. Repository identity (needed to look up the decision graph).
+  let slug = process.env.COMPANY_BRAIN_REPO ?? null;
+  let slugSource = "COMPANY_BRAIN_REPO";
+  if (!slug && isGit) {
+    try {
+      slug = parseSlug(execFileSync("git", ["remote", "get-url", "origin"], { cwd, encoding: "utf8" }).trim());
+      slugSource = "git origin";
+    } catch {
+      /* no remote */
+    }
+  }
+  lines.push(
+    slug
+      ? { level: "pass", label: "Repository identity", detail: `${slug} (from ${slugSource})` }
+      : { level: "warn", label: "Repository identity", detail: 'set COMPANY_BRAIN_REPO="owner/name" in .env or your .mcp.json env' },
+  );
+
+  // 3. AI provider (optional — checks degrade to deterministic without it).
+  const provider = process.env.AI_PROVIDER || "anthropic";
+  const keyVar = provider === "gemini" ? "GEMINI_API_KEY" : provider === "openai" ? "OPENAI_API_KEY" : "ANTHROPIC_API_KEY";
+  lines.push(
+    process.env[keyVar]
+      ? { level: "pass", label: "AI provider", detail: `${provider} (key present)` }
+      : { level: "warn", label: "AI provider", detail: `${keyVar} not set — decision & security review fall back to deterministic checks` },
+  );
+
+  // 4. Preflight config (optional — defaults are sensible).
+  const { config, source } = preflight.loadPreflightConfig(cwd);
+  lines.push(
+    source === "file"
+      ? { level: "pass", label: "Preflight config", detail: `companybrain.preflight.json (${config.requiredChecks.length} required, ${config.optionalChecks.length} optional)` }
+      : { level: "warn", label: "Preflight config", detail: "using built-in defaults — run 'companybrain preflight init' to customize" },
+  );
+
+  // 5. Connection to Company Brain's decision store (optional — local checks run regardless).
+  if (slug) {
+    try {
+      const r = await resolveRepo(slug);
+      lines.push(
+        r
+          ? { level: "pass", label: "Connected to Company Brain", detail: `${r.fullName} is connected` }
+          : { level: "warn", label: "Connected to Company Brain", detail: `${slug} isn't connected — install the app: https://github.com/apps/company-brain/installations/new` },
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      lines.push({ level: "warn", label: "Connected to Company Brain", detail: `couldn't reach the decision store (${msg.slice(0, 50)}) — local checks still run` });
+    }
+  }
+
+  const icon = (l: Line["level"]) => (l === "pass" ? "✓" : l === "fail" ? "✗" : "–");
+  console.log("Company Brain — setup check\n");
+  for (const l of lines) console.log(`  ${icon(l.level)} ${l.label.padEnd(28)} ${l.detail}`);
+  const fails = lines.filter((l) => l.level === "fail").length;
+  const warns = lines.filter((l) => l.level === "warn").length;
+  console.log("");
+  if (fails) {
+    console.log(`${fails} blocking issue(s) — fix the ✗ above, then run 'companybrain doctor' again.`);
+    process.exitCode = 1;
+  } else if (warns) {
+    console.log(`Ready to run 'companybrain preflight'. ${warns} optional item(s) marked – would unlock decision checks / customization.`);
+  } else {
+    console.log("All set — run 'companybrain preflight'.");
+  }
+  await closeDb();
+}
+
 async function main() {
   const argv = process.argv.slice(2).filter((a) => a !== "preflight"); // allow "companybrain preflight ..."
   if (argv.includes("--help") || argv.includes("-h")) {
@@ -254,6 +342,10 @@ async function main() {
   }
   const cwd = process.env.COMPANY_BRAIN_REPO_PATH || process.cwd();
 
+  if (argv[0] === "doctor") {
+    await doctor(cwd);
+    return;
+  }
   if (argv[0] === "init") {
     initConfig(cwd);
     return;

@@ -79,6 +79,7 @@ Then add one line to your agent's rules file (`CLAUDE.md`, Cursor rules, etc.):
 
 ```bash
 # from your repo (with this monorepo available for the CLI):
+companybrain doctor                  # check your setup first — tells you exactly what's missing
 companybrain preflight init          # write a starter companybrain.preflight.json
 companybrain preflight               # full human-readable gate
 companybrain preflight --json        # machine JSON (for CI)
