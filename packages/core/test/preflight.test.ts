@@ -8,8 +8,10 @@ import { perfCheck } from "../src/preflight/performance";
 import { securityReviewCheck } from "../src/preflight/security";
 import {
   ALLOWED_BINS,
+  apiModeFromEnv,
   applyOverrides,
   architectureCheck,
+  mergeRemote,
   architectureCheckContents,
   defaultConfigJson,
   detectRegression,
@@ -384,6 +386,55 @@ describe("security-review (AI pass)", () => {
     expect((await securityReviewCheck("+ const x = 1;", ["a.ts"])).status).toBe("pass");
     setAI(fake(null));
     expect((await securityReviewCheck("+ const x = 1;", ["a.ts"])).status).toBe("skipped");
+  });
+});
+
+describe("API-mode merge (local + hosted knowledge)", () => {
+  const base = (over: Partial<import("../src/preflight").PreflightResult>): import("../src/preflight").PreflightResult => ({
+    status: "pass", safeToCommit: true, safeToPush: true, humanReviewRequired: false,
+    summary: "", agentInstruction: "ok",
+    mode: "full", attempt: { attemptId: null, attemptNumber: 1, maxAttempts: 5, remainingAttempts: 4, repeatedFailure: false, unrelatedChangesDetected: false },
+    project: { workspacePath: ".", projectType: "node", packageManager: "pnpm", detectedScripts: [] },
+    checks: [], fixInstructions: [], decisionViolations: [], warnings: [], nextSteps: [],
+    branch: "main", commitSha: null, runId: null, createdAt: new Date().toISOString(),
+    ...over,
+  });
+  const chk = (name: string, status: "pass" | "fail" | "skipped", blocking: boolean, errors: never[] = []) =>
+    ({ name, status, blocking, command: "", durationMs: 1, errors, agent: "build" as const });
+
+  it("keeps passing local checks and blocks on a remote decision violation", () => {
+    const local = base({
+      checks: [chk("typecheck", "pass", true), chk("test", "pass", true), chk("decision-check", "skipped", true)],
+    });
+    const remote = base({
+      status: "fail", safeToCommit: false,
+      checks: [chk("decision-check", "fail", true), chk("security-review", "pass", false)],
+      decisionViolations: [{ decisionId: "d1", title: "Redis rejected", decisionStatus: "rejected", violation: "reintroduces redis", confidence: 0.9, evidence: [], instructionForAgent: "no" }],
+    });
+    const merged = mergeRemote(local, remote);
+    expect(merged.checks.find((c) => c.name === "typecheck")?.status).toBe("pass");
+    expect(merged.checks.find((c) => c.name === "decision-check")?.status).toBe("fail"); // remote overlaid the local skip
+    expect(merged.decisionViolations).toHaveLength(1);
+    expect(merged.safeToCommit).toBe(false);
+    expect(merged.status).toBe("fail");
+  });
+
+  it("passes when local passes and remote knowledge is clean", () => {
+    const local = base({ checks: [chk("typecheck", "pass", true), chk("decision-check", "skipped", true)] });
+    const remote = base({ checks: [chk("decision-check", "pass", true), chk("security-review", "pass", false)] });
+    const merged = mergeRemote(local, remote);
+    expect(merged.safeToCommit).toBe(true);
+    expect(merged.status).toBe("pass");
+  });
+
+  it("apiModeFromEnv is null without a token, set with one", () => {
+    const saved = process.env.COMPANY_BRAIN_TOKEN;
+    delete process.env.COMPANY_BRAIN_TOKEN;
+    expect(apiModeFromEnv()).toBeNull();
+    process.env.COMPANY_BRAIN_TOKEN = "cb_test";
+    expect(apiModeFromEnv()?.token).toBe("cb_test");
+    if (saved === undefined) delete process.env.COMPANY_BRAIN_TOKEN;
+    else process.env.COMPANY_BRAIN_TOKEN = saved;
   });
 });
 

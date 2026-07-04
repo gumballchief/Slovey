@@ -5,6 +5,8 @@ export { checkGeneratedFile } from "./generated";
 export type { GeneratedGateVerdict } from "./generated";
 export { runRemotePreflight } from "./remote";
 export type { RemotePreflightPayload } from "./remote";
+export { collectChangePayload, apiModeFromEnv, fetchRemoteKnowledge, mergeRemote } from "./api-mode";
+export type { ChangePayload, ApiModeConfig } from "./api-mode";
 export { loadPreflightConfig, defaultConfigJson, CONFIG_FILENAME } from "./config";
 export { getLatestRun, getRunDetail, listRuns, findErrorByFingerprint } from "./persist";
 export { detectProject, getChangedFiles, getBranch, getCommitSha } from "./detect";
