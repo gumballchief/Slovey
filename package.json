@@ -10,6 +10,8 @@
     "dev:worker": "pnpm --filter @company-brain/worker dev",
     "build": "node -e \"require('fs').rmSync('apps/web/.next',{recursive:true,force:true})\" && pnpm -r --filter ./packages/* --if-present build && pnpm --filter @company-brain/web build",
     "typecheck": "pnpm -r typecheck",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "test": "pnpm -r test",
     "db:generate": "pnpm --filter @company-brain/db generate",
     "db:migrate": "pnpm --filter @company-brain/db migrate",
@@ -19,9 +21,14 @@
     "eval": "pnpm --filter @company-brain/worker eval"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@next/eslint-plugin-next": "^16.2.10",
     "@types/node": "^20.16.0",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "tsx": "^4.19.2",
     "typescript": "^5.6.3",
+    "typescript-eslint": "^8.62.1",
     "vitest": "^2.1.8"
   }
 }
