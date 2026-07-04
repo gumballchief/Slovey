@@ -93,19 +93,16 @@ export function mergeRemote(local: PreflightResult, remote: PreflightResult): Pr
   }
 
   // Fold remote's derived architecture-rule hits into the local architecture-check.
-  const localArch = checks.find((c) => c.name === "architecture-check");
+  // Clone rather than mutate — `local` is the caller's object and must be left intact.
   const remoteArch = remoteByName("architecture-check");
   if (remoteArch?.errors.length) {
-    if (localArch) {
+    const idx = checks.findIndex((c) => c.name === "architecture-check");
+    if (idx >= 0) {
+      const localArch = checks[idx]!;
       const seen = new Set(localArch.errors.map((e) => `${e.file}:${e.message}`));
-      for (const e of remoteArch.errors) {
-        const k = `${e.file}:${e.message}`;
-        if (!seen.has(k)) {
-          localArch.errors.push(e);
-          seen.add(k);
-        }
-      }
-      localArch.status = localArch.errors.length ? "fail" : localArch.status;
+      const extra = remoteArch.errors.filter((e) => !seen.has(`${e.file}:${e.message}`));
+      const errors = [...localArch.errors, ...extra];
+      checks[idx] = { ...localArch, errors, status: errors.length ? "fail" : localArch.status };
     } else {
       checks.push({ ...remoteArch });
     }

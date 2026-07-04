@@ -42,10 +42,14 @@ export async function POST(req: Request): Promise<Response> {
       attemptId?: string | null;
     };
 
-    // Guard against oversized payloads (whole-repo dumps).
+    // Guard against oversized payloads (whole-repo dumps) — by byte size AND by
+    // file cardinality (a huge changedFiles array is cheap to send, costly to process).
     const totalBytes = (body.files ?? []).reduce((n, f) => n + (f.content?.length ?? 0), 0) + (body.diff?.length ?? 0);
     if (totalBytes > 2_000_000) {
       throw new HttpError(413, "Payload too large — send only changed files/diff (max ~2MB).");
+    }
+    if ((body.changedFiles?.length ?? 0) > 2000 || (body.files?.length ?? 0) > 2000) {
+      throw new HttpError(413, "Too many changed files — send only the files this change touches (max 2000).");
     }
 
     const result = await preflight.runRemotePreflight(verified.repoId, {

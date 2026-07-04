@@ -427,6 +427,35 @@ describe("API-mode merge (local + hosted knowledge)", () => {
     expect(merged.status).toBe("pass");
   });
 
+  it("survives a malformed/empty remote result without crashing", () => {
+    const local = base({ checks: [chk("typecheck", "pass", true), chk("decision-check", "skipped", true)] });
+    // Remote with no checks and no decisionViolations field at all.
+    const remote = base({ checks: [], decisionViolations: undefined as never });
+    const merged = mergeRemote(local, remote);
+    expect(merged.safeToCommit).toBe(true);
+    expect(merged.decisionViolations).toEqual([]);
+    expect(merged.checks.find((c) => c.name === "typecheck")?.status).toBe("pass");
+  });
+
+  it("blocks on remote decisionViolations even if no decision-check entry is present", () => {
+    const local = base({ checks: [chk("typecheck", "pass", true)] });
+    const remote = base({
+      checks: [],
+      decisionViolations: [{ decisionId: "d9", title: "X", decisionStatus: "rejected", violation: "v", confidence: 0.9, evidence: [], instructionForAgent: "no" }],
+    });
+    const merged = mergeRemote(local, remote);
+    expect(merged.safeToCommit).toBe(false);
+  });
+
+  it("does not mutate the caller's local result", () => {
+    const localArch = chk("architecture-check", "pass", true);
+    const local = base({ checks: [localArch] });
+    const remote = base({ checks: [{ ...chk("architecture-check", "fail", true), errors: [{ file: "x.ts", message: "boom", code: "arch", category: "arch" }] as never }] });
+    const before = localArch.errors.length;
+    mergeRemote(local, remote);
+    expect(localArch.errors.length).toBe(before); // input untouched
+  });
+
   it("apiModeFromEnv is null without a token, set with one", () => {
     const saved = process.env.COMPANY_BRAIN_TOKEN;
     delete process.env.COMPANY_BRAIN_TOKEN;
