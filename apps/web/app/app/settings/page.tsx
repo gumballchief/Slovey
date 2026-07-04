@@ -5,6 +5,7 @@ import { Toggle } from "@/components/ui/Toggle";
 import { Button } from "@/components/ui/Button";
 import { RefreshCw, Check } from "lucide-react";
 import { useRepo } from "@/app/app/RepoProvider";
+import { CliTokens } from "@/components/ui/CliTokens";
 import { fetchSettings, patchSettings, rebuildMemory, type RepoSettings } from "@/lib/api-client";
 
 type ConfidenceLevel = "low" | "high" | "strict";
@@ -251,6 +252,9 @@ export default function SettingsPage() {
           )}
         </Button>
       </section>
+
+      {/* Self-serve CLI tokens */}
+      <CliTokens repoId={activeRepoId} />
     </div>
   );
 }
