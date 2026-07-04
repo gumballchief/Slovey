@@ -51,6 +51,27 @@ export function fetchRepos(): Promise<Repo[]> {
   return getJSON<Repo[]>("/api/repos", () => []);
 }
 
+// ── CLI tokens (self-serve gate) ──
+export interface CliToken {
+  id: string;
+  name: string;
+  tokenHint: string;
+  lastUsedAt: string | null;
+  expiresAt: string | null;
+  createdAt: string;
+}
+export function fetchTokens(repoId: string | null): Promise<CliToken[]> {
+  if (!repoId) return Promise.resolve([]);
+  return getJSON<CliToken[]>(`/api/repos/${repoId}/tokens`, () => []);
+}
+/** Returns the plaintext token — shown once, never retrievable again. */
+export function createToken(repoId: string, name: string): Promise<{ id: string; token: string; tokenHint: string }> {
+  return send(`/api/repos/${repoId}/tokens`, "POST", { name });
+}
+export function revokeToken(repoId: string, tokenId: string): Promise<{ revoked: boolean }> {
+  return send(`/api/repos/${repoId}/tokens/${tokenId}`, "DELETE");
+}
+
 // ── Preflight ──
 export interface PreflightRunRow {
   id: string;
