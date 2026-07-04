@@ -41,7 +41,7 @@ async function resolveRepoId(cwd: string): Promise<string | null> {
   try {
     let slug = process.env.COMPANY_BRAIN_REPO ?? null;
     if (!slug) {
-      const url = execFileSync("git", ["remote", "get-url", "origin"], { cwd, encoding: "utf8" }).trim();
+      const url = execFileSync("git", ["remote", "get-url", "origin"], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
       slug = parseSlug(url);
     }
     if (!slug) return null;
@@ -205,7 +205,7 @@ async function recordOverride(cwd: string, args: string[]): Promise<void> {
   }
   let grantedBy = "";
   try {
-    grantedBy = execFileSync("git", ["config", "user.name"], { cwd, encoding: "utf8" }).trim();
+    grantedBy = execFileSync("git", ["config", "user.name"], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
   } catch {
     /* fall through */
   }
@@ -273,7 +273,7 @@ async function doctor(cwd: string): Promise<void> {
   let slugSource = "COMPANY_BRAIN_REPO";
   if (!slug && isGit) {
     try {
-      slug = parseSlug(execFileSync("git", ["remote", "get-url", "origin"], { cwd, encoding: "utf8" }).trim());
+      slug = parseSlug(execFileSync("git", ["remote", "get-url", "origin"], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim());
       slugSource = "git origin";
     } catch {
       /* no remote */
