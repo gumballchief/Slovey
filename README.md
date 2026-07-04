@@ -3,6 +3,10 @@
 Engineering memory that learns a team's decisions from GitHub history and warns on
 pull requests that conflict with them — always citing the specific decision and PR.
 
+**Using Company Brain?** Start with **[docs/quickstart.md](./docs/quickstart.md)** —
+install the GitHub App (no local setup) or wire the Preflight gate into your
+coding agent.
+
 See **[BACKEND.md](./BACKEND.md)** for the architecture decisions and roadmap.
 
 ## Layout
