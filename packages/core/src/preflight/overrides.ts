@@ -79,6 +79,15 @@ export async function createOverride(input: {
 }): Promise<{ id: string; decisionId: string; decision: string; expiresAt: Date | null }> {
   const db = getDb();
   const prefix = input.decisionIdOrPrefix.trim().toLowerCase();
+  // Validate the prefix is a real (partial) UUID of at least the 8-char short id
+  // shown in gate output. This rejects empty/short inputs (which could match an
+  // unintended decision on a single-decision repo) and LIKE wildcards (%, _) that
+  // would otherwise over-match — an override is a gate BYPASS, so be strict.
+  if (!/^[0-9a-f-]{8,}$/.test(prefix)) {
+    throw new Error(
+      `Invalid decision id "${input.decisionIdOrPrefix}" — provide at least the 8-character id shown in the gate output.`,
+    );
+  }
   const matches = await db
     .select({ id: decisions.id, decision: decisions.decision })
     .from(decisions)
