@@ -6,10 +6,13 @@ import * as schema from "./schema";
 let _db: ReturnType<typeof drizzle<typeof schema>> | null = null;
 let _sql: ReturnType<typeof postgres> | null = null;
 
-/** Lazily-created, process-wide Drizzle client. */
+/** Lazily-created, process-wide Drizzle client. Pool size is env-tunable
+ *  (DB_POOL_MAX) so the memory-constrained worker can run a small pool while the
+ *  web service keeps a larger one. */
 export function getDb() {
   if (_db) return _db;
-  _sql = postgres(loadDbUrl(), { max: 10, prepare: false });
+  const max = Number(process.env.DB_POOL_MAX) || 10;
+  _sql = postgres(loadDbUrl(), { max, prepare: false });
   _db = drizzle(_sql, { schema });
   return _db;
 }

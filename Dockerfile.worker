@@ -19,5 +19,8 @@ FROM base AS run
 ENV NODE_ENV=production
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# Worker runs TypeScript directly via tsx.
-CMD ["pnpm", "--filter", "@company-brain/worker", "start"]
+# Prebuild the worker to a single JS bundle so production runs `node`, not `tsx`.
+# tsx keeps esbuild resident and transpiles the whole @company-brain/core graph at
+# runtime (~50-80MB of extra RSS on the 512MB worker); the bundle removes that.
+RUN pnpm --filter @company-brain/worker build
+CMD ["node", "apps/worker/dist/worker.mjs"]

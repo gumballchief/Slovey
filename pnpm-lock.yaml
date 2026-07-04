@@ -151,13 +151,34 @@ importers:
       '@company-brain/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@octokit/app':
+        specifier: ^15.1.6
+        version: 15.1.6
+      '@octokit/rest':
+        specifier: ^21.1.1
+        version: 21.1.1
+      '@octokit/webhooks':
+        specifier: ^13.6.1
+        version: 13.9.1
+      dotenv:
+        specifier: ^16.4.5
+        version: 16.6.1
       drizzle-orm:
         specifier: ^0.36.4
         version: 0.36.4(@types/react@19.2.17)(pg@8.22.0)(postgres@3.4.9)(react@19.2.4)
       pg-boss:
         specifier: ^10.1.6
         version: 10.4.2
+      postgres:
+        specifier: ^3.4.5
+        version: 3.4.9
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
     devDependencies:
+      esbuild:
+        specifier: ^0.28.1
+        version: 0.28.1
       tsx:
         specifier: ^4.19.2
         version: 4.22.4
