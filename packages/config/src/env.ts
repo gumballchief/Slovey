@@ -26,8 +26,14 @@ const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
 
-  // Storage
-  DATABASE_URL: z.string().url().or(z.string().startsWith("postgres")),
+  // Storage. Optional at the schema level so the CLI / API-mode (which has no
+  // database) can loadEnv() without a DATABASE_URL. Code that actually needs the
+  // DB calls loadDbUrl(), which throws a clear error when it's missing.
+  DATABASE_URL: z
+    .string()
+    .url()
+    .or(z.string().startsWith("postgres"))
+    .optional(),
 
   // AI — provider is swappable; the chosen provider's key is checked at use.
   AI_PROVIDER: z.enum(["anthropic", "gemini", "openai"]).default("anthropic"),

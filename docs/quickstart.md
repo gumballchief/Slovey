@@ -42,10 +42,39 @@ Preflight runs the same decision checks — plus build/typecheck/tests, secret
 scan, architecture and performance rules — **locally, before a commit**, and
 hands your AI agent exact fix instructions until the change is safe.
 
-> **Heads up (honest status):** the Preflight CLI/MCP server is not published to
-> npm yet, so today it runs from a clone of this repo (`company-brain`). A
-> standalone `npx companybrain` package is the planned next step. The steps below
-> assume you've cloned this repo and run `pnpm install` in it.
+There are two ways to run it — **self-serve (API mode)** needs only a token, no
+database or AI keys of your own; **self-hosted** runs everything against your own
+infrastructure.
+
+### Self-serve (API mode) — recommended for external teams
+
+1. Create a repo-scoped CLI token (owner/admin): `POST /api/repos/{id}/tokens`
+   returns a `cb_…` token — shown once. (A "Create CLI token" button in the
+   dashboard is the last UX step; until then, the endpoint is live.)
+2. Install the CLI and point it at the hosted API:
+
+```bash
+npm i -g companybrain            # once published; until then: pnpm --filter @company-brain/mcp pack:cli
+export COMPANY_BRAIN_TOKEN=cb_…  # your repo-scoped token
+export COMPANY_BRAIN_API_URL=https://company-brain-web-u04w.onrender.com  # optional; this is the default
+companybrain doctor              # confirm setup
+companybrain preflight --mode commit
+```
+
+In API mode the CLI runs build/typecheck/tests/secret-scan **locally** and fetches
+the decision-graph / security / architecture checks from the hosted API — no DB,
+no AI keys. If the hosted service is unreachable it **fails open** with a warning
+(your PR is re-checked server-side anyway), so our uptime never blocks your commit.
+
+> **Status:** the CLI bundles to a standalone package (`pnpm --filter
+> @company-brain/mcp build` → `apps/mcp/dist`) and installs+runs with no monorepo.
+> Publishing to npm as `companybrain` is a one-command step (`npm publish`) done
+> with the maintainer's npm credentials.
+
+### Self-hosted — run everything yourself
+
+The steps below assume you've cloned this repo and run `pnpm install` (you provide
+`DATABASE_URL`, AI keys, etc. in `.env`).
 
 ### 1. Point your coding agent at the MCP server
 
