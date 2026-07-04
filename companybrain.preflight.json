@@ -1,12 +1,13 @@
 {
-  "requiredChecks": ["typecheck", "test", "build", "decision-check", "architecture-check"],
-  "optionalChecks": ["secret-scan", "security-review", "lint", "format", "env-check", "route-check", "deps", "smoke", "perf-check", "perf"],
+  "requiredChecks": ["typecheck", "lint", "test", "build", "decision-check", "architecture-check"],
+  "optionalChecks": ["secret-scan", "security-review", "format", "env-check", "route-check", "deps", "smoke", "perf-check", "perf"],
   "maxAttempts": 5,
   "blockCommitOnFailure": true,
   "allowSkippedChecks": false,
   "timeoutMs": 600000,
   "commands": {
     "typecheck": "pnpm typecheck",
+    "lint": "pnpm lint",
     "test": "pnpm test",
     "build": "pnpm build"
   }

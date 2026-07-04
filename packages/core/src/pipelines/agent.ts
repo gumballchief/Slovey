@@ -196,7 +196,7 @@ Output the COMPLETE new contents of ${target.path} and NOTHING else — no prose
     return contents;
   };
 
-  let files: FileChange[] = [];
+  const files: FileChange[] = [];
   for (const f of plan) files.push({ path: f.path, content: await generate(f, files) });
 
   // 2.5 PREFLIGHT every generated file BEFORE the PR exists. One revise pass
