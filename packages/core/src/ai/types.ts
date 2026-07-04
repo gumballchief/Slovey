@@ -8,6 +8,9 @@ export interface AICompleteOptions {
   maxTokens?: number;
   tier?: ModelTier;
   temperature?: number;
+  /** Total time budget in ms for the whole call (retries included). Overrides
+   *  the tier default. On timeout the call throws so callers fall back. */
+  timeoutMs?: number;
 }
 
 /**
