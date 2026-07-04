@@ -17,7 +17,11 @@ export async function getBoss(): Promise<PgBoss> {
   // CA verification, matching the postgres.js client in packages/db.
   const dbUrl = new URL(loadDbUrl());
   dbUrl.searchParams.delete("sslmode");
-  const boss = new PgBoss({ connectionString: dbUrl.toString(), ssl: { rejectUnauthorized: false } });
+  // pg-boss opens its OWN pool (default max 10) on top of the postgres.js client
+  // pool — up to 20 connections, each with buffers. Cap it (PGBOSS_MAX) so the
+  // 512MB worker doesn't blow its memory budget on idle connections.
+  const max = Number(process.env.PGBOSS_MAX) || 10;
+  const boss = new PgBoss({ connectionString: dbUrl.toString(), ssl: { rejectUnauthorized: false }, max });
   boss.on("error", (e) => logger.error("pg-boss error", { err: e }));
   _started = boss.start().then(() => {
     _boss = boss;
