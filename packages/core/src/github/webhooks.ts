@@ -80,15 +80,11 @@ export function parseWebhook(event: string, payload: any): WebhookIntent[] {
     }
     case "pull_request": {
       if (payload.action !== "opened" && payload.action !== "synchronize") return [];
-      return [
-        {
-          type: "check_pr",
-          installationId,
-          fullName: payload.repository.full_name,
-          prNumber: payload.pull_request.number,
-          action: payload.action,
-        },
-      ];
+      // Defensive: never crash on a malformed payload (missing repo / non-numeric PR).
+      const fullName = payload.repository?.full_name;
+      const prNumber = payload.pull_request?.number;
+      if (typeof fullName !== "string" || typeof prNumber !== "number") return [];
+      return [{ type: "check_pr", installationId, fullName, prNumber, action: payload.action }];
     }
     case "issue_comment": {
       if (payload.action !== "created" || !payload.issue?.pull_request) return [];
@@ -101,12 +97,15 @@ export function parseWebhook(event: string, payload: any): WebhookIntent[] {
           ? "confirm"
           : null;
       if (!action) return [];
+      const fullName = payload.repository?.full_name;
+      const prNumber = payload.issue?.number;
+      if (typeof fullName !== "string" || typeof prNumber !== "number") return [];
       return [
         {
           type: "feedback",
           installationId,
-          fullName: payload.repository.full_name,
-          prNumber: payload.issue.number,
+          fullName,
+          prNumber,
           action,
           byUser: payload.comment?.user?.login ?? "unknown",
           reason: body,
