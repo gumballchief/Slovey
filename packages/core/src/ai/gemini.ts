@@ -1,3 +1,4 @@
+import { budgetMs, fetchWithTimeout, tryParseJson } from "./http";
 import type { AICompleteOptions, AIProvider } from "./types";
 
 const BASE = "https://generativelanguage.googleapis.com/v1beta/models";
@@ -43,15 +44,21 @@ export class GeminiProvider implements AIProvider {
     if (opts.system) body.systemInstruction = { parts: [{ text: opts.system }] };
 
     const MAX_ATTEMPTS = 3;
+    // One overall deadline across all attempts+backoffs so retries can't stack
+    // into minutes of silent hang; each fetch gets the remaining budget.
+    const deadline = Date.now() + budgetMs(opts);
+    const remaining = () => deadline - Date.now();
     let lastErr: unknown = null;
     let retried429 = false;
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      if (remaining() <= 0) break;
       try {
-        const res = await fetch(url, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(body),
-        });
+        const res = await fetchWithTimeout(
+          url,
+          { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) },
+          remaining(),
+          "Gemini",
+        );
         if (!res.ok) {
           const text = await res.text();
           lastErr = new Error(`Gemini ${res.status}: ${text}`);
@@ -62,11 +69,14 @@ export class GeminiProvider implements AIProvider {
             retried429 = true;
             const m = text.match(/"retryDelay":\s*"(\d+)s"/);
             const delay = m && m[1] ? Math.min(Number(m[1]) * 1000, 15000) : 8000;
+            if (delay >= remaining()) break; // no point waiting past the deadline
             await new Promise((r) => setTimeout(r, delay));
             continue;
           }
           if (res.status >= 500 && attempt < MAX_ATTEMPTS) {
-            await new Promise((r) => setTimeout(r, 600 * 2 ** (attempt - 1)));
+            const delay = 600 * 2 ** (attempt - 1);
+            if (delay >= remaining()) break;
+            await new Promise((r) => setTimeout(r, delay));
             continue;
           }
           break;
@@ -82,7 +92,8 @@ export class GeminiProvider implements AIProvider {
         return parts.map((p) => p.text ?? "").join("");
       } catch (err) {
         lastErr = err;
-        if (attempt < MAX_ATTEMPTS) await new Promise((r) => setTimeout(r, 400 * attempt));
+        const delay = 400 * attempt;
+        if (attempt < MAX_ATTEMPTS && delay < remaining()) await new Promise((r) => setTimeout(r, delay));
       }
     }
     throw lastErr ?? new Error("Gemini call failed");
@@ -93,25 +104,19 @@ export class GeminiProvider implements AIProvider {
   }
 
   async completeJSON<T>(prompt: string, opts: AICompleteOptions = {}): Promise<T | null> {
+    // Up to 2 calls, but ONLY re-issue the network request when the first call
+    // succeeded yet returned unparseable JSON. A thrown error (timeout / network
+    // / rate limit) returns null immediately — retrying the network would just
+    // burn another full budget on the same failure and delay the fallback.
     for (let attempt = 1; attempt <= 2; attempt++) {
       let text: string;
       try {
         text = await this.call(prompt, opts, true);
       } catch {
-        continue;
+        return null;
       }
-      try {
-        return JSON.parse(text.replace(/```json|```/g, "").trim()) as T;
-      } catch {
-        const match = text.match(/[[{][\s\S]*[\]}]/);
-        if (match) {
-          try {
-            return JSON.parse(match[0]) as T;
-          } catch {
-            /* retry */
-          }
-        }
-      }
+      const parsed = tryParseJson<T>(text);
+      if (parsed !== undefined) return parsed;
     }
     return null;
   }

@@ -1,3 +1,4 @@
+import { budgetMs, fetchWithTimeout, tryParseJson } from "./http";
 import type { AICompleteOptions, AIProvider } from "./types";
 
 const ENDPOINT = "https://api.anthropic.com/v1/messages";
@@ -31,19 +32,28 @@ export class AnthropicProvider implements AIProvider {
     if (opts.system) body.system = opts.system;
     if (typeof opts.temperature === "number") body.temperature = opts.temperature;
 
-    // Two attempts, matching the prototype's resilience.
+    // Two attempts, matching the prototype's resilience — under one overall
+    // deadline so a hung socket can't block the gate indefinitely.
+    const deadline = Date.now() + budgetMs(opts);
+    const remaining = () => deadline - Date.now();
     let lastErr: unknown = null;
     for (let attempt = 1; attempt <= 2; attempt++) {
+      if (remaining() <= 0) break;
       try {
-        const res = await fetch(ENDPOINT, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            "x-api-key": this.cfg.apiKey,
-            "anthropic-version": ANTHROPIC_VERSION,
+        const res = await fetchWithTimeout(
+          ENDPOINT,
+          {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "x-api-key": this.cfg.apiKey,
+              "anthropic-version": ANTHROPIC_VERSION,
+            },
+            body: JSON.stringify(body),
           },
-          body: JSON.stringify(body),
-        });
+          remaining(),
+          "Anthropic",
+        );
         if (!res.ok) {
           lastErr = new Error(`Anthropic ${res.status}: ${await res.text()}`);
           continue;
@@ -64,27 +74,17 @@ export class AnthropicProvider implements AIProvider {
   }
 
   async completeJSON<T>(prompt: string, opts: AICompleteOptions = {}): Promise<T | null> {
+    // Re-issue the network only when the first call succeeded but returned
+    // unparseable JSON; a thrown error returns null so callers fall back.
     for (let attempt = 1; attempt <= 2; attempt++) {
       let text: string;
       try {
         text = await this.complete(prompt, opts);
       } catch {
-        continue;
+        return null;
       }
-      try {
-        const cleaned = text.replace(/```json|```/g, "").trim();
-        return JSON.parse(cleaned) as T;
-      } catch {
-        // try to salvage the first {...} or [...] block
-        const match = text.match(/[[{][\s\S]*[\]}]/);
-        if (match) {
-          try {
-            return JSON.parse(match[0]) as T;
-          } catch {
-            /* fall through to retry */
-          }
-        }
-      }
+      const parsed = tryParseJson<T>(text);
+      if (parsed !== undefined) return parsed;
     }
     return null;
   }

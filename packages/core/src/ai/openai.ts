@@ -1,3 +1,4 @@
+import { budgetMs, fetchWithTimeout, tryParseJson } from "./http";
 import type { AICompleteOptions, AIProvider } from "./types";
 
 const ENDPOINT = "https://api.openai.com/v1/chat/completions";
@@ -36,23 +37,34 @@ export class OpenAIProvider implements AIProvider {
     };
 
     const MAX_ATTEMPTS = 3;
+    // One overall deadline across attempts+backoffs; each fetch gets remaining.
+    const deadline = Date.now() + budgetMs(opts);
+    const remaining = () => deadline - Date.now();
     let lastErr: unknown = null;
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      if (remaining() <= 0) break;
       try {
-        const res = await fetch(ENDPOINT, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${this.cfg.apiKey}`,
+        const res = await fetchWithTimeout(
+          ENDPOINT,
+          {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              authorization: `Bearer ${this.cfg.apiKey}`,
+            },
+            body: JSON.stringify(body),
           },
-          body: JSON.stringify(body),
-        });
+          remaining(),
+          "OpenAI",
+        );
         if (!res.ok) {
           const text = await res.text();
           lastErr = new Error(`OpenAI ${res.status}: ${text}`);
           // Back off on rate limits / transient server errors.
           if ((res.status === 429 || res.status >= 500) && attempt < MAX_ATTEMPTS) {
-            await new Promise((r) => setTimeout(r, 600 * 2 ** (attempt - 1)));
+            const delay = 600 * 2 ** (attempt - 1);
+            if (delay >= remaining()) break;
+            await new Promise((r) => setTimeout(r, delay));
             continue;
           }
           break;
@@ -68,7 +80,8 @@ export class OpenAIProvider implements AIProvider {
         return content;
       } catch (err) {
         lastErr = err;
-        if (attempt < MAX_ATTEMPTS) await new Promise((r) => setTimeout(r, 400 * attempt));
+        const delay = 400 * attempt;
+        if (attempt < MAX_ATTEMPTS && delay < remaining()) await new Promise((r) => setTimeout(r, delay));
       }
     }
     throw lastErr ?? new Error("OpenAI call failed");
@@ -79,25 +92,17 @@ export class OpenAIProvider implements AIProvider {
   }
 
   async completeJSON<T>(prompt: string, opts: AICompleteOptions = {}): Promise<T | null> {
+    // Re-issue the network only when the first call succeeded but returned
+    // unparseable JSON; a thrown error returns null so callers fall back.
     for (let attempt = 1; attempt <= 2; attempt++) {
       let text: string;
       try {
         text = await this.call(prompt, opts);
       } catch {
-        continue;
+        return null;
       }
-      try {
-        return JSON.parse(text.replace(/```json|```/g, "").trim()) as T;
-      } catch {
-        const match = text.match(/[[{][\s\S]*[\]}]/);
-        if (match) {
-          try {
-            return JSON.parse(match[0]) as T;
-          } catch {
-            /* retry */
-          }
-        }
-      }
+      const parsed = tryParseJson<T>(text);
+      if (parsed !== undefined) return parsed;
     }
     return null;
   }

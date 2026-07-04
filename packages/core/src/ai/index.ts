@@ -46,6 +46,7 @@ export function setAI(provider: AIProvider | null) {
 
 export * from "./types";
 export * from "./prompts";
+export { budgetMs, fetchWithTimeout, tryParseJson } from "./http";
 export { AnthropicProvider } from "./anthropic";
 export { GeminiProvider } from "./gemini";
 export { OpenAIProvider } from "./openai";
