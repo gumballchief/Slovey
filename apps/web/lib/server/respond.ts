@@ -29,3 +29,26 @@ export async function handle(fn: () => Promise<Response>): Promise<Response> {
     return fail(err);
   }
 }
+
+/**
+ * Read + parse a JSON body with a hard size cap. Next's App Router has no default
+ * body-size limit, so `req.json()` would otherwise buffer an arbitrarily large
+ * body into memory. Checks Content-Length first (cheap reject), then the actual
+ * bytes (header can lie or be absent). Returns {} for an empty body.
+ */
+export async function readJsonBody<T>(req: Request, maxBytes = 1_000_000): Promise<T> {
+  const declared = Number(req.headers.get("content-length") ?? 0);
+  if (declared > maxBytes) {
+    throw new HttpError(413, `Request body too large (max ${Math.round(maxBytes / 1000)}KB).`);
+  }
+  const text = await req.text();
+  if (text.length > maxBytes) {
+    throw new HttpError(413, `Request body too large (max ${Math.round(maxBytes / 1000)}KB).`);
+  }
+  if (!text.trim()) return {} as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new HttpError(400, "Invalid JSON body.");
+  }
+}

@@ -1,6 +1,7 @@
 import { reasoning } from "@company-brain/core";
 import { assertRepoAccess, requireViewer } from "@/lib/server/auth";
-import { handle, ok } from "@/lib/server/respond";
+import { handle, ok, readJsonBody } from "@/lib/server/respond";
+import { rateLimit } from "@/lib/server/ratelimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,14 +20,15 @@ export async function POST(
     const viewer = await requireViewer();
     const { id } = await ctx.params;
     await assertRepoAccess(id, viewer);
-    const body = (await req.json().catch(() => ({}))) as {
+    rateLimit(`context:${viewer.userId ?? viewer.login}`, 60, 60_000);
+    const body = await readJsonBody<{
       paths?: string[];
       directories?: string[];
       services?: string[];
       domains?: string[];
       languages?: string[];
       frameworks?: string[];
-    };
+    }>(req);
     return ok(await reasoning.contextForScope(id, body));
   });
 }

@@ -1,6 +1,6 @@
 import { dashboard, logAudit } from "@company-brain/core";
 import { assertRepoAccess, assertRepoWrite, requireViewer } from "@/lib/server/auth";
-import { HttpError, handle, ok } from "@/lib/server/respond";
+import { HttpError, handle, ok, readJsonBody } from "@/lib/server/respond";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,7 +31,7 @@ export async function POST(
     const viewer = await requireViewer();
     const { id } = await ctx.params;
     await assertRepoWrite(id, viewer);
-    const body = (await req.json()) as {
+    const body = await readJsonBody<{
       decision?: string;
       why?: string;
       examples?: string[];
@@ -41,7 +41,7 @@ export async function POST(
       status?: string;
       rejectionReason?: string;
       alternatives?: string[];
-    };
+    }>(req);
     if (!body.decision?.trim()) throw new HttpError(400, "decision is required");
     if (body.status && body.status !== "approved" && body.status !== "rejected") {
       throw new HttpError(400, 'status must be "approved" or "rejected"');
