@@ -34,6 +34,14 @@ const schema = z.object({
     .url()
     .or(z.string().startsWith("postgres"))
     .optional(),
+  // Optional high-concurrency URL for app queries (e.g. Supabase's transaction
+  // pooler, which has no 15-session cap). Migrations and pg-boss stay on
+  // DATABASE_URL — they need session semantics.
+  DATABASE_URL_POOLED: z
+    .string()
+    .url()
+    .or(z.string().startsWith("postgres"))
+    .optional(),
 
   // AI — provider is swappable; the chosen provider's key is checked at use.
   AI_PROVIDER: z.enum(["anthropic", "gemini", "openai"]).default("anthropic"),
@@ -141,4 +149,14 @@ export function loadDbUrl(): string {
     throw new Error("DATABASE_URL is not set (check your .env).");
   }
   return url;
+}
+
+/**
+ * URL for the app's query pool: prefers DATABASE_URL_POOLED (transaction
+ * pooler — safe for app queries because the db client sets prepare:false) and
+ * falls back to DATABASE_URL. Migrations and pg-boss must keep using
+ * loadDbUrl(): DDL and job-queue sessions need session-mode semantics.
+ */
+export function loadPooledDbUrl(): string {
+  return process.env.DATABASE_URL_POOLED || loadDbUrl();
 }
