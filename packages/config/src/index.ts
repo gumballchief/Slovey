@@ -1,4 +1,4 @@
-export { loadEnv, loadDbUrl, bool } from "./env";
+export { loadEnv, loadDbUrl, loadPooledDbUrl, bool } from "./env";
 export type { Env } from "./env";
 
 /** Confidence levels, ordered. Used by the confidence floor. */

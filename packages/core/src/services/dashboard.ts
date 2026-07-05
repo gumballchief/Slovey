@@ -432,54 +432,50 @@ export const PLAN_LIMITS: Record<OrgPlan, { repos: number; decisions: number }> 
 /** Plan + real current usage for an org (drives the Billing page). */
 export async function getBilling(orgId: string): Promise<ApiBilling> {
   const db = getDb();
-  const [org] = await db
-    .select({ plan: organizations.plan })
-    .from(organizations)
-    .where(eq(organizations.id, orgId))
-    .limit(1);
-  const plan = (org?.plan ?? "free") as OrgPlan;
-
-  const repoRows = await db
-    .select({ id: repos.id })
-    .from(repos)
-    .innerJoin(installations, eq(repos.installationId, installations.id))
-    .where(eq(installations.orgId, orgId));
-  const repoIds = repoRows.map((r) => r.id);
-
-  const [members] = await db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(memberships)
-    .where(eq(memberships.orgId, orgId));
-
-  let decisionsN = 0;
-  let prsN = 0;
-  let conflictsN = 0;
-  if (repoIds.length > 0) {
-    const [d] = await db
+  // One parallel wave (was 6 sequential round-trips — the slowest route under
+  // load). Per-repo scoping happens via joins so nothing depends on a prior
+  // repo-id fetch.
+  const [orgRows, repoCount, members, decisionCount, checkCounts] = await Promise.all([
+    db
+      .select({ plan: organizations.plan })
+      .from(organizations)
+      .where(eq(organizations.id, orgId))
+      .limit(1),
+    db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(repos)
+      .innerJoin(installations, eq(repos.installationId, installations.id))
+      .where(eq(installations.orgId, orgId)),
+    db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(memberships)
+      .where(eq(memberships.orgId, orgId)),
+    db
       .select({ n: sql<number>`count(*)::int` })
       .from(decisions)
-      .where(and(inArray(decisions.repoId, repoIds), ne(decisions.status, "removed")));
-    const [p] = await db
-      .select({ n: sql<number>`count(*)::int` })
+      .innerJoin(repos, eq(decisions.repoId, repos.id))
+      .innerJoin(installations, eq(repos.installationId, installations.id))
+      .where(and(eq(installations.orgId, orgId), ne(decisions.status, "removed"))),
+    db
+      .select({
+        prs: sql<number>`count(*)::int`,
+        conflicts: sql<number>`(count(*) filter (where ${prChecks.verdict} = 'conflict'))::int`,
+      })
       .from(prChecks)
-      .where(inArray(prChecks.repoId, repoIds));
-    const [c] = await db
-      .select({ n: sql<number>`count(*)::int` })
-      .from(prChecks)
-      .where(and(inArray(prChecks.repoId, repoIds), eq(prChecks.verdict, "conflict")));
-    decisionsN = d?.n ?? 0;
-    prsN = p?.n ?? 0;
-    conflictsN = c?.n ?? 0;
-  }
+      .innerJoin(repos, eq(prChecks.repoId, repos.id))
+      .innerJoin(installations, eq(repos.installationId, installations.id))
+      .where(eq(installations.orgId, orgId)),
+  ]);
 
+  const plan = (orgRows[0]?.plan ?? "free") as OrgPlan;
   return {
     plan,
     usage: {
-      repos: repoIds.length,
-      members: members?.n ?? 0,
-      decisions: decisionsN,
-      prsChecked: prsN,
-      conflictsCaught: conflictsN,
+      repos: repoCount[0]?.n ?? 0,
+      members: members[0]?.n ?? 0,
+      decisions: decisionCount[0]?.n ?? 0,
+      prsChecked: checkCounts[0]?.prs ?? 0,
+      conflictsCaught: checkCounts[0]?.conflicts ?? 0,
     },
     limits: PLAN_LIMITS[plan],
   };
