@@ -27,10 +27,17 @@ export function rateLimit(key: string, limit: number, windowMs: number): void {
   }
 }
 
-/** Best-effort client IP from proxy headers. */
+/**
+ * Best-effort client IP from proxy headers. Uses the RIGHTMOST x-forwarded-for
+ * entry: that's the one appended by our own edge proxy (Render), while leftmost
+ * values are client-supplied and trivially spoofable to dodge rate limiting.
+ */
 export function clientIp(req: Request): string {
   const xff = req.headers.get("x-forwarded-for");
-  if (xff) return xff.split(",")[0]!.trim();
+  if (xff) {
+    const parts = xff.split(",").map((s) => s.trim()).filter(Boolean);
+    if (parts.length > 0) return parts[parts.length - 1]!;
+  }
   return req.headers.get("x-real-ip") ?? "unknown";
 }
 

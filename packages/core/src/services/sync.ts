@@ -46,6 +46,7 @@ export async function syncInstallation(installationId: number) {
         installationId: inst.id,
         githubRepoId: r.id,
         owner: r.owner.login,
+        ownerGithubId: r.owner.id,
         name: r.name,
         fullName: r.full_name,
         defaultBranch: r.default_branch ?? "main",
@@ -55,6 +56,8 @@ export async function syncInstallation(installationId: number) {
         target: repos.fullName,
         set: {
           installationId: inst.id,
+          owner: r.owner.login,
+          ownerGithubId: r.owner.id,
           defaultBranch: r.default_branch ?? "main",
           isPrivate: r.private,
         },
@@ -71,6 +74,7 @@ export async function syncInstallation(installationId: number) {
 export interface ResolvedRepo {
   repoId: string;
   owner: string;
+  ownerGithubId: number | null;
   name: string;
   fullName: string;
   defaultBranch: string;
@@ -81,6 +85,7 @@ export interface ResolvedRepo {
 const RESOLVE_COLUMNS = {
   repoId: repos.id,
   owner: repos.owner,
+  ownerGithubId: repos.ownerGithubId,
   name: repos.name,
   fullName: repos.fullName,
   defaultBranch: repos.defaultBranch,
