@@ -1,0 +1,2 @@
+CREATE INDEX IF NOT EXISTS "api_tokens_user_repo_idx" ON "api_tokens" USING btree ("user_id","repo_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "preflight_overrides_repo_idx" ON "preflight_overrides" USING btree ("repo_id");

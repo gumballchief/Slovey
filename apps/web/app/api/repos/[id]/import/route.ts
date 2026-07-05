@@ -1,6 +1,6 @@
 import { importDocs, splitDocs, logAudit, type ImportDoc } from "@company-brain/core";
 import { assertRepoWrite, requireViewer } from "@/lib/server/auth";
-import { HttpError, handle, ok } from "@/lib/server/respond";
+import { HttpError, handle, ok, readJsonBody } from "@/lib/server/respond";
 import { rateLimit } from "@/lib/server/ratelimit";
 
 export const runtime = "nodejs";
@@ -21,7 +21,8 @@ export async function POST(
     await assertRepoWrite(id, viewer);
     rateLimit(`import:${viewer.userId ?? viewer.login}`, 10, 60_000);
 
-    const body = (await req.json().catch(() => ({}))) as { text?: string; docs?: ImportDoc[] };
+    // ~2MB cap: importDocs then bounds to 30 docs × 16K chars.
+    const body = await readJsonBody<{ text?: string; docs?: ImportDoc[] }>(req, 2_000_000);
     const docs: ImportDoc[] = body.docs?.length
       ? body.docs
       : body.text?.trim()

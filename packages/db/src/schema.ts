@@ -567,41 +567,51 @@ export const preflightDecisionViolations = pgTable("preflight_decision_violation
 /** Personal API tokens for the CLI / CI to authenticate to the hosted preflight
  *  API without a browser session or a direct DB connection. Only the SHA-256
  *  hash is stored; the plaintext `cb_…` is shown once at creation. Repo-scoped. */
-export const apiTokens = pgTable("api_tokens", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  repoId: uuid("repo_id")
-    .notNull()
-    .references(() => repos.id, { onDelete: "cascade" }),
-  name: text("name").notNull().default("cli"),
-  /** SHA-256 hex of the plaintext token — the plaintext is never stored. */
-  tokenHash: text("token_hash").notNull().unique(),
-  /** Last 4 chars of the plaintext, for display (e.g. "cb_…a1b2"). */
-  tokenHint: text("token_hint").notNull(),
-  lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
-  expiresAt: timestamp("expires_at", { withTimezone: true }),
-  revokedAt: timestamp("revoked_at", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
+export const apiTokens = pgTable(
+  "api_tokens",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    repoId: uuid("repo_id")
+      .notNull()
+      .references(() => repos.id, { onDelete: "cascade" }),
+    name: text("name").notNull().default("cli"),
+    /** SHA-256 hex of the plaintext token — the plaintext is never stored. */
+    tokenHash: text("token_hash").notNull().unique(),
+    /** Last 4 chars of the plaintext, for display (e.g. "cb_…a1b2"). */
+    tokenHint: text("token_hint").notNull(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  // listApiTokens filters by (user, repo).
+  (t) => [index("api_tokens_user_repo_idx").on(t.userId, t.repoId)],
+);
 
 /** Human overrides: "I approve this change despite the decision" — first-class,
  *  attributed, time-boxed. Agents surface the override command; humans run it. */
-export const preflightOverrides = pgTable("preflight_overrides", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  repoId: uuid("repo_id")
-    .notNull()
-    .references(() => repos.id, { onDelete: "cascade" }),
-  decisionId: uuid("decision_id")
-    .notNull()
-    .references(() => decisions.id, { onDelete: "cascade" }),
-  branch: text("branch"),
-  reason: text("reason").notNull(),
-  grantedBy: text("granted_by").notNull(),
-  expiresAt: timestamp("expires_at", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
+export const preflightOverrides = pgTable(
+  "preflight_overrides",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    repoId: uuid("repo_id")
+      .notNull()
+      .references(() => repos.id, { onDelete: "cascade" }),
+    decisionId: uuid("decision_id")
+      .notNull()
+      .references(() => decisions.id, { onDelete: "cascade" }),
+    branch: text("branch"),
+    reason: text("reason").notNull(),
+    grantedBy: text("granted_by").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  // getActiveOverrides filters by repo on every gate run.
+  (t) => [index("preflight_overrides_repo_idx").on(t.repoId)],
+);
 
 // ─────────────────────────── inferred types ───────────────────────────
 export type AgentRun = typeof agentRuns.$inferSelect;
