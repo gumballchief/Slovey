@@ -1,0 +1,26 @@
+[
+ {
+  "q": "Does this replace Claude Code or Cursor?",
+  "a": "No — Company Brain sits beneath them. Your agents keep writing code exactly as they do today; we review every change against your company’s context and send fixes back before anything is committed."
+ },
+ {
+  "q": "How does it learn my company?",
+  "a": "It continuously ingests your GitHub repos, pull requests, ADRs, docs, code reviews, incidents, and human corrections — turning them into a structured Engineering Decision Graph that both people and AI can query."
+ },
+ {
+  "q": "Where does my code and data live?",
+  "a": "On Team, data is encrypted and isolated per organization. Enterprise supports self-hosted and VPC deployments with SSO, SCIM, and full audit logging — your code never leaves your boundary."
+ },
+ {
+  "q": "Which tools does it integrate with?",
+  "a": "GitHub, Slack, Notion, Jira, and Confluence out of the box, plus a REST API and an MCP server so any AI agent can connect to your engineering memory directly."
+ },
+ {
+  "q": "How does the MCP server work?",
+  "a": "Instead of every AI tool re-learning your company independently, they connect to Company Brain over MCP and ask it first — making it the trusted source of decisions, architecture, and standards."
+ },
+ {
+  "q": "How long until it’s useful?",
+  "a": "You can connect a repository in minutes. Basic guardrails work on day one; the decision graph gets sharper with every review, PR, and correction your team makes."
+ }
+]
