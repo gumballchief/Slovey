@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
+import { Bricolage_Grotesque, Hanken_Grotesk, Inter_Tight, JetBrains_Mono } from "next/font/google";
 import { cookies } from "next/headers";
 import Script from "next/script";
 import "./globals.css";
@@ -15,6 +15,14 @@ const bricolage = Bricolage_Grotesque({
 // Body — Hanken Grotesk: a warm, clean grotesk (deliberately not Inter/Roboto).
 const hanken = Hanken_Grotesk({
   variable: "--font-body",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+});
+
+// Inter Tight — the marketing landing's body face (matches the design). Scoped to
+// the landing via --font-inter-tight; the dashboard keeps Hanken (--font-body).
+const interTight = Inter_Tight({
+  variable: "--font-inter-tight",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
 });
@@ -44,7 +52,7 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
-      className={`${bricolage.variable} ${hanken.variable} ${jetbrainsMono.variable} h-full${isDark ? " dark" : ""}`}
+      className={`${bricolage.variable} ${hanken.variable} ${interTight.variable} ${jetbrainsMono.variable} h-full${isDark ? " dark" : ""}`}
       suppressHydrationWarning
     >
       <body className="min-h-full bg-[var(--bg)] text-[var(--cb-text)] font-body antialiased">
