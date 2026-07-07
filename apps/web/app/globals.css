@@ -65,22 +65,25 @@
 
 /* ── Light mode — airy, sea-blue (Sui-inspired) ── */
 :root {
-  --bg: #F6F9FF;            /* airy pale-blue white */
-  --bg-subtle: #EAF2FF;
+  /* Matched to the marketing landing (light lavender + blue/purple). */
+  --app-bg: linear-gradient(180deg, #f4f8ff 0%, #eef3fb 55%, #f2f6fd 100%);
+  --bg: #F1F5FC;            /* landing lavender base */
+  --bg-subtle: #E9F0FA;
   --surface: #FFFFFF;
-  --primary: #4DA2FF;       /* bright sea blue — the brand signal */
-  --primary-hover: #3B8EF0;
-  --primary-strong: #1668E0; /* small blue text / links on light (passes contrast) */
-  --primary-soft: #E4F0FF;  /* pale blue fill */
-  --on-primary: #04101E;    /* deep-navy ink ON the bright blue (Sui's trick) */
-  --accent: #8FD0FF;        /* aqua — the flow/gradient partner */
-  --cb-text: #0A1B2E;       /* deep ocean navy ink */
-  --text-muted: #5A7189;    /* blue-gray */
-  --border: #DDE7F5;        /* cool hairline */
+  --primary: #4F7EF7;       /* landing blue — the brand signal */
+  --primary-hover: #3E6DE8;
+  --primary-strong: #2F5BDD; /* small blue text / links on light */
+  --primary-soft: #E9EFFE;  /* pale blue fill */
+  --on-primary: #FFFFFF;    /* white ink on the blue */
+  --accent: #7C5CFF;        /* landing purple partner */
+  --cb-text: #1B1726;       /* landing ink (headings/strong) */
+  --text-muted: #6B6678;    /* landing muted */
+  --border: #E3E9F5;        /* lavender hairline */
 }
 
 /* ── Dark mode — deep ocean (Sui-inspired) ── */
 .dark {
+  --app-bg: #04101E;        /* solid dark (no light gradient) */
   --bg: #04101E;            /* deep ocean navy */
   --bg-subtle: #071829;
   --surface: #0B2136;
@@ -114,10 +117,11 @@ html {
 }
 
 body {
-  background-color: var(--bg);
+  background: var(--app-bg, var(--bg));
+  background-attachment: fixed;
   color: var(--cb-text);
-  font-family: var(--font-body), system-ui, sans-serif;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  font-family: var(--font-inter-tight), var(--font-body), system-ui, sans-serif;
+  transition: color 0.2s ease;
 }
 
 /* ── Display type: tight, editorial ── */
