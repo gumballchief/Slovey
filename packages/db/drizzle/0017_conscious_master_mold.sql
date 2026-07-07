@@ -1,0 +1,1 @@
+ALTER TABLE "repos" ADD COLUMN "owner_github_id" bigint;

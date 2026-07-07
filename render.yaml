@@ -70,6 +70,14 @@ envVarGroups:
       # Secrets — set in the Render dashboard, never commit:
       - key: DATABASE_URL # Supabase session-pooler string (?sslmode=require)
         sync: false
+      # Optional: Supabase TRANSACTION-pooler string (same host, port 6543).
+      # App query pools use it when set — no 15-session cap, so web instances
+      # can scale horizontally. pg-boss + migrations stay on DATABASE_URL.
+      # CAUTION: raise the transaction pooler's pool size + check the role's
+      # statement_timeout in Supabase first; defaults kill queued queries
+      # under load (57014). Load-test before enabling (see DEPLOY.md).
+      - key: DATABASE_URL_POOLED
+        sync: false
       # Supabase Auth + client. NEXT_PUBLIC_* are inlined at build time (public
       # by design); the service-role key is a true secret (server-only).
       - key: NEXT_PUBLIC_SUPABASE_URL
