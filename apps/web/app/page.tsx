@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import { LandingEffects } from "@/components/landing/LandingEffects";
-import landing from "@/components/landing/markup.json";
+import { Landing } from "@/components/landing/Landing";
 import "@/components/landing/landing.css";
 
 export const metadata: Metadata = {
@@ -10,15 +9,5 @@ export const metadata: Metadata = {
 };
 
 export default function LandingPage() {
-  return (
-    <>
-      {/* No-JS / failed-hydration fallback: never leave reveal content hidden. */}
-      <noscript>
-        {/* eslint-disable-next-line react/no-danger */}
-        <style dangerouslySetInnerHTML={{ __html: "#cb-landing [data-reveal]{opacity:1!important;transform:none!important;filter:none!important}" }} />
-      </noscript>
-      <div id="cb-landing" dangerouslySetInnerHTML={{ __html: (landing as { html: string }).html }} />
-      <LandingEffects />
-    </>
-  );
+  return <Landing />;
 }
