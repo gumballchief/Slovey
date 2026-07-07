@@ -119,17 +119,8 @@ async function repoStats(repoId: string) {
   };
 }
 
-async function repoTrend(repoId: string) {
-  const db = getDb();
-  const rows = await db
-    .select({ verdict: prChecks.verdict, checkedAt: prChecks.checkedAt })
-    .from(prChecks)
-    .where(
-      and(
-        eq(prChecks.repoId, repoId),
-        sql`${prChecks.checkedAt} > now() - interval '42 days'`,
-      ),
-    );
+/** Bucket raw check rows into the 6-week trend shape the dashboard renders. */
+function bucketTrend(rows: { verdict: string; checkedAt: Date }[]) {
   const weeks = new Map<number, { conflicts: number; clears: number }>();
   for (let i = 5; i >= 0; i--) weeks.set(i, { conflicts: 0, clears: 0 });
   const now = Date.now();
@@ -144,42 +135,92 @@ async function repoTrend(repoId: string) {
   return [...weeks.entries()].map(([i, v]) => ({ week: `W${i + 1}`, ...v }));
 }
 
-export async function listRepos(): Promise<ApiRepo[]> {
+async function repoTrend(repoId: string) {
   const db = getDb();
   const rows = await db
-    .select({
-      id: repos.id,
-      fullName: repos.fullName,
-      owner: repos.owner,
-      accountLogin: installations.accountLogin,
-    })
-    .from(repos)
-    .innerJoin(installations, eq(repos.installationId, installations.id));
+    .select({ verdict: prChecks.verdict, checkedAt: prChecks.checkedAt })
+    .from(prChecks)
+    .where(
+      and(
+        eq(prChecks.repoId, repoId),
+        sql`${prChecks.checkedAt} > now() - interval '42 days'`,
+      ),
+    );
+  return bucketTrend(rows);
+}
 
-  const out: ApiRepo[] = [];
-  for (const r of rows) {
-    const stats = await repoStats(r.id);
-    out.push({
+export async function listRepos(): Promise<ApiRepo[]> {
+  const db = getDb();
+  // Grouped aggregates instead of 4 queries per repo: the per-repo loop was an
+  // N+1 that exhausted the connection pool under concurrent load (each request
+  // fired ~4×N sequential round-trips; 100 concurrent users → 30s+ tails).
+  const [rows, decisionCounts, checkCounts, trendRows] = await Promise.all([
+    db
+      .select({
+        id: repos.id,
+        fullName: repos.fullName,
+        owner: repos.owner,
+        accountLogin: installations.accountLogin,
+      })
+      .from(repos)
+      .innerJoin(installations, eq(repos.installationId, installations.id)),
+    db
+      .select({ repoId: decisions.repoId, n: sql<number>`count(*)::int` })
+      .from(decisions)
+      .where(inArray(decisions.status, ["approved", "proposed"]))
+      .groupBy(decisions.repoId),
+    db
+      .select({
+        repoId: prChecks.repoId,
+        prs: sql<number>`count(*)::int`,
+        conflicts: sql<number>`(count(*) filter (where ${prChecks.verdict} = 'conflict'))::int`,
+      })
+      .from(prChecks)
+      .groupBy(prChecks.repoId),
+    db
+      .select({ repoId: prChecks.repoId, verdict: prChecks.verdict, checkedAt: prChecks.checkedAt })
+      .from(prChecks)
+      .where(sql`${prChecks.checkedAt} > now() - interval '42 days'`),
+  ]);
+
+  const decByRepo = new Map(decisionCounts.map((d) => [d.repoId, d.n]));
+  const checksByRepo = new Map(checkCounts.map((c) => [c.repoId, c]));
+  const trendByRepo = new Map<string, { verdict: string; checkedAt: Date }[]>();
+  for (const t of trendRows) {
+    const list = trendByRepo.get(t.repoId) ?? [];
+    list.push(t);
+    trendByRepo.set(t.repoId, list);
+  }
+
+  return rows.map((r) => {
+    const checks = checksByRepo.get(r.id);
+    const conflicts = checks?.conflicts ?? 0;
+    const prs = checks?.prs ?? 0;
+    return {
       id: r.id,
       name: r.fullName,
       org: r.accountLogin ?? r.owner,
-      ...stats,
-      trend: await repoTrend(r.id),
-    });
-  }
-  return out;
+      decisionsCount: decByRepo.get(r.id) ?? 0,
+      prsChecked: prs,
+      conflictsCaught: conflicts,
+      reviewTimeSaved: `${Math.round(conflicts * 1.5 + prs * 0.05)}h`,
+      trend: bucketTrend(trendByRepo.get(r.id) ?? []),
+    };
+  });
 }
 
 export async function getOverview(repoId: string) {
   const db = getDb();
-  const stats = await repoStats(repoId);
-  const trend = await repoTrend(repoId);
-  const recentRows = await db
-    .select()
-    .from(prChecks)
-    .where(eq(prChecks.repoId, repoId))
-    .orderBy(desc(prChecks.checkedAt))
-    .limit(8);
+  const [stats, trend, recentRows] = await Promise.all([
+    repoStats(repoId),
+    repoTrend(repoId),
+    db
+      .select()
+      .from(prChecks)
+      .where(eq(prChecks.repoId, repoId))
+      .orderBy(desc(prChecks.checkedAt))
+      .limit(8),
+  ]);
 
   // Resolve all matched-decision texts in one query (was one query per row).
   const matchedIds = [...new Set(recentRows.map((c) => c.matchedDecisionId).filter((x): x is string => Boolean(x)))];
@@ -391,54 +432,50 @@ export const PLAN_LIMITS: Record<OrgPlan, { repos: number; decisions: number }> 
 /** Plan + real current usage for an org (drives the Billing page). */
 export async function getBilling(orgId: string): Promise<ApiBilling> {
   const db = getDb();
-  const [org] = await db
-    .select({ plan: organizations.plan })
-    .from(organizations)
-    .where(eq(organizations.id, orgId))
-    .limit(1);
-  const plan = (org?.plan ?? "free") as OrgPlan;
-
-  const repoRows = await db
-    .select({ id: repos.id })
-    .from(repos)
-    .innerJoin(installations, eq(repos.installationId, installations.id))
-    .where(eq(installations.orgId, orgId));
-  const repoIds = repoRows.map((r) => r.id);
-
-  const [members] = await db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(memberships)
-    .where(eq(memberships.orgId, orgId));
-
-  let decisionsN = 0;
-  let prsN = 0;
-  let conflictsN = 0;
-  if (repoIds.length > 0) {
-    const [d] = await db
+  // One parallel wave (was 6 sequential round-trips — the slowest route under
+  // load). Per-repo scoping happens via joins so nothing depends on a prior
+  // repo-id fetch.
+  const [orgRows, repoCount, members, decisionCount, checkCounts] = await Promise.all([
+    db
+      .select({ plan: organizations.plan })
+      .from(organizations)
+      .where(eq(organizations.id, orgId))
+      .limit(1),
+    db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(repos)
+      .innerJoin(installations, eq(repos.installationId, installations.id))
+      .where(eq(installations.orgId, orgId)),
+    db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(memberships)
+      .where(eq(memberships.orgId, orgId)),
+    db
       .select({ n: sql<number>`count(*)::int` })
       .from(decisions)
-      .where(and(inArray(decisions.repoId, repoIds), ne(decisions.status, "removed")));
-    const [p] = await db
-      .select({ n: sql<number>`count(*)::int` })
+      .innerJoin(repos, eq(decisions.repoId, repos.id))
+      .innerJoin(installations, eq(repos.installationId, installations.id))
+      .where(and(eq(installations.orgId, orgId), ne(decisions.status, "removed"))),
+    db
+      .select({
+        prs: sql<number>`count(*)::int`,
+        conflicts: sql<number>`(count(*) filter (where ${prChecks.verdict} = 'conflict'))::int`,
+      })
       .from(prChecks)
-      .where(inArray(prChecks.repoId, repoIds));
-    const [c] = await db
-      .select({ n: sql<number>`count(*)::int` })
-      .from(prChecks)
-      .where(and(inArray(prChecks.repoId, repoIds), eq(prChecks.verdict, "conflict")));
-    decisionsN = d?.n ?? 0;
-    prsN = p?.n ?? 0;
-    conflictsN = c?.n ?? 0;
-  }
+      .innerJoin(repos, eq(prChecks.repoId, repos.id))
+      .innerJoin(installations, eq(repos.installationId, installations.id))
+      .where(eq(installations.orgId, orgId)),
+  ]);
 
+  const plan = (orgRows[0]?.plan ?? "free") as OrgPlan;
   return {
     plan,
     usage: {
-      repos: repoIds.length,
-      members: members?.n ?? 0,
-      decisions: decisionsN,
-      prsChecked: prsN,
-      conflictsCaught: conflictsN,
+      repos: repoCount[0]?.n ?? 0,
+      members: members[0]?.n ?? 0,
+      decisions: decisionCount[0]?.n ?? 0,
+      prsChecked: checkCounts[0]?.prs ?? 0,
+      conflictsCaught: checkCounts[0]?.conflicts ?? 0,
     },
     limits: PLAN_LIMITS[plan],
   };

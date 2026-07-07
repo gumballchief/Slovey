@@ -83,7 +83,15 @@ async function resolveAccess(
   if (!repo) throw new HttpError(404, "Repo not found");
 
   if (viewer.isDev) return { repo, role: "owner" };
-  if (repo.owner.toLowerCase() === viewer.login.toLowerCase()) return { repo, role: "owner" };
+  // Prefer the immutable GitHub account id — logins can change or be recycled,
+  // so a string match alone could hand owner access to whoever claims an
+  // abandoned login. Fall back to the login match only for rows synced before
+  // owner_github_id existed (backfilled on the next installation sync).
+  const isOwner =
+    repo.ownerGithubId != null && viewer.githubId != null
+      ? repo.ownerGithubId === viewer.githubId
+      : repo.owner.toLowerCase() === viewer.login.toLowerCase();
+  if (isOwner) return { repo, role: "owner" };
   if (viewer.userId && repo.orgId) {
     const role = await userOrgRole(viewer.userId, repo.orgId);
     if (role) return { repo, role };

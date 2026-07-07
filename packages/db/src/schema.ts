@@ -187,6 +187,10 @@ export const repos = pgTable("repos", {
     .references(() => installations.id, { onDelete: "cascade" }),
   githubRepoId: bigint("github_repo_id", { mode: "number" }).notNull(),
   owner: text("owner").notNull(),
+  // Immutable GitHub account id of the repo owner — logins can change or be
+  // recycled, so access checks prefer this. Nullable until the next sync
+  // backfills rows created before the column existed.
+  ownerGithubId: bigint("owner_github_id", { mode: "number" }),
   name: text("name").notNull(),
   fullName: text("full_name").notNull().unique(),
   defaultBranch: text("default_branch").notNull().default("main"),

@@ -32,6 +32,7 @@ gitignored — they are never pushed.
 | Var | Value |
 |---|---|
 | `DATABASE_URL` | Supabase session-pooler string (`?sslmode=require`) |
+| `DATABASE_URL_POOLED` | Optional: transaction-pooler string (same host, port **6543**). App query pools prefer it — no 15-session cap, so web instances can scale horizontally. pg-boss + migrations always use `DATABASE_URL`. **Before enabling:** in Supabase raise the transaction pooler's pool size and check the role's `statement_timeout` — with the defaults, queries that queue under load get killed with `57014 statement timeout` (verified under a 300-user test). Enable only after a load run passes. |
 | `NEXT_PUBLIC_SUPABASE_URL` | `https://krrtszbhekhthsgpooat.supabase.co` |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/publishable key (public by design) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service-role key (**secret**, server-only) |

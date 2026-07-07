@@ -87,15 +87,19 @@ export function runCommand(
     // Next's type augmentation marks NODE_ENV as required on ProcessEnv;
     // omitting it is exactly the point here, so assert the narrower shape.
     const childEnv = rest as NodeJS.ProcessEnv;
-    const child = spawn(bin, tokens.slice(1), {
-      cwd,
-      shell: IS_WIN,
-      windowsHide: true,
-      env: childEnv,
-      // POSIX: own process group so killTree() can kill(-pid) the whole tree.
-      // (Windows has no equivalent; taskkill /T handles it there instead.)
-      detached: !IS_WIN,
-    });
+    // Windows needs a shell (pnpm/npm are .cmd), but passing an args array with
+    // shell:true is deprecated (DEP0190: args get concatenated, not escaped) —
+    // so hand the shell the full validated string instead. SAFE_COMMAND already
+    // guarantees no metacharacters, making the two forms equivalent here.
+    const child = IS_WIN
+      ? spawn(trimmed, { cwd, shell: true, windowsHide: true, env: childEnv })
+      : spawn(bin, tokens.slice(1), {
+          cwd,
+          env: childEnv,
+          // POSIX: own process group so killTree() can kill(-pid) the whole tree.
+          // (Windows has no equivalent; taskkill /T handles it there instead.)
+          detached: true,
+        });
 
     let stdout = "";
     let stderr = "";

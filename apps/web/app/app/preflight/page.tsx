@@ -6,6 +6,7 @@ import { useRepo } from "@/app/app/RepoProvider";
 import { fetchPreflight, type PreflightData } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { ConnectRepoButton } from "@/components/ui/ConnectRepoButton";
+import { CliTokens } from "@/components/ui/CliTokens";
 
 export default function PreflightPage() {
   const { activeRepoId, activeRepo, loading: repoLoading } = useRepo();
@@ -42,6 +43,8 @@ export default function PreflightPage() {
           </p>
         </div>
       </div>
+
+      {!repoLoading && activeRepo && <CliTokens repoId={activeRepoId} />}
 
       {repoLoading || loading ? (
         <p className="mt-8 text-sm text-[var(--text-muted)]">Loading…</p>

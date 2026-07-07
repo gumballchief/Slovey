@@ -41,3 +41,4 @@ export * from "./services/api-tokens";
 export * from "./services/audit";
 export * from "./services/connectors";
 export * as dashboard from "./services/dashboard";
+export * as planGuard from "./services/plan-guard";
