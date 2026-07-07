@@ -124,6 +124,20 @@ body {
   transition: color 0.2s ease;
 }
 
+/* ── Landing always-on loops (spec: shimmer, caret, pulse, aurora, marquee) ── */
+@keyframes cbShimmerSweep { to { background-position: 200% center; } }
+.cb-shimmer { animation: cbShimmerSweep 9s linear infinite; }
+@keyframes cbCaretBlink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+.cb-caret { animation: cbCaretBlink 1s steps(1) infinite; color: #6ea8ff; margin-left: 1px; }
+@keyframes cbDotPulse { 0%, 100% { opacity: .55; transform: scale(1); } 50% { opacity: 1; transform: scale(1.25); } }
+.cb-dot-pulse { animation: cbDotPulse 2s ease-in-out infinite; }
+@keyframes cbAuroraA { 0%,100%{ transform: translate(0,0) scale(1);} 33%{ transform: translate(8vw,6vh) scale(1.15);} 66%{ transform: translate(-5vw,10vh) scale(.95);} }
+@keyframes cbAuroraB { 0%,100%{ transform: translate(0,0) scale(1);} 33%{ transform: translate(-9vw,-5vh) scale(1.1);} 66%{ transform: translate(6vw,-9vh) scale(1.2);} }
+@keyframes cbMarqueeX { to { transform: translateX(-50%); } }
+@media (prefers-reduced-motion: reduce) {
+  .cb-shimmer, .cb-caret, .cb-dot-pulse { animation: none !important; }
+}
+
 /* ── Display type: tight, editorial ── */
 .font-display {
   font-family: var(--font-display), system-ui, sans-serif;
