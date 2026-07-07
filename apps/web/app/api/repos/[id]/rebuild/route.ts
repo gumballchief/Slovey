@@ -1,6 +1,6 @@
-import { dashboard, logAudit } from "@company-brain/core";
+import { dashboard, logAudit, planGuard } from "@company-brain/core";
 import { assertRepoWrite, requireViewer } from "@/lib/server/auth";
-import { handle, ok } from "@/lib/server/respond";
+import { HttpError, handle, ok } from "@/lib/server/respond";
 import { rateLimit } from "@/lib/server/ratelimit";
 
 export const runtime = "nodejs";
@@ -17,6 +17,10 @@ export async function POST(
     await assertRepoWrite(id, viewer);
     // Rebuild is expensive (full extract + index + embeddings) — cap it.
     rateLimit(`rebuild:${viewer.userId ?? viewer.login}`, 5, 60_000);
+    const gate = await planGuard.isRepoWithinPlan(id);
+    if (!gate.ok) {
+      throw new HttpError(402, `This repo is beyond the ${gate.plan} plan's ${gate.limit}-repo allowance. Upgrade to activate it.`);
+    }
     const { jobId } = await dashboard.enqueueRebuild(id);
     await logAudit({ repoId: id, actorUser: viewer.login, action: "memory.rebuild", metadata: { jobId } });
     return ok({ jobId, status: "queued" }, { status: 202 });

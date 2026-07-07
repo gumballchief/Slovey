@@ -1,4 +1,4 @@
-import { importDocs, splitDocs, logAudit, type ImportDoc } from "@company-brain/core";
+import { importDocs, splitDocs, logAudit, planGuard, type ImportDoc } from "@company-brain/core";
 import { assertRepoWrite, requireViewer } from "@/lib/server/auth";
 import { HttpError, handle, ok, readJsonBody } from "@/lib/server/respond";
 import { rateLimit } from "@/lib/server/ratelimit";
@@ -29,6 +29,11 @@ export async function POST(
         ? splitDocs(body.text)
         : [];
     if (docs.length === 0) throw new HttpError(400, "provide `text` or `docs`");
+
+    const headroom = await planGuard.decisionHeadroom(id);
+    if (!headroom.ok) {
+      throw new HttpError(402, `The ${headroom.plan} plan is capped at ${headroom.limit} decisions (you have ${headroom.used}). Upgrade to import more.`);
+    }
 
     const result = await importDocs(id, docs);
     await logAudit({

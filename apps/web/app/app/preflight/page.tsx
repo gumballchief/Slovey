@@ -43,6 +43,8 @@ export default function PreflightPage() {
         </div>
       </div>
 
+      {!repoLoading && activeRepo && activeRepoId && <CliTokenSection repoId={activeRepoId} />}
+
       {repoLoading || loading ? (
         <p className="mt-8 text-sm text-[var(--text-muted)]">Loading…</p>
       ) : !activeRepo ? (
@@ -216,6 +218,126 @@ function groupByFile<T extends { file: string }>(errors: T[]): Record<string, T[
   const out: Record<string, T[]> = {};
   for (const e of errors) (out[e.file] ??= []).push(e);
   return out;
+}
+
+interface CliToken {
+  id: string;
+  name: string;
+  tokenHint: string;
+  lastUsedAt: string | null;
+  expiresAt: string | null;
+  createdAt: string;
+}
+
+/** Self-serve CLI tokens: list, mint (plaintext shown once), revoke. */
+function CliTokenSection({ repoId }: { repoId: string }) {
+  const [tokens, setTokens] = useState<CliToken[]>([]);
+  const [minted, setMinted] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = () =>
+    fetch(`/api/repos/${repoId}/tokens`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setTokens)
+      .catch(() => {});
+
+  useEffect(() => {
+    setMinted(null);
+    setError(null);
+    void refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [repoId]);
+
+  const mint = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/repos/${repoId}/tokens`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "cli" }),
+      });
+      const body = (await res.json()) as { token?: string; error?: string };
+      if (!res.ok || !body.token) {
+        setError(body.error ?? "Could not create a token.");
+        return;
+      }
+      setMinted(body.token);
+      setCopied(false);
+      void refresh();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const revoke = async (tokenId: string) => {
+    await fetch(`/api/repos/${repoId}/tokens/${tokenId}`, { method: "DELETE" });
+    void refresh();
+  };
+
+  const copy = async () => {
+    if (!minted) return;
+    await navigator.clipboard.writeText(minted);
+    setCopied(true);
+  };
+
+  return (
+    <div className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--bg-subtle)] px-4 py-3.5">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-[var(--cb-text)]">CLI access</p>
+          <p className="text-xs text-[var(--text-muted)]">
+            Mint a repo-scoped token, then set <code>COMPANY_BRAIN_TOKEN</code> for{" "}
+            <code>companybrain preflight</code> / CI.
+          </p>
+        </div>
+        <button
+          onClick={mint}
+          disabled={busy}
+          className="shrink-0 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+        >
+          {busy ? "Creating…" : "Generate token"}
+        </button>
+      </div>
+
+      {error && <p className="mt-2 text-xs text-[#F43F5E]">{error}</p>}
+
+      {minted && (
+        <div className="mt-3 flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2">
+          <code className="min-w-0 flex-1 truncate text-xs text-[var(--cb-text)]">{minted}</code>
+          <button
+            onClick={copy}
+            className="shrink-0 rounded-md border border-[var(--border)] px-2 py-1 text-xs text-[var(--cb-text)] hover:bg-[var(--bg-subtle)]"
+          >
+            {copied ? "Copied" : "Copy"}
+          </button>
+          <span className="shrink-0 text-[11px] text-[var(--text-muted)]">shown once</span>
+        </div>
+      )}
+
+      {tokens.length > 0 && (
+        <ul className="mt-3 space-y-1.5">
+          {tokens.map((t) => (
+            <li key={t.id} className="flex items-center gap-3 text-xs">
+              <code className="text-[var(--text-muted)]">{t.tokenHint}</code>
+              <span className="text-[var(--text-muted)]">
+                {t.name} · created {new Date(t.createdAt).toLocaleDateString()}
+                {t.lastUsedAt ? ` · last used ${new Date(t.lastUsedAt).toLocaleDateString()}` : " · never used"}
+              </span>
+              <button
+                onClick={() => revoke(t.id)}
+                className="ml-auto shrink-0 text-[11px] text-[#F43F5E] hover:underline"
+              >
+                revoke
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {

@@ -12,6 +12,7 @@ import {
 } from "../github/fetchers";
 import { guardWarning, type CitableDecision } from "../guardrails/citation";
 import { logAudit } from "../services/audit";
+import { isRepoWithinPlan } from "../services/plan-guard";
 import { buildComment, buildResolvedComment, COMMENT_MARKER } from "./comment";
 import { getDismissedNotes } from "./feedback";
 import { categorizePr, retrieveDecisions } from "./retrieve";
@@ -90,6 +91,12 @@ export async function checkPr(params: CheckPrParams): Promise<CheckPrResult> {
 
   if (params.action === "synchronize" && !settings.triggerSynchronize) {
     return { verdict: "skipped", posted: false, reason: "synchronize-disabled" };
+  }
+
+  // Plan enforcement: repos beyond the org's allowance don't get PR checks.
+  const gate = await isRepoWithinPlan(params.repoId);
+  if (!gate.ok) {
+    return { verdict: "skipped", posted: false, reason: `plan-limit (${gate.plan}: ${gate.limit} repos)` };
   }
 
   const octokit = await getInstallationOctokit(params.installationId);
