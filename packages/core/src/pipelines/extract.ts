@@ -5,6 +5,7 @@ import { consolidatePrompt, extractDocPrompt, extractPrompt } from "../ai/prompt
 import type { ExtractedDecision } from "../ai/types";
 import { getInstallationOctokit } from "../github/app";
 import { buildPrBatchText, fetchClosedPRs, fetchDocs } from "../github/fetchers";
+import { isRepoWithinPlan } from "../services/plan-guard";
 import { upsertDecisions } from "./upsert-decisions";
 
 const PR_BATCH = 8;
@@ -63,6 +64,17 @@ async function countDecisions(repoId: string): Promise<number> {
  * memory with an empty-ish rebuild.
  */
 export async function runExtract(params: ExtractParams): Promise<ExtractResult> {
+  // Plan enforcement: repos beyond the org's allowance don't build memory
+  // (extraction is the expensive AI path).
+  const gate = await isRepoWithinPlan(params.repoId);
+  if (!gate.ok) {
+    return {
+      prsFetched: 0, extracted: 0, droppedEmptyEvidence: 0, consolidated: 0,
+      docDecisions: 0, inserted: 0, updated: 0,
+      aborted: `plan-limit (${gate.plan}: ${gate.limit} repos)`,
+    };
+  }
+
   const ai = getAI();
   const octokit = await getInstallationOctokit(params.installationId);
 

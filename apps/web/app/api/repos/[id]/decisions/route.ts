@@ -1,4 +1,4 @@
-import { dashboard, logAudit } from "@company-brain/core";
+import { dashboard, logAudit, planGuard } from "@company-brain/core";
 import { assertRepoAccess, assertRepoWrite, requireViewer } from "@/lib/server/auth";
 import { HttpError, handle, ok, readJsonBody } from "@/lib/server/respond";
 
@@ -45,6 +45,10 @@ export async function POST(
     if (!body.decision?.trim()) throw new HttpError(400, "decision is required");
     if (body.status && body.status !== "approved" && body.status !== "rejected") {
       throw new HttpError(400, 'status must be "approved" or "rejected"');
+    }
+    const headroom = await planGuard.decisionHeadroom(id);
+    if (!headroom.ok) {
+      throw new HttpError(402, `The ${headroom.plan} plan is capped at ${headroom.limit} decisions (you have ${headroom.used}). Upgrade to add more.`);
     }
     const created = await dashboard.createDecision(id, {
       decision: body.decision,
