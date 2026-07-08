@@ -16,9 +16,49 @@ const STEPS: Step[] = [
   { no: "06", title: "Blocks deprecated patterns", body: "Deprecated APIs and retired approaches are blocked, citing the incident behind the rule.", term: "✗ legacy:true — removed in PR #482", ok: false },
 ];
 
+function Heading() {
+  return (
+    <div style={{ textAlign: "center", marginBottom: 8 }}>
+      <div style={{ fontFamily: "var(--font-mono), monospace", fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase", color: "#7fb0f2" }}>04 — Pipeline</div>
+      <h2 style={{ fontFamily: "var(--font-display), sans-serif", fontWeight: 600, fontSize: "clamp(30px,4.4vw,50px)", lineHeight: 1.06, letterSpacing: "-0.025em", color: "#1b1726", margin: "14px 0 0" }}>What happens on every change</h2>
+    </div>
+  );
+}
+
+/**
+ * Router: pick the pinned scrollytelling or the stacked fallback. The pinned
+ * variant owns the scroll target ref, so `useScroll` is only ever called when
+ * that element is actually rendered — never against an unhydrated ref.
+ */
 export function PinnedWorkflow() {
   const reduce = useReducedMotion();
   const wide = useMinWidth(760);
+  if (reduce || !wide) return <WorkflowStacked />;
+  return <WorkflowPinned />;
+}
+
+// Reduced-motion / narrow-viewport (<760px): a normal stacked list.
+function WorkflowStacked() {
+  return (
+    <section id="workflow" style={{ position: "relative", zIndex: 1, maxWidth: 1000, margin: "0 auto", padding: "130px 24px 0" }}>
+      <Heading />
+      <div style={{ marginTop: 40, display: "grid", gap: 16 }}>
+        {STEPS.map((s) => (
+          <div key={s.no} style={{ display: "flex", gap: 16, padding: 20, borderRadius: 16, border: "1px solid #e3e9f5", background: "rgba(255,255,255,.7)" }}>
+            <div style={{ fontFamily: "var(--font-mono), monospace", color: "#4f7ef7", fontSize: 13 }}>{s.no}</div>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 18, fontFamily: "var(--font-display), sans-serif", color: "#1b1726" }}>{s.title}</h3>
+              <p style={{ margin: "6px 0 0", fontSize: 14.5, color: "#565163" }}>{s.body}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// Pinned stepper — sticky inner, scroll drives the active step.
+function WorkflowPinned() {
   const outerRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({ target: outerRef, offset: ["start start", "end end"] });
   const [active, setActive] = useState(0);
@@ -28,39 +68,12 @@ export function PinnedWorkflow() {
   // progress line reaches the active dot's center (stepped, .4s).
   const railH = `${((active + 0.5) / STEPS.length) * 100}%`;
 
-  const Heading = (
-    <div style={{ textAlign: "center", marginBottom: 8 }}>
-      <div style={{ fontFamily: "var(--font-mono), monospace", fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase", color: "#7fb0f2" }}>04 — Pipeline</div>
-      <h2 style={{ fontFamily: "var(--font-display), sans-serif", fontWeight: 600, fontSize: "clamp(30px,4.4vw,50px)", lineHeight: 1.06, letterSpacing: "-0.025em", color: "#1b1726", margin: "14px 0 0" }}>What happens on every change</h2>
-    </div>
-  );
-
-  // Reduced-motion / narrow-viewport (<760px) fallback: a normal stacked list.
-  if (reduce || !wide) {
-    return (
-      <section id="workflow" style={{ position: "relative", zIndex: 1, maxWidth: 1000, margin: "0 auto", padding: "130px 24px 0" }}>
-        {Heading}
-        <div style={{ marginTop: 40, display: "grid", gap: 16 }}>
-          {STEPS.map((s) => (
-            <div key={s.no} style={{ display: "flex", gap: 16, padding: 20, borderRadius: 16, border: "1px solid #e3e9f5", background: "rgba(255,255,255,.7)" }}>
-              <div style={{ fontFamily: "var(--font-mono), monospace", color: "#4f7ef7", fontSize: 13 }}>{s.no}</div>
-              <div>
-                <h3 style={{ margin: 0, fontSize: 18, fontFamily: "var(--font-display), sans-serif", color: "#1b1726" }}>{s.title}</h3>
-                <p style={{ margin: "6px 0 0", fontSize: 14.5, color: "#565163" }}>{s.body}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-    );
-  }
-
   return (
     <section id="workflow">
       <div ref={outerRef} style={{ position: "relative", height: `${STEPS.length * 90}vh` }}>
         <div style={{ position: "sticky", top: 0, height: "100vh", display: "flex", flexDirection: "column", justifyContent: "center", overflow: "hidden" }}>
           <div style={{ maxWidth: 1120, margin: "0 auto", padding: "0 24px", width: "100%" }}>
-            {Heading}
+            <Heading />
             <div style={{ marginTop: 44, display: "grid", gridTemplateColumns: "minmax(0,340px) 1fr", gap: 48, alignItems: "center" }} data-flow>
               {/* left rail */}
               <div style={{ position: "relative", paddingLeft: 26 }}>
