@@ -7,7 +7,7 @@ import { Features } from "./Features";
 import { Hero } from "./Hero";
 import { IntroLoader } from "./IntroLoader";
 import { LandingEffects } from "./LandingEffects";
-import navMarkup from "./nav.json";
+import { Nav } from "./Nav";
 import restA from "./rest-a.json";
 import restB from "./rest-b.json";
 
@@ -25,7 +25,7 @@ export function Landing() {
       <IntroLoader onDone={() => setIntroDone(true)} />
       <AmbientBackground />
       <div id="cb-landing" style={{ position: "relative", zIndex: 1 }}>
-        <div dangerouslySetInnerHTML={{ __html: (navMarkup as { html: string }).html }} />
+        <Nav />
         <Hero introDone={introDone || !!reduce} />
         <div dangerouslySetInnerHTML={{ __html: (restA as { html: string }).html }} />
         <Features />

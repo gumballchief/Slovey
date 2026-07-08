@@ -1,6 +1,7 @@
 "use client";
 
-import { motion, useReducedMotion } from "framer-motion";
+import { useRef } from "react";
+import { motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
 import { AnimatedHeadline } from "./AnimatedHeadline";
 import { CodeMock } from "./CodeMock";
 import { Magnetic } from "./motion";
@@ -11,6 +12,9 @@ const EASE = [0.16, 1, 0.3, 1] as const;
 /** Hero section — headline pop-in gated on the intro loader, magnetic CTAs, code mock. */
 export function Hero({ introDone }: { introDone: boolean }) {
   const reduce = useReducedMotion();
+  const sectionRef = useRef<HTMLElement>(null);
+  const { scrollYProgress } = useScroll({ target: sectionRef, offset: ["start start", "end start"] });
+  const mockY = useTransform(scrollYProgress, [0, 1], [0, -60]);
   // badge/subhead/CTAs rise in after the headline starts
   const rise = (delay: number) =>
     reduce
@@ -22,7 +26,7 @@ export function Hero({ introDone }: { introDone: boolean }) {
         };
 
   return (
-    <section id="top" style={{ position: "relative", zIndex: 1, maxWidth: 1180, margin: "0 auto", padding: "150px 24px 0", textAlign: "center" }}>
+    <section ref={sectionRef} id="top" style={{ position: "relative", zIndex: 1, maxWidth: 1180, margin: "0 auto", padding: "150px 24px 0", textAlign: "center" }}>
       <motion.div {...rise(0.1)} style={{ display: "inline-flex", alignItems: "center", gap: 9, padding: "7px 15px", borderRadius: 99, background: "rgba(255,255,255,.7)", border: "1px solid #e3e9f5", backdropFilter: "blur(8px)", marginBottom: 30 }}>
         <span className="cb-dot-pulse" style={{ width: 7, height: 7, borderRadius: 99, background: "#4f7ef7" }} />
         <span style={{ fontFamily: "var(--font-mono), monospace", fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase", color: "#565163" }}>Engineering Intelligence Platform</span>
@@ -52,7 +56,9 @@ export function Hero({ introDone }: { introDone: boolean }) {
       </motion.div>
 
       <motion.div {...rise(0.8)} style={{ marginTop: 70 }}>
-        <CodeMock />
+        <motion.div style={reduce ? undefined : { y: mockY, willChange: "transform" }}>
+          <CodeMock />
+        </motion.div>
       </motion.div>
     </section>
   );
