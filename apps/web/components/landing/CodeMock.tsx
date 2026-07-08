@@ -62,7 +62,7 @@ export function CodeMock() {
           return next;
         });
         ci++;
-        const jitter = 15 + Math.random() * 25;
+        const jitter = 15 + Math.random() * 24;
         setTimeout(step, jitter);
       } else {
         li++;
@@ -95,14 +95,32 @@ export function CodeMock() {
       data-mock-grid
     >
       {/* code panel */}
-      <div style={{ padding: "0 0 18px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "13px 16px", borderBottom: "1px solid rgba(255,255,255,.06)" }}>
+      <div style={{ padding: "0 0 18px", position: "relative", overflow: "hidden" }}>
+        {/* scan bar sweeping behind the diff (spec #6) */}
+        {!reduce && (
+          <div
+            aria-hidden
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              top: 0,
+              height: "45%",
+              background: "linear-gradient(180deg, transparent, rgba(110,168,255,.5), transparent)",
+              opacity: 0.1,
+              pointerEvents: "none",
+              animation: "cbScanY 5s linear infinite",
+              willChange: "transform",
+            }}
+          />
+        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "13px 16px", borderBottom: "1px solid rgba(255,255,255,.06)", position: "relative" }}>
           <span style={{ width: 11, height: 11, borderRadius: 99, background: "#ff5f57" }} />
           <span style={{ width: 11, height: 11, borderRadius: 99, background: "#febc2e" }} />
           <span style={{ width: 11, height: 11, borderRadius: 99, background: "#28c840" }} />
           <span style={{ marginLeft: 10, fontSize: 12, color: "#8890a6" }}>pull-request #482 · feat/checkout-refactor</span>
         </div>
-        <div style={{ padding: "16px 18px", fontSize: 13, lineHeight: 1.85 }}>
+        <div style={{ padding: "16px 18px", fontSize: 13, lineHeight: 1.85, position: "relative" }}>
           {LINES.map((line, i) => (
             <div key={i} style={{ ...lineStyle(line.k), borderRadius: 5, padding: line.k === "blank" ? "0" : "1px 8px", minHeight: line.k === "blank" ? 14 : undefined, whiteSpace: "pre" }}>
               {line.t.slice(0, typed[i])}
@@ -124,10 +142,10 @@ export function CodeMock() {
               key={i}
               initial={reduce ? false : { opacity: 0, y: 8 }}
               animate={done || reduce ? { opacity: 1, y: 0 } : {}}
-              transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1], delay: i * 0.15 }}
+              transition={{ delay: 0.16 + i * 0.15, opacity: { duration: 0.5, ease: "easeOut" }, y: { duration: 0.55, ease: [0.16, 1, 0.3, 1] } }}
               style={{ display: "flex", alignItems: "center", gap: 10, fontFamily: "var(--font-inter-tight), sans-serif", fontSize: 13.5, color: "#cbd3e6" }}
             >
-              <span style={{ width: 20, height: 20, borderRadius: 6, display: "grid", placeItems: "center", color: r.color, fontSize: 12, background: `${r.color}1f`, boxShadow: `0 0 12px ${r.color}55` }}>{r.icon}</span>
+              <span style={{ width: 20, height: 20, borderRadius: 6, display: "grid", placeItems: "center", color: r.color, fontSize: 12, background: `${r.color}1f`, filter: `drop-shadow(0 0 6px ${r.color})` }}>{r.icon}</span>
               {r.text}
             </motion.div>
           ))}

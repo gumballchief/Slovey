@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { motion, useMotionValueEvent, useReducedMotion, useScroll } from "framer-motion";
+import { useMinWidth } from "./motion";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -15,11 +16,12 @@ const CASES: UseCase[] = [
 
 export function PinnedUseCases() {
   const reduce = useReducedMotion();
+  const wide = useMinWidth(760);
   const outerRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({ target: outerRef, offset: ["start start", "end end"] });
   const [active, setActive] = useState(0);
   useMotionValueEvent(scrollYProgress, "change", (v) => {
-    setActive(Math.min(CASES.length - 1, Math.max(0, Math.floor(v * CASES.length))));
+    setActive(Math.min(CASES.length - 1, Math.max(0, Math.floor(v * CASES.length * 0.999))));
   });
 
   const Heading = (
@@ -38,8 +40,8 @@ export function PinnedUseCases() {
         padding: "22px 26px",
         transition: "all .45s cubic-bezier(.16,1,.3,1)",
         boxShadow: open ? "0 24px 60px -34px rgba(50,60,120,.4)" : "none",
-        opacity: !reduce && !open && !done && i > active ? 0.6 : 1,
-        transform: open ? "scale(1)" : "scale(.99)",
+        opacity: !reduce && !open && !done && i > active ? 0.62 : 1,
+        transform: open ? "scale(1)" : "scale(.985)",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
@@ -47,13 +49,13 @@ export function PinnedUseCases() {
         <span style={{ fontFamily: "var(--font-mono), monospace", fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: open ? "#7c5cff" : "#a4a0b3", background: open ? "rgba(124,92,255,.1)" : "transparent", padding: open ? "3px 8px" : 0, borderRadius: 6, transition: "all .3s", boxShadow: open ? "0 0 14px rgba(124,92,255,.35)" : "none" }}>{c.tag}</span>
         <h3 style={{ margin: 0, fontFamily: "var(--font-display), sans-serif", fontSize: 21, fontWeight: 600, letterSpacing: "-0.015em", color: open || done ? "#1b1726" : "#565163", transition: "color .3s" }}>{c.title}</h3>
       </div>
-      <div style={{ overflow: "hidden", maxHeight: reduce || open ? 220 : 0, opacity: reduce || open ? 1 : 0, transition: "max-height .45s cubic-bezier(.16,1,.3,1), opacity .35s ease" }}>
+      <div style={{ overflow: "hidden", maxHeight: reduce || open ? 220 : 0, opacity: reduce || open ? 1 : 0, transition: "max-height .6s cubic-bezier(.16,1,.3,1), opacity .5s ease" }}>
         <p style={{ margin: "12px 0 0", fontSize: 16, lineHeight: 1.6, color: "#565163", maxWidth: 620 }}>{c.body}</p>
       </div>
     </div>
   );
 
-  if (reduce) {
+  if (reduce || !wide) {
     return (
       <section id="usecases" style={{ position: "relative", zIndex: 1, maxWidth: 860, margin: "0 auto", padding: "130px 24px 0" }}>
         {Heading}
@@ -66,7 +68,7 @@ export function PinnedUseCases() {
 
   return (
     <section id="usecases">
-      <div ref={outerRef} style={{ position: "relative", height: `${CASES.length * 95}vh` }}>
+      <div ref={outerRef} style={{ position: "relative", height: "420vh" }}>
         <div style={{ position: "sticky", top: 0, minHeight: "100vh", display: "flex", flexDirection: "column", justifyContent: "center", padding: "40px 0" }}>
           <div style={{ maxWidth: 860, margin: "0 auto", padding: "0 24px", width: "100%" }}>
             {Heading}

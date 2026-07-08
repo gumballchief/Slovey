@@ -21,24 +21,34 @@ export function IntroLoader({ onDone }: { onDone: () => void }) {
     }
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    const start = performance.now();
-    const DURATION = 2000;
-    let raf = 0;
-    const tick = (now: number) => {
-      const t = Math.min(1, (now - start) / DURATION);
-      // fast-then-settling (easeOutExpo)
-      const eased = t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
-      setPct(Math.round(eased * 100));
-      if (t < 1) raf = requestAnimationFrame(tick);
-      else {
-        document.body.style.overflow = prevOverflow;
-        onDone();
-        setTimeout(() => setGone(true), 720);
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    let p = 0;
+    // Ease-out count: each tick advances by ~10% of the remaining gap (min 1) plus
+    // a little jitter; ticks are 26–66ms apart, reaching 100 in ~1.5–2.2s.
+    const tick = () => {
+      p += Math.max(1, (100 - p) * 0.1) + Math.random() * 1.5;
+      if (p >= 100) {
+        setPct(100);
+        // hold at 100, then fade the overlay, then remove + unlock scroll.
+        timers.push(
+          setTimeout(() => {
+            setGone(true); // begins the .7s exit fade
+            timers.push(
+              setTimeout(() => {
+                document.body.style.overflow = prevOverflow;
+                onDone(); // release the hero letter pop-in
+              }, 720),
+            );
+          }, 260),
+        );
+        return;
       }
+      setPct(Math.floor(p));
+      timers.push(setTimeout(tick, 26 + Math.random() * 40));
     };
-    raf = requestAnimationFrame(tick);
+    timers.push(setTimeout(tick, 26 + Math.random() * 40));
     return () => {
-      cancelAnimationFrame(raf);
+      for (const t of timers) clearTimeout(t);
       document.body.style.overflow = prevOverflow;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -55,8 +65,8 @@ export function IntroLoader({ onDone }: { onDone: () => void }) {
           style={{
             position: "fixed",
             inset: 0,
-            zIndex: 90,
-            background: "#eef3fb",
+            zIndex: 200,
+            background: "#f4f2f8",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
@@ -81,7 +91,7 @@ export function IntroLoader({ onDone }: { onDone: () => void }) {
             {pct}
           </div>
           <div style={{ width: "min(280px, 60vw)", height: 3, borderRadius: 3, background: "rgba(79,126,247,.16)", overflow: "hidden" }}>
-            <div style={{ height: "100%", width: `${pct}%`, background: "linear-gradient(90deg,#4f7ef7,#7c5cff)", borderRadius: 3 }} />
+            <div style={{ height: "100%", width: `${pct}%`, background: "linear-gradient(90deg,#4f7ef7,#7c5cff)", borderRadius: 3, transition: "width .2s ease" }} />
           </div>
           <div
             style={{

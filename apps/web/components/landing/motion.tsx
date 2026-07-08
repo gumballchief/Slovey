@@ -1,10 +1,27 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, useMotionValue, useReducedMotion, useSpring } from "framer-motion";
 
 /** Standard brand easing — easeOutExpo. */
 export const EASE = [0.16, 1, 0.3, 1] as const;
+
+/**
+ * True once the viewport is at least `px` wide. Used to gate the heavy
+ * pinned/letter-split effects to >=760px (mobile gets the stacked/plain layout).
+ * SSR-safe: starts false, resolves on mount.
+ */
+export function useMinWidth(px: number) {
+  const [ok, setOk] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia(`(min-width:${px}px)`);
+    const update = () => setOk(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, [px]);
+  return ok;
+}
 
 /**
  * Blur-up entrance: opacity 0 + translateY(46px) + blur(8px) -> in, once, on first
@@ -37,7 +54,7 @@ export function Reveal({
       style={style}
       initial={{ opacity: 0, y, filter: "blur(8px)" }}
       whileInView={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-      viewport={{ once: true, margin: "0px 0px -8% 0px" }}
+      viewport={{ once: true, amount: 0.12, margin: "0px 0px -8% 0px" }}
       transition={{ duration: 1.1, ease: EASE, delay }}
     >
       {children}
@@ -62,7 +79,7 @@ export function RevealGroup({
       className={className}
       initial="hidden"
       whileInView="show"
-      viewport={{ once: true, margin: "0px 0px -8% 0px" }}
+      viewport={{ once: true, amount: 0.12, margin: "0px 0px -8% 0px" }}
       variants={{ show: { transition: { staggerChildren: stagger } } }}
     >
       {children}
@@ -90,7 +107,7 @@ export function RevealItem({
       style={style}
       variants={{
         hidden: { opacity: 0, y, filter: "blur(8px)" },
-        show: { opacity: 1, y: 0, filter: "blur(0px)", transition: { duration: 1.0, ease: EASE } },
+        show: { opacity: 1, y: 0, filter: "blur(0px)", transition: { duration: 1.1, ease: EASE } },
       }}
     >
       {children}
@@ -132,6 +149,7 @@ export function Magnetic({
     <motion.div
       ref={ref}
       className={className}
+      whileHover={{ filter: "brightness(1.06)" }}
       style={{ x: sx, y: sy, display: "inline-flex", willChange: "transform", ...style }}
       onPointerMove={(e) => {
         const r = ref.current!.getBoundingClientRect();
