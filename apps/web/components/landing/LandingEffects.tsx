@@ -126,7 +126,11 @@ export function LandingEffects() {
         ans.style.opacity = "0";
       }
       const icon = btn.querySelector<HTMLElement>("[data-arrow],svg,span:last-child");
-      if (icon) icon.style.transform = "";
+      if (icon) {
+        icon.style.transition = "transform .3s cubic-bezier(.16,1,.3,1), color .2s ease";
+        icon.style.transform = "";
+        icon.style.color = "";
+      }
     };
     const expand = (btn: HTMLButtonElement, answer: string) => {
       let ans = btn.nextElementSibling as HTMLElement | null;
@@ -142,7 +146,11 @@ export function LandingEffects() {
         ans!.style.opacity = "1";
       });
       const icon = btn.querySelector<HTMLElement>("[data-arrow],svg,span:last-child");
-      if (icon) icon.style.transform = "rotate(180deg)";
+      if (icon) {
+        icon.style.transition = "transform .3s cubic-bezier(.16,1,.3,1), color .2s ease";
+        icon.style.transform = "rotate(45deg)"; // + -> x
+        icon.style.color = "#4f7ef7";
+      }
     };
     for (const btn of faqButtons) {
       btn.style.cursor = "pointer";
