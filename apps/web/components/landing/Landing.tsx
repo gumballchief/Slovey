@@ -8,9 +8,11 @@ import { Hero } from "./Hero";
 import { IntroLoader } from "./IntroLoader";
 import { LandingEffects } from "./LandingEffects";
 import { Nav } from "./Nav";
+import { PinnedUseCases } from "./PinnedUseCases";
 import { PinnedWorkflow } from "./PinnedWorkflow";
 import restA from "./rest-a.json";
-import restB2 from "./rest-b2.json";
+import restB2a from "./rest-b2a.json";
+import restB2b from "./rest-b2b.json";
 
 /**
  * Landing shell. The hero + nav are real animated components (framer-motion); the
@@ -31,7 +33,9 @@ export function Landing() {
         <div dangerouslySetInnerHTML={{ __html: (restA as { html: string }).html }} />
         <Features />
         <PinnedWorkflow />
-        <div dangerouslySetInnerHTML={{ __html: (restB2 as { html: string }).html }} />
+        <div dangerouslySetInnerHTML={{ __html: (restB2a as { html: string }).html }} />
+        <PinnedUseCases />
+        <div dangerouslySetInnerHTML={{ __html: (restB2b as { html: string }).html }} />
       </div>
       <LandingEffects />
     </>
