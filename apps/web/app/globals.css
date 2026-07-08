@@ -129,11 +129,15 @@ body {
 .cb-shimmer { animation: cbShimmerSweep 9s linear infinite; }
 @keyframes cbCaretBlink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
 .cb-caret { animation: cbCaretBlink 1s steps(1) infinite; color: #6ea8ff; margin-left: 1px; }
-@keyframes cbDotPulse { 0%, 100% { opacity: .55; transform: scale(1); } 50% { opacity: 1; transform: scale(1.25); } }
-.cb-dot-pulse { animation: cbDotPulse 2s ease-in-out infinite; }
+@keyframes cbDotPulse { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+.cb-dot-pulse { animation: cbDotPulse 2.4s ease-in-out infinite; box-shadow: 0 0 10px #4f7ef7; }
+/* Wash A (accent): drift + gentle scale, 40s. */
 @keyframes cbAuroraA { 0%,100%{ transform: translate(0,0) scale(1);} 33%{ transform: translate(8vw,6vh) scale(1.15);} 66%{ transform: translate(-5vw,10vh) scale(.95);} }
-@keyframes cbAuroraB { 0%,100%{ transform: translate(0,0) scale(1);} 33%{ transform: translate(-9vw,-5vh) scale(1.1);} 66%{ transform: translate(6vw,-9vh) scale(1.2);} }
+/* Wash B (accent-2): two-step drift, starts slightly enlarged, 46s. */
+@keyframes cbAuroraB { 0%,100%{ transform: translate(0,0) scale(1.05);} 50%{ transform: translate(7vw,-6vh) scale(.9);} }
 @keyframes cbMarqueeX { to { transform: translateX(-50%); } }
+/* Code-mock scan bar: sweeps top→bottom behind the diff, 5s. */
+@keyframes cbScanY { from { transform: translateY(-100%); } to { transform: translateY(220%); } }
 @media (prefers-reduced-motion: reduce) {
   .cb-shimmer, .cb-caret, .cb-dot-pulse { animation: none !important; }
 }

@@ -17,11 +17,11 @@ export function Marquee() {
       <div
         style={{
           overflow: "hidden",
-          maskImage: "linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent)",
-          WebkitMaskImage: "linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent)",
+          maskImage: "linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent)",
+          WebkitMaskImage: "linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent)",
         }}
       >
-        <div className="cb-marquee-track" style={{ display: "flex", gap: 44, width: "max-content", animation: "cbMarqueeX 26s linear infinite", willChange: "transform" }}>
+        <div className="cb-marquee-track" style={{ display: "flex", gap: 54, width: "max-content", animation: "cbMarqueeX 24s linear infinite", willChange: "transform" }}>
           {strip.map((t, i) => (
             <span key={i} style={{ fontFamily: "var(--font-display), sans-serif", fontSize: 20, fontWeight: 600, color: "#9aa0b8", whiteSpace: "nowrap" }}>
               {t}

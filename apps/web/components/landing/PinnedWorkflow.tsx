@@ -1,7 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { motion, useMotionValueEvent, useReducedMotion, useScroll, useTransform } from "framer-motion";
+import { motion, useMotionValueEvent, useReducedMotion, useScroll } from "framer-motion";
+import { useMinWidth } from "./motion";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -17,13 +18,15 @@ const STEPS: Step[] = [
 
 export function PinnedWorkflow() {
   const reduce = useReducedMotion();
+  const wide = useMinWidth(760);
   const outerRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({ target: outerRef, offset: ["start start", "end end"] });
   const [active, setActive] = useState(0);
   useMotionValueEvent(scrollYProgress, "change", (v) => {
-    setActive(Math.min(STEPS.length - 1, Math.max(0, Math.floor(v * STEPS.length))));
+    setActive(Math.min(STEPS.length - 1, Math.max(0, Math.floor(v * STEPS.length * 0.999))));
   });
-  const railH = useTransform(scrollYProgress, [0, 1], ["0%", "100%"]);
+  // progress line reaches the active dot's center (stepped, .4s).
+  const railH = `${((active + 0.5) / STEPS.length) * 100}%`;
 
   const Heading = (
     <div style={{ textAlign: "center", marginBottom: 8 }}>
@@ -32,8 +35,8 @@ export function PinnedWorkflow() {
     </div>
   );
 
-  // Reduced-motion / no-pin fallback: a normal stacked list.
-  if (reduce) {
+  // Reduced-motion / narrow-viewport (<760px) fallback: a normal stacked list.
+  if (reduce || !wide) {
     return (
       <section id="workflow" style={{ position: "relative", zIndex: 1, maxWidth: 1000, margin: "0 auto", padding: "130px 24px 0" }}>
         {Heading}
@@ -62,12 +65,12 @@ export function PinnedWorkflow() {
               {/* left rail */}
               <div style={{ position: "relative", paddingLeft: 26 }}>
                 <div style={{ position: "absolute", left: 5, top: 6, bottom: 6, width: 2, background: "#e3e9f5", borderRadius: 2 }} />
-                <motion.div style={{ position: "absolute", left: 5, top: 6, width: 2, height: railH, background: "linear-gradient(#4f7ef7,#7c5cff)", borderRadius: 2 }} />
+                <div style={{ position: "absolute", left: 5, top: 6, width: 2, height: railH, background: "linear-gradient(#4f7ef7,#7c5cff)", borderRadius: 2, transition: "height .4s cubic-bezier(.16,1,.3,1)" }} />
                 {STEPS.map((s, i) => {
                   const reached = i <= active;
                   return (
                     <div key={s.no} style={{ position: "relative", padding: "13px 0" }}>
-                      <span style={{ position: "absolute", left: -26, top: 18, width: 12, height: 12, borderRadius: 99, background: reached ? "#4f7ef7" : "#fff", border: `2px solid ${reached ? "#4f7ef7" : "#cfd8ec"}`, transition: "all .3s", boxShadow: i === active ? "0 0 0 5px rgba(79,126,247,.15)" : "none" }} />
+                      <span style={{ position: "absolute", left: -26, top: 18, width: 12, height: 12, borderRadius: 99, background: reached ? "#4f7ef7" : "#fff", border: `2px solid ${reached ? "#4f7ef7" : "#cfd8ec"}`, transition: "all .3s", transform: i === active ? "scale(1.25)" : "scale(1)", boxShadow: i === active ? "0 0 0 5px rgba(79,126,247,.15)" : "none" }} />
                       <div style={{ fontFamily: "var(--font-inter-tight), sans-serif", fontSize: 15.5, fontWeight: i === active ? 600 : 500, color: reached ? "#1b1726" : "#a4a0b3", transition: "color .3s" }}>{s.title}</div>
                     </div>
                   );
@@ -80,7 +83,7 @@ export function PinnedWorkflow() {
                     key={s.no}
                     initial={false}
                     animate={{ opacity: i === active ? 1 : 0, y: i === active ? 0 : 18, pointerEvents: i === active ? "auto" : "none" }}
-                    transition={{ duration: 0.45, ease: EASE }}
+                    transition={{ duration: 0.5, ease: EASE }}
                     style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", justifyContent: "center" }}
                   >
                     <div style={{ fontFamily: "var(--font-display), sans-serif", fontSize: 64, fontWeight: 700, color: "#e6ecfb", lineHeight: 1 }}>{s.no}</div>

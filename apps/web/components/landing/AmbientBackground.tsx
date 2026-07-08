@@ -8,45 +8,49 @@
 export function AmbientBackground() {
   return (
     <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", overflow: "hidden" }}>
-      {/* masked grid */}
+      {/* masked grid — 72px cells, faded to an ellipse at the top */}
       <div
         style={{
           position: "absolute",
           inset: 0,
           backgroundImage:
-            "linear-gradient(rgba(79,126,247,.055) 1px, transparent 1px), linear-gradient(90deg, rgba(79,126,247,.055) 1px, transparent 1px)",
-          backgroundSize: "46px 46px",
-          maskImage: "radial-gradient(ellipse 80% 60% at 50% 30%, #000 0%, transparent 75%)",
-          WebkitMaskImage: "radial-gradient(ellipse 80% 60% at 50% 30%, #000 0%, transparent 75%)",
+            "linear-gradient(rgba(90,110,160,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(90,110,160,.045) 1px, transparent 1px)",
+          backgroundSize: "72px 72px",
+          maskImage: "radial-gradient(ellipse 92% 60% at 50% 0%, #000 0%, transparent 75%)",
+          WebkitMaskImage: "radial-gradient(ellipse 92% 60% at 50% 0%, #000 0%, transparent 75%)",
         }}
       />
-      {/* drifting washes */}
+      {/* Wash A (accent): 120vw × 80vh, top-centered, drifts over 40s */}
       <div
         className="cb-aurora-a"
         style={{
           position: "absolute",
-          top: "-10%",
-          left: "-5%",
-          width: "55vw",
-          height: "55vw",
+          top: "-24%",
+          left: "50%",
+          marginLeft: "-60vw",
+          width: "120vw",
+          height: "80vh",
           borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(79,126,247,.22), transparent 65%)",
-          filter: "blur(60px)",
-          animation: "cbAuroraA 42s ease-in-out infinite",
+          background: "radial-gradient(closest-side, rgba(79,126,247,.10), transparent 70%)",
+          filter: "blur(20px)",
+          animation: "cbAuroraA 40s ease-in-out infinite",
+          willChange: "transform",
         }}
       />
+      {/* Wash B (accent-2): 60vw square, bottom-right, drifts over 46s */}
       <div
         className="cb-aurora-b"
         style={{
           position: "absolute",
-          bottom: "-15%",
-          right: "-8%",
-          width: "50vw",
-          height: "50vw",
+          bottom: "-30%",
+          right: "-10%",
+          width: "60vw",
+          height: "60vw",
           borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(124,92,255,.16), transparent 65%)",
-          filter: "blur(70px)",
+          background: "radial-gradient(closest-side, rgba(127,176,242,.09), transparent 70%)",
+          filter: "blur(24px)",
           animation: "cbAuroraB 46s ease-in-out infinite",
+          willChange: "transform",
         }}
       />
     </div>

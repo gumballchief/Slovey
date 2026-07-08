@@ -33,7 +33,7 @@ export function Features() {
       </Reveal>
 
       <RevealGroup className="cb-feat-grid" >
-        <div style={{ marginTop: 54, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 20 }}>
+        <div style={{ marginTop: 54, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 20, perspective: 1200 }}>
           {FEATURES.map((f) => (
             <RevealItem key={f.title}>
               <TiltCard

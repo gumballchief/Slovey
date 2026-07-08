@@ -65,11 +65,11 @@ export function Nav() {
         position: "sticky",
         top: 0,
         zIndex: 50,
-        transition: "background .3s ease, box-shadow .3s ease, border-color .3s ease",
-        background: frost ? "rgba(244,248,255,.72)" : "transparent",
-        backdropFilter: frost ? "blur(12px)" : "none",
-        WebkitBackdropFilter: frost ? "blur(12px)" : "none",
-        borderBottom: frost ? "1px solid #e3e9f5" : "1px solid transparent",
+        transition: "background .35s ease, box-shadow .35s ease, border-color .35s ease",
+        background: frost ? "rgba(246,244,251,.82)" : "transparent",
+        backdropFilter: frost ? "blur(16px)" : "none",
+        WebkitBackdropFilter: frost ? "blur(16px)" : "none",
+        borderBottom: frost ? "1px solid rgba(28,20,45,.08)" : "1px solid transparent",
       }}
       onMouseLeave={leave}
     >

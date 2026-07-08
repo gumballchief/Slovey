@@ -13,8 +13,9 @@ const EASE = [0.16, 1, 0.3, 1] as const;
 export function Hero({ introDone }: { introDone: boolean }) {
   const reduce = useReducedMotion();
   const sectionRef = useRef<HTMLElement>(null);
-  const { scrollYProgress } = useScroll({ target: sectionRef, offset: ["start start", "end start"] });
-  const mockY = useTransform(scrollYProgress, [0, 1], [0, -60]);
+  // spec #8: mock parallax tracks absolute scroll — translateY = scrollY * -0.05.
+  const { scrollY } = useScroll();
+  const mockY = useTransform(scrollY, (v) => v * -0.05);
   // badge/subhead/CTAs rise in after the headline starts
   const rise = (delay: number) =>
     reduce
