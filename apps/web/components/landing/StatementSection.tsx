@@ -24,7 +24,7 @@ export function StatementSection() {
 
   return (
     <section ref={ref} id="statement" style={{ position: "relative", zIndex: 1, maxWidth: 900, margin: "0 auto", padding: "150px 24px 130px", textAlign: "center" }}>
-      <div style={{ fontFamily: "var(--font-mono), monospace", fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase", color: "#7fb0f2", marginBottom: 30 }}>02 — The idea</div>
+      <div style={{ fontFamily: "var(--font-mono), monospace", fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase", color: "#7fb0f2", marginBottom: 30 }}>The idea</div>
       <p style={{ fontFamily: "var(--font-display), sans-serif", fontWeight: 500, fontSize: "clamp(26px, 4vw, 44px)", lineHeight: 1.28, letterSpacing: "-0.02em", margin: 0 }}>
         {TOKENS.map((t, i) => {
           const on = reduce || i < lit;

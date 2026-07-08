@@ -7,32 +7,32 @@ import { Magnetic } from "./motion";
 const EASE = [0.16, 1, 0.3, 1] as const;
 
 type MenuKey = "product" | "developers" | "company";
-const MENUS: Record<MenuKey, { label: string; items: { t: string; d: string }[] }> = {
+const MENUS: Record<MenuKey, { label: string; items: { t: string; d: string; href: string }[] }> = {
   product: {
     label: "Product",
     items: [
-      { t: "Decision Graph", d: "The structured memory agents query before they act." },
-      { t: "Pre-commit Review", d: "Every change checked before a human sees it." },
-      { t: "Rule Enforcement", d: "Conventions encoded once, enforced everywhere." },
-      { t: "MCP Server", d: "One context layer for every AI tool." },
+      { t: "Decision Graph", d: "The structured memory agents query before they act.", href: "#features" },
+      { t: "Pre-commit Review", d: "Every change checked before a human sees it.", href: "#workflow" },
+      { t: "Rule Enforcement", d: "Conventions encoded once, enforced everywhere.", href: "#features" },
+      { t: "MCP Server", d: "One context layer for every AI tool.", href: "/mcp" },
     ],
   },
   developers: {
     label: "Developers",
     items: [
-      { t: "Docs", d: "Quickstart, guides, and the JSON contract." },
-      { t: "API Reference", d: "REST endpoints for the decision graph." },
-      { t: "companybrain CLI", d: "Run the gate locally or in CI." },
-      { t: "MCP Integration", d: "Wire Claude, Cursor, Codex, and more." },
+      { t: "Docs", d: "Quickstart, guides, and the JSON contract.", href: "/docs" },
+      { t: "API Reference", d: "REST endpoints for the decision graph.", href: "/api-reference" },
+      { t: "companybrain CLI", d: "Run the gate locally or in CI.", href: "/docs" },
+      { t: "MCP Integration", d: "Wire Claude, Cursor, Codex, and more.", href: "/mcp" },
     ],
   },
   company: {
     label: "Company",
     items: [
-      { t: "About", d: "Why engineering memory matters." },
-      { t: "Blog", d: "Notes on AI + engineering practice." },
-      { t: "Careers", d: "Help build the memory layer." },
-      { t: "Contact", d: "Talk to the team." },
+      { t: "About", d: "Why engineering memory matters.", href: "/about" },
+      { t: "Changelog", d: "What's new in Company Brain.", href: "/changelog" },
+      { t: "Careers", d: "Help build the memory layer.", href: "/careers" },
+      { t: "Contact", d: "Talk to the team.", href: "/contact" },
     ],
   },
 };
@@ -115,7 +115,7 @@ export function Nav() {
           >
             <div style={{ maxWidth: 1180, margin: "0 auto", padding: "22px 24px", display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 8 }}>
               {MENUS[open].items.map((it) => (
-                <a key={it.t} href="#" style={{ display: "block", padding: "12px 14px", borderRadius: 11, textDecoration: "none", transition: "background .2s" }} onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f5fc")} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+                <a key={it.t} href={it.href} style={{ display: "block", padding: "12px 14px", borderRadius: 11, textDecoration: "none", transition: "background .2s" }} onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f5fc")} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
                   <div style={{ fontFamily: "var(--font-display), sans-serif", fontWeight: 600, fontSize: 15, color: "#1b1726" }}>{it.t}</div>
                   <div style={{ fontSize: 13, color: "#6b6678", marginTop: 3 }}>{it.d}</div>
                 </a>

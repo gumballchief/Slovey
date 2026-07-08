@@ -11,6 +11,7 @@ import { Marquee } from "./Marquee";
 import { Nav } from "./Nav";
 import { PinnedUseCases } from "./PinnedUseCases";
 import { PinnedWorkflow } from "./PinnedWorkflow";
+import { SocialProof } from "./SocialProof";
 import { StatementSection } from "./StatementSection";
 import restAfterStatement from "./rest-after-statement.json";
 import restB2a from "./rest-b2a.json";
@@ -32,6 +33,7 @@ export function Landing() {
       <div id="cb-landing" style={{ position: "relative", zIndex: 1 }}>
         <Nav />
         <Hero introDone={introDone || !!reduce} />
+        <SocialProof />
         <Marquee />
         <StatementSection />
         <div dangerouslySetInnerHTML={{ __html: (restAfterStatement as { html: string }).html }} />

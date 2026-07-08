@@ -35,9 +35,28 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Company Brain — Engineering Memory for Your Team",
+  metadataBase: new URL("https://company-brain-web-u04w.onrender.com"),
+  title: {
+    default: "Company Brain — Engineering Memory for Your Team",
+    template: "%s",
+  },
   description:
     "Company Brain remembers every decision your team has made, so knowledge is never lost or re-explained. Warns on conflicting PRs before human review.",
+  applicationName: "Company Brain",
+  openGraph: {
+    type: "website",
+    siteName: "Company Brain",
+    title: "Company Brain — Engineering Memory for Your Team",
+    description:
+      "The intelligence layer beneath your AI coding agents. Every decision remembered; every mistake caught before commit.",
+    url: "/",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Company Brain — Engineering Memory for Your Team",
+    description:
+      "The intelligence layer beneath your AI coding agents. Every decision remembered; every mistake caught before commit.",
+  },
 };
 
 export default async function RootLayout({

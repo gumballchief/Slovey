@@ -3,7 +3,7 @@
 import { Brain } from "lucide-react";
 import { useState, useEffect } from "react";
 
-export function PublicNav() {
+export function PublicNav({ onDarkHero = false }: { onDarkHero?: boolean } = {}) {
   const [isDark, setIsDark] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -22,8 +22,10 @@ export function PublicNav() {
     document.documentElement.classList.toggle("dark", next);
   }
 
-  // Over the dark hero (not scrolled) → force light treatment.
-  const onHero = !scrolled;
+  // Only pages that render a dark hero behind the nav want the light (white-text)
+  // treatment. Every current consumer sits on the light theme, so default to the
+  // dark-text treatment — white text on a light background fails contrast.
+  const onHero = onDarkHero && !scrolled;
 
   return (
     <nav
