@@ -7,10 +7,12 @@ import { Features } from "./Features";
 import { Hero } from "./Hero";
 import { IntroLoader } from "./IntroLoader";
 import { LandingEffects } from "./LandingEffects";
+import { Marquee } from "./Marquee";
 import { Nav } from "./Nav";
 import { PinnedUseCases } from "./PinnedUseCases";
 import { PinnedWorkflow } from "./PinnedWorkflow";
-import restA from "./rest-a.json";
+import { StatementSection } from "./StatementSection";
+import restAfterStatement from "./rest-after-statement.json";
 import restB2a from "./rest-b2a.json";
 import restB2b from "./rest-b2b.json";
 
@@ -30,7 +32,9 @@ export function Landing() {
       <div id="cb-landing" style={{ position: "relative", zIndex: 1 }}>
         <Nav />
         <Hero introDone={introDone || !!reduce} />
-        <div dangerouslySetInnerHTML={{ __html: (restA as { html: string }).html }} />
+        <Marquee />
+        <StatementSection />
+        <div dangerouslySetInnerHTML={{ __html: (restAfterStatement as { html: string }).html }} />
         <Features />
         <PinnedWorkflow />
         <div dangerouslySetInnerHTML={{ __html: (restB2a as { html: string }).html }} />
