@@ -89,7 +89,7 @@ export default function BillingPage() {
   async function selectPlan(plan: OrgPlan) {
     if (!data || plan === data.plan) return;
     if (plan === "enterprise") {
-      window.location.href = "mailto:sales@your-domain.example?subject=Company%20Brain%20Enterprise";
+      window.location.href = "/contact";
       return;
     }
     setBusy(plan);

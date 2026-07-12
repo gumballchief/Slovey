@@ -16,11 +16,36 @@ export function getStripe(): Stripe {
   return _stripe;
 }
 
-/** Price id for the Pro subscription (created in the Stripe dashboard). */
-export function proPriceId(): string {
-  const id = process.env.STRIPE_PRICE_PRO;
-  if (!id) throw new HttpError(503, "Billing is not configured (STRIPE_PRICE_PRO missing)");
-  return id;
+export type BillingInterval = "annual" | "monthly";
+
+/**
+ * Pro subscription line item, built inline (price_data) so no Stripe-dashboard
+ * product/price setup is required. $19/user/mo billed annually, or $24/user/mo
+ * billed monthly — keep in sync with the landing pricing card.
+ */
+export function proLineItem(interval: BillingInterval): {
+  price_data: {
+    currency: string;
+    product_data: { name: string };
+    unit_amount: number;
+    recurring: { interval: "year" | "month" };
+  };
+  quantity: number;
+  adjustable_quantity: { enabled: boolean; minimum: number; maximum: number };
+} {
+  const annual = interval === "annual";
+  return {
+    price_data: {
+      currency: "usd",
+      product_data: {
+        name: annual ? "Slovey Team — annual ($19/user/mo, billed yearly)" : "Slovey Team — monthly ($24/user/mo)",
+      },
+      unit_amount: annual ? 22800 : 2400, // cents per seat per period
+      recurring: { interval: annual ? "year" : "month" },
+    },
+    quantity: 1,
+    adjustable_quantity: { enabled: true, minimum: 1, maximum: 100 },
+  };
 }
 
 export function webhookSecret(): string {

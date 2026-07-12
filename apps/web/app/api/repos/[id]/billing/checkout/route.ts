@@ -1,15 +1,17 @@
 import { dashboard, logAudit } from "@company-brain/core";
 import { assertRepoAccessWithRole, requireViewer } from "@/lib/server/auth";
 import { HttpError, handle, ok } from "@/lib/server/respond";
-import { appBaseUrl, getStripe, proPriceId } from "@/lib/server/stripe";
+import { type BillingInterval, appBaseUrl, getStripe, proLineItem } from "@/lib/server/stripe";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** Start a Stripe Checkout session for the Pro plan. Owner/admin only. */
-export async function POST(_req: Request, ctx: { params: Promise<{ id: string }> }): Promise<Response> {
+export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }): Promise<Response> {
   return handle(async () => {
     const viewer = await requireViewer();
+    const body = (await req.json().catch(() => ({}))) as { interval?: string };
+    const interval: BillingInterval = body.interval === "monthly" ? "monthly" : "annual";
     const { id } = await ctx.params;
     const { role } = await assertRepoAccessWithRole(id, viewer);
     if (role !== "owner" && role !== "admin") throw new HttpError(403, "Only owners or admins can change the plan");
@@ -33,7 +35,10 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer: customerId,
-      line_items: [{ price: proPriceId(), quantity: 1 }],
+      // Explicit: the account has cards available but no defaults activated yet,
+      // and without this Stripe rejects the session outright.
+      payment_method_types: ["card"],
+      line_items: [proLineItem(interval)],
       success_url: `${appBaseUrl()}/app/billing?checkout=success`,
       cancel_url: `${appBaseUrl()}/app/billing?checkout=cancelled`,
       metadata: { orgId: org.id },
@@ -43,7 +48,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
       orgId: org.id,
       action: "billing.checkout_started",
       actorUser: viewer.login,
-      metadata: { plan: "pro" },
+      metadata: { plan: "pro", interval },
     });
     if (!session.url) throw new HttpError(502, "Stripe did not return a checkout URL");
     return ok({ url: session.url });
