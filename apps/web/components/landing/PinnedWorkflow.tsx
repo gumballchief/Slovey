@@ -83,7 +83,7 @@ function WorkflowPinned() {
                   const reached = i <= active;
                   return (
                     <div key={s.no} style={{ position: "relative", padding: "13px 0" }}>
-                      <span style={{ position: "absolute", left: -26, top: 18, width: 12, height: 12, borderRadius: 99, background: reached ? "#4f7ef7" : "#fff", border: `2px solid ${reached ? "#4f7ef7" : "#cfd8ec"}`, transition: "all .3s", transform: i === active ? "scale(1.25)" : "scale(1)", boxShadow: i === active ? "0 0 0 5px rgba(79,126,247,.15)" : "none" }} />
+                      <span style={{ position: "absolute", left: -26, top: 18, width: 12, height: 12, borderRadius: 99, background: reached ? "#4f7ef7" : "#fff", border: `2px solid ${reached ? "#4f7ef7" : "#cfd8ec"}`, transition: "background-color .3s, border-color .3s, transform .3s, box-shadow .3s", transform: i === active ? "scale(1.25)" : "scale(1)", boxShadow: i === active ? "0 0 0 5px rgba(79,126,247,.15)" : "none" }} />
                       <div style={{ fontFamily: "var(--font-inter-tight), sans-serif", fontSize: 15.5, fontWeight: i === active ? 600 : 500, color: reached ? "#1b1726" : "#a4a0b3", transition: "color .3s" }}>{s.title}</div>
                     </div>
                   );

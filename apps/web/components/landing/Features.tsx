@@ -38,7 +38,7 @@ export function Features() {
             <RevealItem key={f.title}>
               <TiltCard
                 className="cb-feat-card"
-                style={{ borderRadius: 20, border: "1px solid #e3e9f5", background: "rgba(255,255,255,.72)", backdropFilter: "blur(6px)", padding: 28, height: "100%", boxShadow: "0 20px 50px -30px rgba(30,40,90,.35)" }}
+                style={{ borderRadius: 20, border: "1px solid #e3e9f5", background: "rgba(255,255,255,.78)", padding: 28, height: "100%", boxShadow: "0 20px 50px -30px rgba(30,40,90,.35)" }}
               >
                 <div style={{ transform: "translateZ(38px)", width: 46, height: 46, borderRadius: 13, background: "#eaf0fe", display: "grid", placeItems: "center", marginBottom: 20 }}>
                   {f.icon}

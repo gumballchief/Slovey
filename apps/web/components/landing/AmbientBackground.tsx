@@ -20,7 +20,9 @@ export function AmbientBackground() {
           WebkitMaskImage: "radial-gradient(ellipse 92% 60% at 50% 0%, #000 0%, transparent 75%)",
         }}
       />
-      {/* Wash A (accent): 120vw × 80vh, top-centered, drifts over 40s */}
+      {/* Wash A (accent): 120vw × 80vh, top-centered, drifts over 40s.
+          No filter:blur — the long radial falloff reads as blurred, and the layer
+          is promoted once (translateZ) so the drift is compositor-only. */}
       <div
         className="cb-aurora-a"
         style={{
@@ -31,8 +33,8 @@ export function AmbientBackground() {
           width: "120vw",
           height: "80vh",
           borderRadius: "50%",
-          background: "radial-gradient(closest-side, rgba(79,126,247,.10), transparent 70%)",
-          filter: "blur(20px)",
+          background: "radial-gradient(closest-side, rgba(79,126,247,.10), rgba(79,126,247,.04) 45%, transparent 72%)",
+          transform: "translateZ(0)",
           animation: "cbAuroraA 40s ease-in-out infinite",
           willChange: "transform",
         }}
@@ -47,8 +49,8 @@ export function AmbientBackground() {
           width: "60vw",
           height: "60vw",
           borderRadius: "50%",
-          background: "radial-gradient(closest-side, rgba(127,176,242,.09), transparent 70%)",
-          filter: "blur(24px)",
+          background: "radial-gradient(closest-side, rgba(127,176,242,.09), rgba(127,176,242,.035) 45%, transparent 72%)",
+          transform: "translateZ(0)",
           animation: "cbAuroraB 46s ease-in-out infinite",
           willChange: "transform",
         }}
