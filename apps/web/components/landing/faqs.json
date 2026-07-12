@@ -1,7 +1,7 @@
 [
  {
   "q": "Does this replace Claude Code or Cursor?",
-  "a": "No — Company Brain sits beneath them. Your agents keep writing code exactly as they do today; we review every change against your company’s context and send fixes back before anything is committed."
+  "a": "No — Slovey sits beneath them. Your agents keep writing code exactly as they do today; we review every change against your company’s context and send fixes back before anything is committed."
  },
  {
   "q": "How does it learn my company?",
@@ -17,7 +17,7 @@
  },
  {
   "q": "How does the MCP server work?",
-  "a": "Instead of every AI tool re-learning your company independently, they connect to Company Brain over MCP and ask it first — making it the trusted source of decisions, architecture, and standards."
+  "a": "Instead of every AI tool re-learning your company independently, they connect to Slovey over MCP and ask it first — making it the trusted source of decisions, architecture, and standards."
  },
  {
   "q": "How long until it’s useful?",

@@ -6,7 +6,7 @@ import { motion, useMotionValueEvent, useReducedMotion, useScroll } from "framer
 // The statement, as tokens. `chip` tokens render as an inline glowing chip.
 type Tok = { w: string; chip?: { icon: string; color: string } };
 const TOKENS: Tok[] = [
-  { w: "Company" }, { w: "Brain" }, { w: "gives" }, { w: "every" }, { w: "AI" }, { w: "agent" },
+  { w: "Slovey" }, { w: "gives" }, { w: "every" }, { w: "AI" }, { w: "agent" },
   { w: "your company's context", chip: { icon: "M12 3 4 6v5c0 5 3.4 8.3 8 10 4.6-1.7 8-5 8-10V6z", color: "#4f7ef7" } },
   { w: "," }, { w: "enforces" }, { w: "your" }, { w: "standards," }, { w: "remembers" },
   { w: "past decisions", chip: { icon: "M12 8v4l3 2 M12 3a9 9 0 1 0 9 9", color: "#7c5cff" } },

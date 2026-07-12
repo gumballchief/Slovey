@@ -2,15 +2,15 @@ import type { Metadata } from "next";
 import { LegalShell } from "@/components/legal/LegalShell";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy — Company Brain",
-  description: "How Company Brain collects, uses, and protects your data.",
+  title: "Privacy Policy — Slovey",
+  description: "How Slovey collects, uses, and protects your data.",
 };
 
 export default function PrivacyPage() {
   return (
     <LegalShell title="Privacy Policy" updated="July 1, 2026">
       <p>
-        This Privacy Policy explains how Company Brain (&ldquo;Company Brain,&rdquo;
+        This Privacy Policy explains how Slovey (&ldquo;Slovey,&rdquo;
         &ldquo;we,&rdquo; &ldquo;us&rdquo;) collects, uses, and protects information when you use
         our engineering-memory service (the &ldquo;Service&rdquo;). By using the Service you agree
         to this Policy.
@@ -23,7 +23,7 @@ export default function PrivacyPage() {
           receive your name, email address, avatar, and provider user ID.
         </li>
         <li>
-          <strong>GitHub repository data.</strong> With your authorization (via the Company Brain
+          <strong>GitHub repository data.</strong> With your authorization (via the Slovey
           GitHub App), we access repositories you connect: pull requests, commits, diffs, review
           comments, documentation, and code structure — used to build your team&rsquo;s decision
           memory.

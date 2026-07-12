@@ -40,7 +40,7 @@ export default function OverviewPage() {
         <EmptyState
           icon={<Brain size={22} />}
           title="No repository connected yet"
-          description="Two things bring a repo in: (1) install the Company Brain GitHub App on it, and (2) make sure you signed in with GitHub — repo access is tied to your GitHub account. Already did both but don't see it? Reconnect GitHub to refresh."
+          description="Two things bring a repo in: (1) install the Slovey GitHub App on it, and (2) make sure you signed in with GitHub — repo access is tied to your GitHub account. Already did both but don't see it? Reconnect GitHub to refresh."
           action={
             <div className="flex flex-col items-center gap-2.5 sm:flex-row">
               <ConnectRepoButton />
@@ -66,7 +66,7 @@ export default function OverviewPage() {
             Building this repo&apos;s memory
           </h2>
           <p className="mt-1 max-w-lg text-sm leading-relaxed text-[var(--text-muted)]">
-            Company Brain is scanning your merged PRs and docs for the decisions your team already
+            Slovey is scanning your merged PRs and docs for the decisions your team already
             made. This runs in the background on connect and can take a few minutes on a large
             history — decisions will appear here as they&apos;re found.
           </p>
@@ -110,7 +110,7 @@ export default function OverviewPage() {
             {repo.decisionsCount} decisions in memory
           </h2>
           <p className="mt-1 max-w-md text-sm leading-relaxed text-[var(--text-muted)]">
-            Company Brain is watching this repo — recent activity and caught conflicts below.
+            Slovey is watching this repo — recent activity and caught conflicts below.
           </p>
         </div>
       </div>

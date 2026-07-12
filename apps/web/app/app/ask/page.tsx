@@ -97,7 +97,7 @@ export default function AskPage() {
           </div>
           <div>
             <h1 className="font-display font-semibold text-lg tracking-[-0.02em] text-[var(--cb-text)] leading-none">
-              Ask Company Brain
+              Ask Slovey
             </h1>
             <p className="text-xs text-[var(--text-muted)] mt-1">
               Grounded in your team's decisions — cited, or honest about not knowing.

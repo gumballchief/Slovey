@@ -2,15 +2,15 @@ import type { Metadata } from "next";
 import { LegalShell } from "@/components/legal/LegalShell";
 
 export const metadata: Metadata = {
-  title: "Security — Company Brain",
-  description: "What Company Brain stores from your repositories, what it never stores, and how it's protected.",
+  title: "Security — Slovey",
+  description: "What Slovey stores from your repositories, what it never stores, and how it's protected.",
 };
 
 export default function SecurityPage() {
   return (
     <LegalShell title="Security & What We Store" updated="July 6, 2026">
       <p>
-        Company Brain reads engineering discussion to build your team&rsquo;s decision memory. The
+        Slovey reads engineering discussion to build your team&rsquo;s decision memory. The
         most common question we get is &ldquo;you&rsquo;re reading my code — what exactly do you
         keep?&rdquo; This page is the plain-English answer.
       </p>

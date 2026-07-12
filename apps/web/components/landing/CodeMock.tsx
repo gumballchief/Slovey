@@ -134,7 +134,7 @@ export function CodeMock() {
       <div style={{ padding: "16px 18px", borderLeft: "1px solid rgba(255,255,255,.06)", background: "#0b0f1a" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
           <span style={{ width: 20, height: 20, borderRadius: 6, background: "linear-gradient(135deg,#4f7ef7,#7c5cff)", display: "inline-block" }} />
-          <span style={{ fontFamily: "var(--font-inter-tight), sans-serif", fontSize: 14, fontWeight: 600, color: "#e6ebf7" }}>Company Brain review</span>
+          <span style={{ fontFamily: "var(--font-inter-tight), sans-serif", fontSize: 14, fontWeight: 600, color: "#e6ebf7" }}>Slovey review</span>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
           {REVIEWS.map((r, i) => (

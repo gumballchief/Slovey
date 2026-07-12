@@ -8,7 +8,7 @@ const EASE = [0.16, 1, 0.3, 1] as const;
 
 type UseCase = { no: string; tag: string; title: string; body: string };
 const CASES: UseCase[] = [
-  { no: "01", tag: "Onboarding", title: "Ramp new engineers in days", body: "New hires ask Company Brain instead of interrupting seniors — every past decision, convention, and gotcha is queryable from day one." },
+  { no: "01", tag: "Onboarding", title: "Ramp new engineers in days", body: "New hires ask Slovey instead of interrupting seniors — every past decision, convention, and gotcha is queryable from day one." },
   { no: "02", tag: "Autonomy", title: "Safe autonomy for agents", body: "Let coding agents run further without babysitting — the gate catches anything that breaks a rule or reintroduces a rejected approach before it commits." },
   { no: "03", tag: "Knowledge", title: "Preserve hard-won decisions", body: "When someone leaves, their reasoning stays. Every “why we did it this way” is captured with the PR and incident that shaped it." },
   { no: "04", tag: "Reliability", title: "Stop repeat incidents", body: "The pattern that caused last quarter's outage is blocked automatically — the incident becomes a rule nobody has to remember." },

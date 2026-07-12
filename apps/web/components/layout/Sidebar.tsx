@@ -71,7 +71,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
           <Brain size={15} className="text-[var(--on-primary)]" />
         </div>
         <span className="font-display font-semibold tracking-[-0.02em] text-[var(--cb-text)]">
-          Company Brain
+          Slovey
         </span>
         {mobileOpen && (
           <button

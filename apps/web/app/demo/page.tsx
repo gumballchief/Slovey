@@ -69,10 +69,10 @@ export default function DemoPage() {
             Interactive Demo — No install needed
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-[var(--cb-text)] tracking-tight">
-            See Company Brain in action
+            See Slovey in action
           </h1>
           <p className="mt-2 text-sm text-[var(--text-muted)]">
-            Pick a PR below to see how Company Brain checks it against memory.
+            Pick a PR below to see how Slovey checks it against memory.
           </p>
         </div>
 
@@ -135,7 +135,7 @@ export default function DemoPage() {
               </div>
             </div>
 
-            {/* Company Brain verdict */}
+            {/* Slovey verdict */}
             {pr.verdict === "conflict" && pr.decision ? (
               <div className="card overflow-hidden border-rose-500/20">
                 <button
@@ -147,7 +147,7 @@ export default function DemoPage() {
                     <Brain size={12} className="text-white" />
                   </div>
                   <span className="text-sm font-semibold text-[var(--cb-text)] flex-1 text-left">
-                    Company Brain · Conflict found
+                    Slovey · Conflict found
                   </span>
                   <Badge variant="default">high confidence</Badge>
                   {expanded ? <ChevronUp size={14} className="text-[var(--text-muted)]" /> : <ChevronDown size={14} className="text-[var(--text-muted)]" />}
@@ -188,7 +188,7 @@ export default function DemoPage() {
 
                     <div className="pt-2 border-t border-[var(--border)]">
                       <p className="text-xs text-[var(--text-muted)] font-mono bg-[var(--bg-subtle)] rounded-lg p-3 leading-relaxed">
-                        <span className="text-[var(--primary)] font-semibold">**Company Brain**</span> found a conflict with a past team decision.<br /><br />
+                        <span className="text-[var(--primary)] font-semibold">**Slovey**</span> found a conflict with a past team decision.<br /><br />
                         <span className="font-semibold">Decision:</span> {pr.decision}<br /><br />
                         <span className="font-semibold">Why:</span> {pr.why}<br /><br />
                         <span className="font-semibold">Evidence:</span> {pr.evidence.join(", ")}<br /><br />

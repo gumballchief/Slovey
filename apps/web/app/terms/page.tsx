@@ -2,15 +2,15 @@ import type { Metadata } from "next";
 import { LegalShell } from "@/components/legal/LegalShell";
 
 export const metadata: Metadata = {
-  title: "Terms of Service — Company Brain",
-  description: "The terms that govern your use of Company Brain.",
+  title: "Terms of Service — Slovey",
+  description: "The terms that govern your use of Slovey.",
 };
 
 export default function TermsPage() {
   return (
     <LegalShell title="Terms of Service" updated="July 1, 2026">
       <p>
-        These Terms of Service (&ldquo;Terms&rdquo;) govern your access to and use of Company Brain
+        These Terms of Service (&ldquo;Terms&rdquo;) govern your access to and use of Slovey
         (the &ldquo;Service&rdquo;). By creating an account or using the Service, you agree to these
         Terms. If you use the Service on behalf of an organization, you represent that you have
         authority to bind that organization.
@@ -18,7 +18,7 @@ export default function TermsPage() {
 
       <h2>1. The Service</h2>
       <p>
-        Company Brain records your team&rsquo;s engineering decisions and analyzes pull requests
+        Slovey records your team&rsquo;s engineering decisions and analyzes pull requests
         against that memory, surfacing warnings and citations. Features may change over time.
       </p>
 

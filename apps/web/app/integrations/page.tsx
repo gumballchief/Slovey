@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { PageShell } from "@/components/layout/PageShell";
 
 export const metadata: Metadata = {
-  title: "Integrations — Company Brain",
-  description: "Company Brain connects to the tools your team already uses — GitHub, Slack, Notion, Jira, and the AI coding agents your engineers run.",
+  title: "Integrations — Slovey",
+  description: "Slovey connects to the tools your team already uses — GitHub, Slack, Notion, Jira, and the AI coding agents your engineers run.",
 };
 
 // The tools surfaced on the landing marquee. Ingestion sources feed the memory;
@@ -28,7 +28,7 @@ export default function IntegrationsPage() {
     <PageShell
       eyebrow="Developers"
       title="Integrations"
-      intro="Company Brain reads from the systems where your engineering decisions actually happen, and feeds that memory back to the agents where code gets written."
+      intro="Slovey reads from the systems where your engineering decisions actually happen, and feeds that memory back to the agents where code gets written."
     >
       <h2 className="label-mono text-[var(--text-muted)]">Sources we learn from</h2>
       <div className="mt-4">
