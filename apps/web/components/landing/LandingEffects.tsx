@@ -35,51 +35,101 @@ export function LandingEffects() {
     if (reduce) {
       revealEls.forEach(show);
     } else {
-      const pending = new Set(revealEls);
-      const inView = (el: HTMLElement) => {
-        const r = el.getBoundingClientRect();
-        return r.top < window.innerHeight * 0.9 && r.bottom > 0;
+      // Perf contract: scroll work is ONE passive listener → ONE rAF → reads
+      // before writes. Element positions are cached in PAGE space (top/bottom +
+      // scrollY at measure time), so scrolling triggers zero getBoundingClientRect
+      // calls — only a resize re-measures.
+      type Slot = { el: HTMLElement; top: number; bottom: number };
+      let pending: Slot[] = [];
+      const measure = () => {
+        const sy = window.scrollY;
+        pending = revealEls
+          .filter((el) => el.style.opacity !== "1")
+          .map((el) => {
+            const r = el.getBoundingClientRect(); // batch: reads only
+            return { el, top: r.top + sy, bottom: r.bottom + sy };
+          });
       };
-      const tick = () => {
-        for (const el of [...pending]) {
-          if (inView(el)) {
-            show(el);
-            pending.delete(el);
-          }
-        }
-        if (pending.size === 0) {
-          window.removeEventListener("scroll", tick);
-          window.removeEventListener("resize", tick);
+      let raf = 0;
+      const frame = () => {
+        raf = 0;
+        const viewTop = window.scrollY;
+        const trigger = viewTop + window.innerHeight * 0.9;
+        const due = pending.filter((s) => s.top < trigger && s.bottom > viewTop);
+        if (!due.length) return;
+        pending = pending.filter((s) => !due.includes(s));
+        for (const s of due) show(s.el); // batch: writes only
+        if (!pending.length) {
+          window.removeEventListener("scroll", onScroll);
+          window.removeEventListener("resize", onResize);
         }
       };
-      tick(); // reveal above-the-fold immediately
-      window.addEventListener("scroll", tick, { passive: true });
-      window.addEventListener("resize", tick, { passive: true });
+      const onScroll = () => {
+        if (!raf) raf = requestAnimationFrame(frame);
+      };
+      let resizeRaf = 0;
+      const onResize = () => {
+        if (resizeRaf) return;
+        resizeRaf = requestAnimationFrame(() => {
+          resizeRaf = 0;
+          measure();
+          frame();
+        });
+      };
+      measure();
+      frame(); // reveal above-the-fold immediately
+      window.addEventListener("scroll", onScroll, { passive: true });
+      window.addEventListener("resize", onResize, { passive: true });
+      // content-visibility:auto wrappers have no inner layout while skipped —
+      // when the browser starts rendering one, re-measure the cached positions.
+      const cvBlocks = Array.from(root.querySelectorAll<HTMLElement>("[data-cv]"));
+      for (const b of cvBlocks) b.addEventListener("contentvisibilityautostatechange", onResize);
       cleanups.push(() => {
-        window.removeEventListener("scroll", tick);
-        window.removeEventListener("resize", tick);
+        cancelAnimationFrame(raf);
+        cancelAnimationFrame(resizeRaf);
+        window.removeEventListener("scroll", onScroll);
+        window.removeEventListener("resize", onResize);
+        for (const b of cvBlocks) b.removeEventListener("contentvisibilityautostatechange", onResize);
       });
     }
 
-    // ── magnetic hover ──
+    // ── magnetic hover (rect cached on enter; moves coalesced to one per frame) ──
     const magnets = Array.from(root.querySelectorAll<HTMLElement>("[data-magnetic]"));
-    const onMove = (el: HTMLElement) => (ev: MouseEvent) => {
-      const r = el.getBoundingClientRect();
-      const mx = ev.clientX - r.left - r.width / 2;
-      const my = ev.clientY - r.top - r.height / 2;
-      el.style.transform = `translate(${(mx * 0.22).toFixed(1)}px, ${(my * 0.3).toFixed(1)}px)`;
-    };
     if (!reduce) {
       for (const el of magnets) {
-        const move = onMove(el);
+        let rect: DOMRect | null = null;
+        let raf = 0;
+        let lastX = 0;
+        let lastY = 0;
+        const enter = () => {
+          rect = el.getBoundingClientRect();
+        };
+        const move = (ev: MouseEvent) => {
+          lastX = ev.clientX;
+          lastY = ev.clientY;
+          if (raf) return;
+          raf = requestAnimationFrame(() => {
+            raf = 0;
+            if (!rect) return;
+            const mx = lastX - rect.left - rect.width / 2;
+            const my = lastY - rect.top - rect.height / 2;
+            el.style.transform = `translate(${(mx * 0.22).toFixed(1)}px, ${(my * 0.3).toFixed(1)}px)`;
+          });
+        };
         const leave = () => {
+          rect = null;
+          cancelAnimationFrame(raf);
+          raf = 0;
           el.style.transform = "";
         };
+        el.addEventListener("mouseenter", enter);
         el.addEventListener("mousemove", move);
         el.addEventListener("mouseleave", leave);
         cleanups.push(() => {
+          el.removeEventListener("mouseenter", enter);
           el.removeEventListener("mousemove", move);
           el.removeEventListener("mouseleave", leave);
+          cancelAnimationFrame(raf);
         });
       }
     }

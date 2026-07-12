@@ -8,6 +8,7 @@ import "./globals.css";
 // with real personality that keeps the headlines from reading "default AI sans".
 const bricolage = Bricolage_Grotesque({
   variable: "--font-display",
+  display: "swap",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],
 });
@@ -15,6 +16,7 @@ const bricolage = Bricolage_Grotesque({
 // Body — Hanken Grotesk: a warm, clean grotesk (deliberately not Inter/Roboto).
 const hanken = Hanken_Grotesk({
   variable: "--font-body",
+  display: "swap",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
 });
@@ -23,6 +25,7 @@ const hanken = Hanken_Grotesk({
 // the landing via --font-inter-tight; the dashboard keeps Hanken (--font-body).
 const interTight = Inter_Tight({
   variable: "--font-inter-tight",
+  display: "swap",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
 });
@@ -30,6 +33,7 @@ const interTight = Inter_Tight({
 // Mono — the brand's connective tissue: PR numbers, citations, labels, units
 const jetbrainsMono = JetBrains_Mono({
   variable: "--font-mono",
+  display: "swap",
   subsets: ["latin"],
   weight: ["400", "500", "600"],
 });

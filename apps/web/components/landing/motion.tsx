@@ -52,8 +52,8 @@ export function Reveal({
     <motion.div
       className={className}
       style={style}
-      initial={{ opacity: 0, y, filter: "blur(8px)" }}
-      whileInView={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+      initial={{ opacity: 0, y }}
+      whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, amount: 0.12, margin: "0px 0px -8% 0px" }}
       transition={{ duration: 1.1, ease: EASE, delay }}
     >
@@ -106,8 +106,8 @@ export function RevealItem({
       className={className}
       style={style}
       variants={{
-        hidden: { opacity: 0, y, filter: "blur(8px)" },
-        show: { opacity: 1, y: 0, filter: "blur(0px)", transition: { duration: 1.1, ease: EASE } },
+        hidden: { opacity: 0, y },
+        show: { opacity: 1, y: 0, transition: { duration: 1.1, ease: EASE } },
       }}
     >
       {children}
@@ -134,6 +134,11 @@ export function Magnetic({
 }) {
   const reduce = useReducedMotion();
   const ref = useRef<HTMLDivElement>(null);
+  // Rect is read ONCE per hover (on enter) and reused for every move; moves are
+  // processed at most once per frame to keep pointermove off the layout path.
+  const rect = useRef<DOMRect | null>(null);
+  const raf = useRef(0);
+  const last = useRef({ x: 0, y: 0 });
   const x = useMotionValue(0);
   const y = useMotionValue(0);
   const sx = useSpring(x, { stiffness: 220, damping: 18, mass: 0.4 });
@@ -148,15 +153,24 @@ export function Magnetic({
   return (
     <motion.div
       ref={ref}
-      className={className}
-      whileHover={{ filter: "brightness(1.06)" }}
+      className={className ? `cb-mag ${className}` : "cb-mag"}
       style={{ x: sx, y: sy, display: "inline-flex", willChange: "transform", ...style }}
+      onPointerEnter={() => {
+        rect.current = ref.current!.getBoundingClientRect();
+      }}
       onPointerMove={(e) => {
-        const r = ref.current!.getBoundingClientRect();
-        x.set((e.clientX - r.left - r.width / 2) * strengthX);
-        y.set((e.clientY - r.top - r.height / 2) * strengthY);
+        last.current = { x: e.clientX, y: e.clientY };
+        if (raf.current) return;
+        raf.current = requestAnimationFrame(() => {
+          raf.current = 0;
+          const r = rect.current;
+          if (!r) return;
+          x.set((last.current.x - r.left - r.width / 2) * strengthX);
+          y.set((last.current.y - r.top - r.height / 2) * strengthY);
+        });
       }}
       onPointerLeave={() => {
+        rect.current = null;
         x.set(0);
         y.set(0);
       }}

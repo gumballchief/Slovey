@@ -21,34 +21,39 @@ export function IntroLoader({ onDone }: { onDone: () => void }) {
     }
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    const timers: ReturnType<typeof setTimeout>[] = [];
+    // Single rAF loop (no stacked timers). Same pacing as the spec: each tick
+    // advances by ~10% of the remaining gap (min 1) + jitter, ticks 26–66ms
+    // apart (~1.5–2.2s to 100), then 260ms hold → .7s fade → unlock + release.
+    let raf = 0;
     let p = 0;
-    // Ease-out count: each tick advances by ~10% of the remaining gap (min 1) plus
-    // a little jitter; ticks are 26–66ms apart, reaching 100 in ~1.5–2.2s.
-    const tick = () => {
-      p += Math.max(1, (100 - p) * 0.1) + Math.random() * 1.5;
-      if (p >= 100) {
-        setPct(100);
-        // hold at 100, then fade the overlay, then remove + unlock scroll.
-        timers.push(
-          setTimeout(() => {
-            setGone(true); // begins the .7s exit fade
-            timers.push(
-              setTimeout(() => {
-                document.body.style.overflow = prevOverflow;
-                onDone(); // release the hero letter pop-in
-              }, 720),
-            );
-          }, 260),
-        );
-        return;
+    let nextTickAt = performance.now() + 26 + Math.random() * 40;
+    let doneAt = 0; // when p hit 100 (0 = still counting)
+    let faded = false;
+    const loop = (now: number) => {
+      if (!doneAt) {
+        if (now >= nextTickAt) {
+          p += Math.max(1, (100 - p) * 0.1) + Math.random() * 1.5;
+          if (p >= 100) {
+            setPct(100);
+            doneAt = now;
+          } else {
+            setPct(Math.floor(p));
+            nextTickAt = now + 26 + Math.random() * 40;
+          }
+        }
+      } else if (!faded && now >= doneAt + 260) {
+        faded = true;
+        setGone(true); // begins the .7s exit fade
+      } else if (faded && now >= doneAt + 260 + 720) {
+        document.body.style.overflow = prevOverflow;
+        onDone(); // release the hero letter pop-in
+        return; // loop ends
       }
-      setPct(Math.floor(p));
-      timers.push(setTimeout(tick, 26 + Math.random() * 40));
+      raf = requestAnimationFrame(loop);
     };
-    timers.push(setTimeout(tick, 26 + Math.random() * 40));
+    raf = requestAnimationFrame(loop);
     return () => {
-      for (const t of timers) clearTimeout(t);
+      cancelAnimationFrame(raf);
       document.body.style.overflow = prevOverflow;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

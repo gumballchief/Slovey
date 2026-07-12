@@ -30,8 +30,11 @@ export function AnimatedHeadline({ text, start }: { text: string; start: boolean
     return () => clearTimeout(t);
   }, [reduce, wide, start, letterCount]);
 
-  // Cursor proximity lift (manual rAF; applied to the inner span so it composes
-  // with the framer-motion pop-in on the outer span).
+  // Cursor proximity lift (applied to the inner span so it composes with the
+  // framer-motion pop-in on the outer span). Perf contract: letter centers are
+  // measured ONCE in page space when the reaction enables (pop-in settled) and
+  // re-measured only on resize — pointermove does zero layout reads and is
+  // coalesced to one update per frame.
   useEffect(() => {
     if (reduce || !reactive) return;
     const root = rootRef.current;
@@ -39,31 +42,48 @@ export function AnimatedHeadline({ text, start }: { text: string; start: boolean
     let raf = 0;
     let mx = -9999;
     let my = -9999;
-    const onMove = (e: PointerEvent) => {
-      mx = e.clientX;
-      my = e.clientY;
-      if (!raf) raf = requestAnimationFrame(apply);
+    let centers: { el: HTMLSpanElement; cx: number; cy: number }[] = [];
+    const measure = () => {
+      const sx = window.scrollX;
+      const sy = window.scrollY;
+      centers = letterRefs.current.map((el) => {
+        const r = el.getBoundingClientRect(); // batched reads, once per (re)measure
+        return { el, cx: r.left + r.width / 2 + sx, cy: r.top + r.height / 2 + sy };
+      });
     };
     const apply = () => {
       raf = 0;
-      for (const el of letterRefs.current) {
-        const r = el.getBoundingClientRect();
-        const dx = mx - (r.left + r.width / 2);
-        const dy = my - (r.top + r.height / 2);
-        const dist = Math.hypot(dx, dy);
-        const f = Math.max(0, 1 - dist / 100);
+      for (const { el, cx, cy } of centers) {
+        const f = Math.max(0, 1 - Math.hypot(mx - cx, my - cy) / 100);
         el.style.transform = f > 0 ? `translateY(${-20 * f}px) scale(${1 + 0.26 * f})` : "";
       }
     };
-    const onLeave = () => {
-      for (const el of letterRefs.current) el.style.transform = "";
+    const onMove = (e: PointerEvent) => {
+      mx = e.pageX;
+      my = e.pageY;
+      if (!raf) raf = requestAnimationFrame(apply);
     };
+    const onLeave = () => {
+      for (const { el } of centers) el.style.transform = "";
+    };
+    let resizeRaf = 0;
+    const onResize = () => {
+      if (resizeRaf) return;
+      resizeRaf = requestAnimationFrame(() => {
+        resizeRaf = 0;
+        measure();
+      });
+    };
+    measure();
     root.addEventListener("pointermove", onMove);
     root.addEventListener("pointerleave", onLeave);
+    window.addEventListener("resize", onResize, { passive: true });
     return () => {
       root.removeEventListener("pointermove", onMove);
       root.removeEventListener("pointerleave", onLeave);
+      window.removeEventListener("resize", onResize);
       cancelAnimationFrame(raf);
+      cancelAnimationFrame(resizeRaf);
     };
   }, [reactive, reduce]);
 
@@ -104,7 +124,6 @@ export function AnimatedHeadline({ text, start }: { text: string; start: boolean
                   backgroundClip: "text",
                   WebkitTextFillColor: "transparent",
                   transition: "transform .3s cubic-bezier(.2,.85,.25,1)",
-                  willChange: "transform",
                 }}
               >
                 {ch}

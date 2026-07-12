@@ -110,7 +110,6 @@ export function CodeMock() {
               opacity: 0.1,
               pointerEvents: "none",
               animation: "cbScanY 5s linear infinite",
-              willChange: "transform",
             }}
           />
         )}

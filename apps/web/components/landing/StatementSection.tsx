@@ -30,7 +30,7 @@ export function StatementSection() {
           const on = reduce || i < lit;
           if (t.chip) {
             return (
-              <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 8, whiteSpace: "nowrap", padding: "2px 12px 2px 10px", margin: "0 4px", borderRadius: 99, border: `1px solid ${on ? t.chip.color : "#e3e9f5"}`, background: on ? `${t.chip.color}12` : "transparent", color: on ? "#1b1726" : "rgba(27,23,38,.16)", transition: "all .35s ease", verticalAlign: "middle" }}>
+              <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 8, whiteSpace: "nowrap", padding: "2px 12px 2px 10px", margin: "0 4px", borderRadius: 99, border: `1px solid ${on ? t.chip.color : "#e3e9f5"}`, background: on ? `${t.chip.color}12` : "transparent", color: on ? "#1b1726" : "rgba(27,23,38,.16)", transition: "color .35s ease, background-color .35s ease, border-color .35s ease", verticalAlign: "middle" }}>
                 <motion.svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={t.chip.color} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" animate={{ scale: on ? 1 : 0 }} transition={{ duration: 0.45, ease: [0.2, 1.5, 0.4, 1] }} style={{ boxShadow: on ? "0 0 18px rgba(79,126,247,.7)" : "none", borderRadius: 99 }}>
                   {t.chip.icon.split(" M").map((d, k) => <path key={k} d={(k ? "M" : "") + d} />)}
                 </motion.svg>

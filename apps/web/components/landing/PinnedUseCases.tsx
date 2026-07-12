@@ -31,7 +31,7 @@ function Card({ c, i, open, done, active, reduce }: { c: UseCase; i: number; ope
         border: `1px solid ${open ? "#c9d6f7" : "#e3e9f5"}`,
         background: open ? "rgba(255,255,255,.92)" : "rgba(255,255,255,.55)",
         padding: "22px 26px",
-        transition: "all .45s cubic-bezier(.16,1,.3,1)",
+        transition: "border-color .45s cubic-bezier(.16,1,.3,1), background-color .45s cubic-bezier(.16,1,.3,1), box-shadow .45s cubic-bezier(.16,1,.3,1), opacity .45s cubic-bezier(.16,1,.3,1), transform .45s cubic-bezier(.16,1,.3,1)",
         boxShadow: open ? "0 24px 60px -34px rgba(50,60,120,.4)" : "none",
         opacity: !reduce && !open && !done && i > active ? 0.62 : 1,
         transform: open ? "scale(1)" : "scale(.985)",
@@ -39,7 +39,7 @@ function Card({ c, i, open, done, active, reduce }: { c: UseCase; i: number; ope
     >
       <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
         <span style={{ fontFamily: "var(--font-mono), monospace", fontSize: 13, color: open || done ? "#4f7ef7" : "#a4a0b3", transition: "color .3s" }}>{c.no}</span>
-        <span style={{ fontFamily: "var(--font-mono), monospace", fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: open ? "#7c5cff" : "#a4a0b3", background: open ? "rgba(124,92,255,.1)" : "transparent", padding: open ? "3px 8px" : 0, borderRadius: 6, transition: "all .3s", boxShadow: open ? "0 0 14px rgba(124,92,255,.35)" : "none" }}>{c.tag}</span>
+        <span style={{ fontFamily: "var(--font-mono), monospace", fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: open ? "#7c5cff" : "#a4a0b3", background: open ? "rgba(124,92,255,.1)" : "transparent", padding: open ? "3px 8px" : 0, borderRadius: 6, transition: "color .3s, background-color .3s, padding .3s, box-shadow .3s", boxShadow: open ? "0 0 14px rgba(124,92,255,.35)" : "none" }}>{c.tag}</span>
         <h3 style={{ margin: 0, fontFamily: "var(--font-display), sans-serif", fontSize: 21, fontWeight: 600, letterSpacing: "-0.015em", color: open || done ? "#1b1726" : "#565163", transition: "color .3s" }}>{c.title}</h3>
       </div>
       <div style={{ overflow: "hidden", maxHeight: reduce || open ? 220 : 0, opacity: reduce || open ? 1 : 0, transition: "max-height .6s cubic-bezier(.16,1,.3,1), opacity .5s ease" }}>

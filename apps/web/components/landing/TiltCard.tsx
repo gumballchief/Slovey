@@ -20,6 +20,11 @@ export function TiltCard({
   const reduce = useReducedMotion();
   const ref = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState(false);
+  // Rect is read once per hover (on enter, re-used every move); moves are
+  // coalesced to one per frame so pointermove never touches layout.
+  const rect = useRef<DOMRect | null>(null);
+  const raf = useRef(0);
+  const last = useRef({ x: 0, y: 0 });
   const px = useMotionValue(0.5); // 0..1 pointer position
   const py = useMotionValue(0.5);
   const sx = useSpring(px, { stiffness: 180, damping: 18 });
@@ -42,18 +47,28 @@ export function TiltCard({
       <motion.div
         ref={ref}
         className={className}
-        onPointerEnter={() => setHover(true)}
+        onPointerEnter={() => {
+          rect.current = ref.current!.getBoundingClientRect();
+          setHover(true);
+        }}
         onPointerMove={(e) => {
-          const r = ref.current!.getBoundingClientRect();
-          px.set((e.clientX - r.left) / r.width);
-          py.set((e.clientY - r.top) / r.height);
+          last.current = { x: e.clientX, y: e.clientY };
+          if (raf.current) return;
+          raf.current = requestAnimationFrame(() => {
+            raf.current = 0;
+            const r = rect.current;
+            if (!r) return;
+            px.set((last.current.x - r.left) / r.width);
+            py.set((last.current.y - r.top) / r.height);
+          });
         }}
         onPointerLeave={() => {
+          rect.current = null;
           setHover(false);
           px.set(0.5);
           py.set(0.5);
         }}
-        style={{ rotateX, rotateY, z: 6, transformStyle: "preserve-3d", willChange: "transform", position: "relative", ...style }}
+        style={{ rotateX, rotateY, z: 6, transformStyle: "preserve-3d", willChange: hover ? "transform" : "auto", position: "relative", ...style }}
       >
         {children}
         <motion.div
