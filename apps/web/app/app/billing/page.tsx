@@ -24,7 +24,7 @@ const PLANS: Array<{
   {
     id: "pro",
     name: "Pro",
-    price: "$49",
+    price: "$19",
     blurb: "For teams that ship fast and want fewer regressions.",
     features: ["10 repositories", "5,000 decisions", "Scheduled rescans", "Connectors (Linear/Notion/Slack)", "Email support"],
   },
