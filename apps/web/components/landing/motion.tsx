@@ -62,6 +62,44 @@ export function Reveal({
   );
 }
 
+/**
+ * Masked line reveal (sui.io-style): the text rises from behind an
+ * overflow-hidden mask — no fade, no blur, just weight. Use on section
+ * headlines. Compositor-only (transform on the inner span).
+ */
+export function MaskReveal({
+  children,
+  delay = 0,
+  className,
+  style,
+}: {
+  children: React.ReactNode;
+  delay?: number;
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  const reduce = useReducedMotion();
+  if (reduce) {
+    return (
+      <div className={className} style={style}>
+        {children}
+      </div>
+    );
+  }
+  return (
+    <div className={className} style={{ overflow: "hidden", ...style }}>
+      <motion.div
+        initial={{ y: "110%" }}
+        whileInView={{ y: "0%" }}
+        viewport={{ once: true, amount: 0.3, margin: "0px 0px -8% 0px" }}
+        transition={{ duration: 0.9, ease: EASE, delay }}
+      >
+        {children}
+      </motion.div>
+    </div>
+  );
+}
+
 /** Container that staggers its direct Reveal children ~85ms apart. */
 export function RevealGroup({
   children,

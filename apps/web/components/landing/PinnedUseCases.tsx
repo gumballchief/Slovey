@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { motion, useMotionValueEvent, useReducedMotion, useScroll } from "framer-motion";
-import { useMinWidth } from "./motion";
+import { MaskReveal, useMinWidth } from "./motion";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -18,7 +18,9 @@ function Heading() {
   return (
     <div style={{ textAlign: "center", marginBottom: 40 }}>
       <div style={{ fontFamily: "var(--font-mono), monospace", fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase", color: "#7fb0f2" }}>06 — Use cases</div>
-      <h2 style={{ fontFamily: "var(--font-display), sans-serif", fontWeight: 600, fontSize: "clamp(30px,4.4vw,50px)", lineHeight: 1.06, letterSpacing: "-0.025em", color: "#1b1726", margin: "14px 0 0" }}>Put your engineering memory to work</h2>
+      <MaskReveal style={{ marginTop: 14 }}>
+        <h2 style={{ fontFamily: "var(--font-display), sans-serif", fontWeight: 600, fontSize: "clamp(30px,4.4vw,50px)", lineHeight: 1.12, letterSpacing: "-0.025em", color: "#1b1726", margin: 0, paddingBottom: "0.08em" }}>Put your engineering memory to work</h2>
+      </MaskReveal>
     </div>
   );
 }
