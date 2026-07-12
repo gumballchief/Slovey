@@ -43,8 +43,8 @@ export function Hero({ introDone }: { introDone: boolean }) {
 
       <motion.div {...rise(0.5)} style={{ marginTop: 38, display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap" }}>
         <Magnetic>
-          <a href="/login" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "14px 26px", borderRadius: 12, fontWeight: 600, fontSize: 15, color: "#fbfaff", textDecoration: "none", background: "linear-gradient(120deg,#241d33,#463a63)", boxShadow: "0 12px 30px -10px rgba(255,120,100,.6)" }}>
-            Start free
+          <a href="/login" className="cb-cta" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "14px 26px", borderRadius: 12, fontWeight: 600, fontSize: 15, color: "#fbfaff", textDecoration: "none", background: "linear-gradient(120deg,#241d33,#463a63)", boxShadow: "0 12px 30px -10px rgba(255,120,100,.6)" }}>
+            Start free <span className="cb-cta-arrow" aria-hidden>→</span>
           </a>
         </Magnetic>
         <a href="#workflow" style={{ display: "inline-flex", alignItems: "center", padding: "14px 24px", borderRadius: 12, fontWeight: 500, fontSize: 15, color: "#1b1726", textDecoration: "none", background: "#fff", border: "1px solid #e3e9f5" }}>

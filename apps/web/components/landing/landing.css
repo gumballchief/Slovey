@@ -9,6 +9,14 @@ html:has(#cb-landing),body:has(#cb-landing){background:#f0f5fd}
 #cb-landing [data-magnetic]{transition:transform .4s cubic-bezier(.16,1,.3,1),box-shadow .4s ease;will-change:transform}
 #cb-landing [data-magnetic]:hover{filter:brightness(1.06)}
 .cb-mag:hover{filter:brightness(1.06)}
+/* CTA arrow nudge (sui-style affordance): transform-only, 200ms */
+.cb-cta-arrow{display:inline-block;transition:transform .2s cubic-bezier(.16,1,.3,1)}
+.cb-cta:hover .cb-cta-arrow{transform:translateX(4px)}
+/* Feature-card hover depth: border lightens + shadow deepens over the tilt */
+.cb-feat-card{transition:border-color .25s ease,box-shadow .25s ease}
+.cb-feat-card:hover{border-color:#c9d6f7!important;box-shadow:0 30px 70px -34px rgba(50,60,120,.45)!important}
+/* Marquee pauses under the cursor */
+.cb-marquee-track:hover{animation-play-state:paused}
 @keyframes cbFloat{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(30px,-24px) scale(1.08)}}
 @keyframes cbFloat2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-36px,26px) scale(1.12)}}
 @keyframes cbPulse{0%,100%{opacity:.55}50%{opacity:1}}

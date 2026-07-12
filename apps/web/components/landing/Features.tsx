@@ -1,6 +1,6 @@
 "use client";
 
-import { Reveal, RevealGroup, RevealItem } from "./motion";
+import { MaskReveal, Reveal, RevealGroup, RevealItem } from "./motion";
 import { TiltCard } from "./TiltCard";
 
 type Feat = { title: string; body: string; icon: React.ReactNode };
@@ -26,11 +26,11 @@ export function Features() {
       <Reveal style={{ textAlign: "center", fontFamily: "var(--font-mono), monospace", fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase", color: "#7fb0f2" }}>
         03 — Capabilities
       </Reveal>
-      <Reveal delay={0.06} style={{ margin: "16px auto 0", maxWidth: 720, textAlign: "center" }}>
-        <h2 style={{ fontFamily: "var(--font-display), sans-serif", fontWeight: 600, fontSize: "clamp(30px,4.4vw,50px)", lineHeight: 1.06, letterSpacing: "-0.025em", color: "#1b1726", margin: 0 }}>
+      <MaskReveal delay={0.06} style={{ margin: "16px auto 0", maxWidth: 720, textAlign: "center" }}>
+        <h2 style={{ fontFamily: "var(--font-display), sans-serif", fontWeight: 600, fontSize: "clamp(30px,4.4vw,50px)", lineHeight: 1.12, letterSpacing: "-0.025em", color: "#1b1726", margin: 0, paddingBottom: "0.08em" }}>
           Everything an agent needs to write code your way
         </h2>
-      </Reveal>
+      </MaskReveal>
 
       <RevealGroup className="cb-feat-grid" >
         <div style={{ marginTop: 54, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 20, perspective: 1200 }}>
