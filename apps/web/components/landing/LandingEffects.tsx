@@ -219,7 +219,7 @@ export function LandingEffects() {
       cleanups.push(() => btn.removeEventListener("click", onClick));
     }
 
-    // ── pricing monthly/annual toggle ($49 annual / $59 monthly) ──
+    // ── pricing monthly/annual toggle ($19 annual / $24 monthly) ──
     const priceBtns = Array.from(root.querySelectorAll<HTMLButtonElement>("button")).filter((b) =>
       /^(monthly|annual)/.test(norm(b.textContent || "")),
     );
@@ -228,9 +228,9 @@ export function LandingEffects() {
     if (monthlyBtn && annualBtn) {
       const activeStyle = annualBtn.getAttribute("style") || "";
       const inactiveStyle = monthlyBtn.getAttribute("style") || "";
-      // The big "$49" team price + its billing note (both have nested spans).
+      // The big "$19" team price + its billing note (both have nested spans).
       const priceEl = Array.from(root.querySelectorAll<HTMLElement>("span")).find(
-        (e) => (e.textContent || "").trim() === "$49",
+        (e) => (e.textContent || "").trim() === "$19",
       );
       const noteEl = Array.from(root.querySelectorAll<HTMLElement>("*")).find(
         (e) =>
@@ -240,7 +240,7 @@ export function LandingEffects() {
       const set = (annual: boolean) => {
         annualBtn.setAttribute("style", annual ? activeStyle : inactiveStyle);
         monthlyBtn.setAttribute("style", annual ? inactiveStyle : activeStyle);
-        if (priceEl) priceEl.textContent = annual ? "$49" : "$59";
+        if (priceEl) priceEl.textContent = annual ? "$19" : "$24";
         if (noteEl) noteEl.textContent = annual ? "Billed annually · 20% off" : "Billed monthly";
       };
       const onM = () => set(false);
