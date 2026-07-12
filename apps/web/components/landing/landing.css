@@ -1,3 +1,7 @@
+/* While the landing is on screen, the page canvas behind it must be light —
+   otherwise fast scrolling flashes the dark app background in unrasterized
+   regions before the landing's own gradient paints. */
+html:has(#cb-landing),body:has(#cb-landing){background:#f0f5fd}
 #cb-landing *{box-sizing:border-box}
 #cb-landing{margin:0;background:linear-gradient(180deg,#f4f8ff 0%,#eef3fb 55%,#f2f6fd 100%);color:#565163;font-family:var(--font-inter-tight),system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden;min-height:100vh;position:relative;scroll-behavior:smooth}
 #cb-landing ::selection{background:rgba(79,126,247,.35)}
