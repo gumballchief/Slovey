@@ -186,8 +186,8 @@ export function createAgentTask(repoId: string, intent: string): Promise<AgentRu
 }
 
 // ── Stripe billing ──
-export function startCheckout(repoId: string): Promise<{ url: string }> {
-  return send<{ url: string }>(`/api/repos/${repoId}/billing/checkout`, "POST");
+export function startCheckout(repoId: string, interval: "annual" | "monthly" = "annual"): Promise<{ url: string }> {
+  return send<{ url: string }>(`/api/repos/${repoId}/billing/checkout`, "POST", { interval });
 }
 export function openBillingPortal(repoId: string): Promise<{ url: string }> {
   return send<{ url: string }>(`/api/repos/${repoId}/billing/portal`, "POST");
