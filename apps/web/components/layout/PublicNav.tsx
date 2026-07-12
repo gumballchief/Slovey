@@ -37,7 +37,7 @@ export function PublicNav({ onDarkHero = false }: { onDarkHero?: boolean } = {})
       aria-label="Main navigation"
     >
       <div className="max-w-7xl mx-auto px-5 sm:px-8 flex items-center h-14 gap-6">
-        <a href="/" className="flex items-center gap-2.5 shrink-0" aria-label="Company Brain home">
+        <a href="/" className="flex items-center gap-2.5 shrink-0" aria-label="Slovey home">
           <div className="w-7 h-7 rounded-lg bg-[var(--primary)] flex items-center justify-center">
             <Brain size={15} className="text-[var(--on-primary)]" />
           </div>
@@ -46,7 +46,7 @@ export function PublicNav({ onDarkHero = false }: { onDarkHero?: boolean } = {})
               onHero ? "text-white" : "text-[var(--cb-text)]"
             }`}
           >
-            Company Brain
+            Slovey
           </span>
         </a>
 

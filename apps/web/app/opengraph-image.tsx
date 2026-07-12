@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
 
 // Next auto-wires this as og:image (and twitter:image) at /opengraph-image.
-export const alt = "Company Brain — the intelligence layer beneath your AI coding agents";
+export const alt = "Slovey — the intelligence layer beneath your AI coding agents";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -36,7 +36,7 @@ export default function OpengraphImage() {
           >
             ◍
           </div>
-          <div style={{ fontSize: "34px", fontWeight: 600, color: "#1b1726" }}>Company Brain</div>
+          <div style={{ fontSize: "34px", fontWeight: 600, color: "#1b1726" }}>Slovey</div>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column" }}>

@@ -376,7 +376,7 @@ export function postFeedback(
   return send(`/api/repos/${repoId}/feedback`, "POST", input);
 }
 
-// ── Ask Company Brain (reasoning over the decision graph) ──
+// ── Ask Slovey (reasoning over the decision graph) ──
 // No mock fallback: these need the live brain (DB + LLM). Errors surface so the
 // UI can show an honest failure rather than a fabricated answer.
 

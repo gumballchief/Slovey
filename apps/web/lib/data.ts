@@ -1,4 +1,4 @@
-// ── Company Brain shared UI types ──
+// ── Slovey shared UI types ──
 // The canonical client-side shapes for dashboard data. All values come from the
 // real API (see lib/api-client.ts) — there is no mock/seed data. These types
 // mirror the API responses (ApiDecision / ApiRepo / etc. in the core service).

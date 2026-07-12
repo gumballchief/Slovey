@@ -4,7 +4,7 @@ import { useState } from "react";
 
 // PLACEHOLDER inbox — replace with your real address. The form has no backend;
 // it opens the visitor's mail client pre-filled via mailto:.
-const CONTACT_EMAIL = "hello@companybrain.io";
+const CONTACT_EMAIL = "hello@slovey.dev";
 
 export function ContactForm({ salesIntent }: { salesIntent?: boolean }) {
   const [name, setName] = useState("");
@@ -13,7 +13,7 @@ export function ContactForm({ salesIntent }: { salesIntent?: boolean }) {
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const subject = salesIntent ? "Talk to sales — Company Brain" : "Company Brain enquiry";
+    const subject = salesIntent ? "Talk to sales — Slovey" : "Slovey enquiry";
     const body = `Name: ${name}\nEmail: ${email}\n\n${message}`;
     window.location.href = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   }

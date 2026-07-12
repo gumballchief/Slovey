@@ -22,7 +22,7 @@ const MENUS: Record<MenuKey, { label: string; items: { t: string; d: string; hre
     items: [
       { t: "Docs", d: "Quickstart, guides, and the JSON contract.", href: "/docs" },
       { t: "API Reference", d: "REST endpoints for the decision graph.", href: "/api-reference" },
-      { t: "companybrain CLI", d: "Run the gate locally or in CI.", href: "/docs" },
+      { t: "slovey CLI", d: "Run the gate locally or in CI.", href: "/docs" },
       { t: "MCP Integration", d: "Wire Claude, Cursor, Codex, and more.", href: "/mcp" },
     ],
   },
@@ -30,7 +30,7 @@ const MENUS: Record<MenuKey, { label: string; items: { t: string; d: string; hre
     label: "Company",
     items: [
       { t: "About", d: "Why engineering memory matters.", href: "/about" },
-      { t: "Changelog", d: "What's new in Company Brain.", href: "/changelog" },
+      { t: "Changelog", d: "What's new in Slovey.", href: "/changelog" },
       { t: "Careers", d: "Help build the memory layer.", href: "/careers" },
       { t: "Contact", d: "Talk to the team.", href: "/contact" },
     ],
@@ -80,7 +80,7 @@ export function Nav() {
               <circle cx="6" cy="7.5" r="2.1" /><circle cx="18" cy="7.5" r="2.1" /><circle cx="12" cy="16.5" r="2.1" /><path d="M7.8 9.1 10.5 14.6" /><path d="M16.2 9.1 13.5 14.6" /><path d="M8.1 7.5h7.8" />
             </svg>
           </span>
-          <span style={{ fontFamily: "var(--font-display), sans-serif", fontWeight: 600, fontSize: 17, letterSpacing: "-0.01em" }}>Company Brain</span>
+          <span style={{ fontFamily: "var(--font-display), sans-serif", fontWeight: 600, fontSize: 17, letterSpacing: "-0.01em" }}>Slovey</span>
         </a>
 
         <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 14.5, color: "#565163" }} className="cb-nav-links">

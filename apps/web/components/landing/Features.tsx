@@ -15,7 +15,7 @@ const FEATURES: Feat[] = [
   { title: "Engineering Decision Graph", body: "A living, structured model of your architecture, standards, and history — the source of truth agents query before they act.", icon: I("c:,6,7.5,2|c:,18,7.5,2|c:,12,16.5,2|M7.8 9.1 10.5 14.6|M16.2 9.1 13.5 14.6|M8.1 7.5h7.8") },
   { title: "Continuous learning", body: "Ingests GitHub, PRs, ADRs, Slack, Notion, Jira, reviews, incidents, and human corrections — automatically, forever.", icon: I("M21 12a9 9 0 1 1-3-6.7|M21 4v4h-4") },
   { title: "Pre-commit review", body: "Every AI-generated change is checked, tested, and validated in the background before a human ever sees it.", icon: I("M12 3 4 6v5c0 5 3.4 8.3 8 10 4.6-1.7 8-5 8-10V6z|M9 12l2 2 4-4") },
-  { title: "Company rule enforcement", body: "Encode conventions and constraints once. Company Brain enforces them on every change, no reminders needed.", icon: I("M8 6h13|M8 12h13|M8 18h13|M3 6h.01|M3 12h.01|M3 18h.01") },
+  { title: "Company rule enforcement", body: "Encode conventions and constraints once. Slovey enforces them on every change, no reminders needed.", icon: I("M8 6h13|M8 12h13|M8 18h13|M3 6h.01|M3 12h.01|M3 18h.01") },
   { title: "Architecture guardrails", body: "Detects violations and deprecated patterns and blocks them, citing the decision or incident that made the rule.", icon: I("M12 3 4 6v5c0 5 3.4 8.3 8 10 4.6-1.7 8-5 8-10V6z|M12 8v4|M12 16h.01") },
   { title: "API & MCP server", body: "Connect any agent to your engineering memory over a REST API or MCP server — one context layer for every tool.", icon: I("M4 5h16v5H4z|M4 14h16v5H4z|M7.5 7.5h.01|M7.5 16.5h.01") },
 ];

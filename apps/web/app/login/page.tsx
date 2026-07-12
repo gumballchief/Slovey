@@ -71,7 +71,7 @@ export default function LoginPage() {
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--primary)]">
             <Brain size={17} className="text-[var(--on-primary)]" />
           </span>
-          <span className="font-display text-lg font-semibold tracking-[-0.02em] text-white">Company Brain</span>
+          <span className="font-display text-lg font-semibold tracking-[-0.02em] text-white">Slovey</span>
         </a>
 
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-7 shadow-2xl backdrop-blur-xl">
@@ -82,7 +82,7 @@ export default function LoginPage() {
             {mode === "signin" ? "Welcome back to your engineering memory." : "Start capturing your team's decisions."}
           </p>
 
-          {/* Primary path: GitHub. Company Brain connects to GitHub repos, so
+          {/* Primary path: GitHub. Slovey connects to GitHub repos, so
               repo access is derived from the GitHub identity — Google/email
               sign-ins authenticate but can't reach repositories. Lead with the
               path that actually works and say so, rather than offering three

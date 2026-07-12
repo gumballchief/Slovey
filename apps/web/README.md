@@ -1,4 +1,4 @@
-# Company Brain
+# Slovey
 
 Engineering memory for your team. Remembers every decision, warns before a PR violates one.
 

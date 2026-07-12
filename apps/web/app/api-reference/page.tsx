@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { PageShell } from "@/components/layout/PageShell";
 
 export const metadata: Metadata = {
-  title: "API Reference — Company Brain",
-  description: "The Company Brain REST API: query the decision graph, run preflight checks, and manage repositories with a token-authenticated endpoint.",
+  title: "API Reference — Slovey",
+  description: "The Slovey REST API: query the decision graph, run preflight checks, and manage repositories with a token-authenticated endpoint.",
 };
 
 const ENDPOINTS: [string, string, string][] = [

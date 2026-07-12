@@ -53,7 +53,7 @@ export default function PreflightPage() {
       ) : !latest ? (
         <EmptyState
           title="No Preflight runs yet"
-          body={`Run it from your machine: \`companybrain preflight\` in ${activeRepo.name}, or have your AI agent call the preflight_run MCP tool.`}
+          body={`Run it from your machine: \`slovey preflight\` in ${activeRepo.name}, or have your AI agent call the preflight_run MCP tool.`}
         />
       ) : (
         <>

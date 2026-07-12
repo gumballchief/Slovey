@@ -278,7 +278,7 @@ export default function ConnectorsPage() {
             Each connector deepens the memory
           </h2>
           <p className="text-xs text-[var(--text-muted)] mt-1 leading-relaxed">
-            Company Brain starts from your PR history and grows smarter with every source you connect.
+            Slovey starts from your PR history and grows smarter with every source you connect.
             Decisions from Linear, Notion, and Slack become citable warnings on PRs.
           </p>
         </div>

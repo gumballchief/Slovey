@@ -83,7 +83,7 @@ export default function SettingsPage() {
         <div>
           <h2 className="text-sm font-semibold text-[var(--cb-text)]">Confidence Threshold</h2>
           <p className="text-xs text-[var(--text-muted)] mt-1">
-            Controls how certain Company Brain must be before posting a conflict warning.
+            Controls how certain Slovey must be before posting a conflict warning.
           </p>
         </div>
         <div className="space-y-2">
@@ -128,7 +128,7 @@ export default function SettingsPage() {
         <div>
           <h2 className="text-sm font-semibold text-[var(--cb-text)]">Trigger Events</h2>
           <p className="text-xs text-[var(--text-muted)] mt-1">
-            When should Company Brain run a check?
+            When should Slovey run a check?
           </p>
         </div>
         <div className="space-y-3">

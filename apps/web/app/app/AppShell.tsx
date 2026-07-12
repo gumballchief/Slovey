@@ -29,7 +29,7 @@ export function AppShell({
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
-  const title = PAGE_TITLES[pathname] ?? "Company Brain";
+  const title = PAGE_TITLES[pathname] ?? "Slovey";
 
   return (
     <RepoProvider>

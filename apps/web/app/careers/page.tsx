@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { PageShell, ComingSoon } from "@/components/layout/PageShell";
 
 export const metadata: Metadata = {
-  title: "Careers — Company Brain",
+  title: "Careers — Slovey",
   description: "Help build the engineering-memory layer beneath AI coding agents. We're a small, early team hiring thoughtfully.",
 };
 

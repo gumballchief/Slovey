@@ -2,9 +2,10 @@
   "name": "@company-brain/mcp",
   "version": "0.1.0",
   "private": true,
-  "description": "Company Brain MCP server — the engineering knowledge layer coding agents call before writing code.",
+  "description": "Slovey MCP server — the engineering knowledge layer coding agents call before writing code.",
   "type": "module",
   "bin": {
+    "slovey": "src/cli.ts",
     "company-brain-mcp": "src/index.ts",
     "companybrain": "src/cli.ts"
   },

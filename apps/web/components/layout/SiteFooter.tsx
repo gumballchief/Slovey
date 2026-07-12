@@ -39,11 +39,11 @@ export function SiteFooter() {
       <div className="mx-auto max-w-6xl px-5 py-14 sm:px-8">
         <div className="grid gap-10 sm:grid-cols-2 md:grid-cols-4">
           <div>
-            <a href="/" className="flex items-center gap-2.5" aria-label="Company Brain home">
+            <a href="/" className="flex items-center gap-2.5" aria-label="Slovey home">
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--primary)]">
                 <Brain size={15} className="text-[var(--on-primary)]" />
               </span>
-              <span className="font-display text-sm font-semibold tracking-[-0.02em]">Company Brain</span>
+              <span className="font-display text-sm font-semibold tracking-[-0.02em]">Slovey</span>
             </a>
             <p className="mt-3 max-w-xs text-sm text-[var(--text-muted)]">
               The engineering-memory layer beneath your AI coding agents.
@@ -69,7 +69,7 @@ export function SiteFooter() {
         </div>
 
         <div className="mt-12 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border)] pt-6">
-          <span className="text-[13px] text-[var(--text-muted)]">© 2026 Company Brain, Inc. All rights reserved.</span>
+          <span className="text-[13px] text-[var(--text-muted)]">© 2026 Slovey, Inc. All rights reserved.</span>
           <nav className="flex flex-wrap gap-5" aria-label="Legal">
             {[
               ["Privacy", "/privacy"],

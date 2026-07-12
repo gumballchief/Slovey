@@ -6,7 +6,7 @@ import { createToken, fetchTokens, revokeToken, type CliToken } from "@/lib/api-
 
 /**
  * Self-serve CLI tokens: an owner/admin mints a repo-scoped `cb_…` token for the
- * `companybrain` CLI / CI. The plaintext is shown ONCE (with a copy button and a
+ * `slovey` CLI / CI. The plaintext is shown ONCE (with a copy button and a
  * ready-to-paste env snippet), then only the last-4 hint is ever displayed.
  */
 export function CliTokens({ repoId }: { repoId: string | null }) {
@@ -53,7 +53,7 @@ export function CliTokens({ repoId }: { repoId: string | null }) {
   }
 
   const snippet = minted
-    ? `export COMPANY_BRAIN_TOKEN=${minted}\nexport COMPANY_BRAIN_API_URL=https://company-brain-web-u04w.onrender.com\ncompanybrain doctor`
+    ? `export COMPANY_BRAIN_TOKEN=${minted}\nexport COMPANY_BRAIN_API_URL=https://company-brain-web-u04w.onrender.com\nslovey doctor`
     : "";
 
   return (
@@ -65,7 +65,7 @@ export function CliTokens({ repoId }: { repoId: string | null }) {
           </h2>
           <p className="mt-1 text-xs text-[var(--text-muted)]">
             Run the Preflight gate from your machine or CI without a database — the token lets the
-            <code className="mx-1 rounded bg-[var(--bg-subtle)] px-1">companybrain</code> CLI reach the
+            <code className="mx-1 rounded bg-[var(--bg-subtle)] px-1">slovey</code> CLI reach the
             decision graph. Repo-scoped; revoke anytime.
           </p>
         </div>

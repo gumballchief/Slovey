@@ -63,7 +63,7 @@ export default function ArchitecturePage() {
             Repository Architecture
           </h2>
           <p className="text-sm text-[var(--text-muted)] mt-1">
-            What Company Brain has learned about this repo&apos;s structure.
+            What Slovey has learned about this repo&apos;s structure.
             {data?.generatedAt && (
               <span className="label-mono ml-2">
                 indexed {new Date(data.generatedAt).toLocaleDateString()}

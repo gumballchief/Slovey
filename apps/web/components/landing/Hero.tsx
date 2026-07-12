@@ -38,7 +38,7 @@ export function Hero({ introDone }: { introDone: boolean }) {
       </div>
 
       <motion.p {...rise(0.35)} style={{ margin: "26px auto 0", maxWidth: 620, fontSize: 18, lineHeight: 1.6, color: "#565163" }}>
-        AI writes great code — it just doesn&apos;t know your company. Company Brain gives it your context: your codebase, decisions, and history, so mistakes are caught <strong style={{ color: "#1b1726", fontWeight: 600 }}>before</strong> code is ever committed.
+        AI writes great code — it just doesn&apos;t know your company. Slovey gives it your context: your codebase, decisions, and history, so mistakes are caught <strong style={{ color: "#1b1726", fontWeight: 600 }}>before</strong> code is ever committed.
       </motion.p>
 
       <motion.div {...rise(0.5)} style={{ marginTop: 38, display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap" }}>
