@@ -73,7 +73,7 @@ function WorkflowPinned() {
 
   return (
     <section id="workflow">
-      <div ref={outerRef} style={{ position: "relative", height: `${STEPS.length * 90}vh` }}>
+      <div ref={outerRef} style={{ position: "relative", height: `${STEPS.length * 70}vh` }}>
         <div style={{ position: "sticky", top: 0, height: "100vh", display: "flex", flexDirection: "column", justifyContent: "center", overflow: "hidden" }}>
           <div style={{ maxWidth: 1120, margin: "0 auto", padding: "0 24px", width: "100%" }}>
             <Heading />

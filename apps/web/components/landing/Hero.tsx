@@ -1,21 +1,17 @@
 "use client";
 
 import { useRef } from "react";
-import { motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { AnimatedHeadline } from "./AnimatedHeadline";
-import { CodeMock } from "./CodeMock";
 import { Magnetic } from "./motion";
 
 const GITHUB_APP_INSTALL = "https://github.com/apps/company-brain/installations/new";
 const EASE = [0.16, 1, 0.3, 1] as const;
 
-/** Hero section — headline pop-in gated on the intro loader, magnetic CTAs, code mock. */
+/** Hero section — headline pop-in gated on the intro loader, magnetic CTAs. */
 export function Hero({ introDone }: { introDone: boolean }) {
   const reduce = useReducedMotion();
   const sectionRef = useRef<HTMLElement>(null);
-  // spec #8: mock parallax tracks absolute scroll — translateY = scrollY * -0.05.
-  const { scrollY } = useScroll();
-  const mockY = useTransform(scrollY, (v) => v * -0.05);
   // badge/subhead/CTAs rise in after the headline starts
   const rise = (delay: number) =>
     reduce
@@ -52,14 +48,8 @@ export function Hero({ introDone }: { introDone: boolean }) {
         </a>
       </motion.div>
 
-      <motion.div {...rise(0.62)} style={{ marginTop: 20, fontFamily: "var(--font-mono), monospace", fontSize: 12.5, letterSpacing: "0.04em", color: "var(--l-muted)" }}>
+      <motion.div {...rise(0.62)} style={{ marginTop: 20, marginBottom: 20, fontFamily: "var(--font-mono), monospace", fontSize: 12.5, letterSpacing: "0.04em", color: "var(--l-muted)" }}>
         No credit card · <a href={GITHUB_APP_INSTALL} target="_blank" rel="noreferrer" style={{ color: "inherit" }}>Connect a repo in minutes</a>
-      </motion.div>
-
-      <motion.div {...rise(0.8)} style={{ marginTop: 70 }}>
-        <motion.div style={reduce ? undefined : { y: mockY, willChange: "transform" }}>
-          <CodeMock />
-        </motion.div>
       </motion.div>
     </section>
   );

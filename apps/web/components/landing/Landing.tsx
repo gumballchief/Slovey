@@ -10,6 +10,7 @@ import { IntroLoader } from "./IntroLoader";
 import { LandingEffects } from "./LandingEffects";
 import { Marquee } from "./Marquee";
 import { Nav } from "./Nav";
+import { PinnedCodeMock } from "./PinnedCodeMock";
 import { SocialProof } from "./SocialProof";
 import { StatementSection } from "./StatementSection";
 import restAfterStatement from "./rest-after-statement.json";
@@ -40,6 +41,7 @@ export function Landing() {
         <IntroLoader onDone={() => setIntroDone(true)} />
         <Nav />
         <Hero introDone={introDone || !!reduce} />
+        <PinnedCodeMock />
         <SocialProof />
         <Marquee />
         <StatementSection />
