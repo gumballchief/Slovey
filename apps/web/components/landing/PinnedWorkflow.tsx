@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { motion, useMotionValueEvent, useReducedMotion, useScroll } from "framer-motion";
-import { MaskReveal, useMinWidth } from "./motion";
+import { MaskReveal } from "./motion";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -34,8 +34,9 @@ function Heading() {
  */
 export function PinnedWorkflow() {
   const reduce = useReducedMotion();
-  const wide = useMinWidth(760);
-  if (reduce || !wide) return <WorkflowStacked />;
+  // Pin on every viewport (the responsive grid collapses to one column on
+  // narrow screens); only reduced-motion gets the plain stacked list.
+  if (reduce) return <WorkflowStacked />;
   return <WorkflowPinned />;
 }
 
