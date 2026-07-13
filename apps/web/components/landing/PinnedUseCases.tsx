@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { motion, useMotionValueEvent, useReducedMotion, useScroll } from "framer-motion";
-import { MaskReveal, useMinWidth } from "./motion";
+import { MaskReveal } from "./motion";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -57,8 +57,8 @@ function Card({ c, i, open, done, active, reduce }: { c: UseCase; i: number; ope
  */
 export function PinnedUseCases() {
   const reduce = useReducedMotion();
-  const wide = useMinWidth(760);
-  if (reduce || !wide) return <UseCasesStacked />;
+  // Pin on every viewport; only reduced-motion falls back to the open list.
+  if (reduce) return <UseCasesStacked />;
   return <UseCasesPinned />;
 }
 

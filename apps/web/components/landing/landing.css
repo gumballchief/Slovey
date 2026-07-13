@@ -45,7 +45,11 @@ html.cb-dark #cb-landing{
 html:has(#cb-landing),body:has(#cb-landing){background:#f0f5fd}
 html.cb-dark:has(#cb-landing),html.cb-dark body:has(#cb-landing){background:#090c14}
 #cb-landing *{box-sizing:border-box}
-#cb-landing{margin:0;background:var(--l-bg);color:var(--l-body);font-family:var(--font-inter-tight),system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden;min-height:100vh;position:relative}
+/* overflow-x:clip (not hidden): clips the marquee/aurora horizontal overflow
+   WITHOUT making #cb-landing a scroll container — which is what
+   overflow-x:hidden does, and that silently breaks position:sticky on the
+   pinned scrollytelling sections inside (they stopped pinning). */
+#cb-landing{margin:0;background:var(--l-bg);color:var(--l-body);font-family:var(--font-inter-tight),system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:clip;min-height:100vh;position:relative}
 #cb-landing ::selection{background:rgba(79,126,247,.35)}
 #cb-landing [data-reveal]{opacity:0;transform:translateY(46px);transition:opacity 1.1s cubic-bezier(.16,1,.3,1),transform 1.1s cubic-bezier(.16,1,.3,1)}
 #cb-landing [data-magnetic]{transition:transform .4s cubic-bezier(.16,1,.3,1),box-shadow .4s ease;will-change:transform}
