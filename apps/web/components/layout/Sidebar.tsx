@@ -18,6 +18,7 @@ import {
   Bot,
   X,
 } from "lucide-react";
+import { LogoGlyph } from "@/components/ui/Logo";
 import type { LucideIcon } from "lucide-react";
 import { RepoSwitcher } from "./RepoSwitcher";
 import { cn } from "@/lib/utils";
