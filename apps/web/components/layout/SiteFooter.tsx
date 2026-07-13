@@ -40,9 +40,7 @@ export function SiteFooter() {
         <div className="grid gap-10 sm:grid-cols-2 md:grid-cols-4">
           <div>
             <a href="/" className="flex items-center gap-2.5" aria-label="Slovey home">
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--primary)]">
-                <LogoGlyph size={15} className="text-[var(--on-primary)]" />
-              </span>
+              <LogoGlyph size={30} />
               <span className="font-display text-sm font-semibold tracking-[-0.02em]">Slovey</span>
             </a>
             <p className="mt-3 max-w-xs text-sm text-[var(--text-muted)]">

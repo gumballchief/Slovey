@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { LogoGlyph } from "@/components/ui/Logo";
 import { Magnetic } from "./motion";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
@@ -89,11 +90,7 @@ export function Nav() {
     >
       <nav style={{ maxWidth: 1180, margin: "0 auto", padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24 }}>
         <a href="#top" style={{ display: "flex", alignItems: "center", gap: 11, textDecoration: "none", color: "var(--l-ink)" }}>
-          <span style={{ width: 32, height: 32, borderRadius: 9, background: "#4f7ef7", display: "grid", placeItems: "center", boxShadow: "0 5px 16px -6px #4f7ef7" }}>
-            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="6" cy="7.5" r="2.1" /><circle cx="18" cy="7.5" r="2.1" /><circle cx="12" cy="16.5" r="2.1" /><path d="M7.8 9.1 10.5 14.6" /><path d="M16.2 9.1 13.5 14.6" /><path d="M8.1 7.5h7.8" />
-            </svg>
-          </span>
+          <LogoGlyph size={34} />
           <span style={{ fontFamily: "var(--font-display), sans-serif", fontWeight: 600, fontSize: 17, letterSpacing: "-0.01em" }}>Slovey</span>
         </a>
 

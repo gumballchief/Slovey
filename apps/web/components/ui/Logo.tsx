@@ -1,27 +1,18 @@
 /**
- * The Slovey logo glyph — the landing nav's white graph mark (three nodes,
- * three edges). Use inside a rounded square filled with var(--primary).
+ * The Slovey logo mark — the real brand asset (public/slovey-mark.png, the
+ * two-tone "S", background removed to transparent). `size` sets the height; the
+ * width follows the mark's natural aspect ratio (549×859).
  */
-export function LogoGlyph({ size = 19, className }: { size?: number; className?: string }) {
+export function LogoGlyph({ size = 30, className }: { size?: number; className?: string }) {
   return (
-    <svg
-      width={size}
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src="/slovey-mark.png"
+      alt="Slovey"
+      width={Math.round((size * 549) / 859)}
       height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.9"
-      strokeLinecap="round"
-      strokeLinejoin="round"
       className={className}
-      aria-hidden
-    >
-      <circle cx="6" cy="7.5" r="2.1" />
-      <circle cx="18" cy="7.5" r="2.1" />
-      <circle cx="12" cy="16.5" r="2.1" />
-      <path d="M7.8 9.1 10.5 14.6" />
-      <path d="M16.2 9.1 13.5 14.6" />
-      <path d="M8.1 7.5h7.8" />
-    </svg>
+      style={{ display: "block", height: size, width: "auto" }}
+    />
   );
 }

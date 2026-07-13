@@ -69,9 +69,7 @@ export default function LoginPage() {
 
       <div className="relative w-full max-w-sm">
         <a href="/" className="mb-8 flex items-center justify-center gap-2.5">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--primary)]">
-            <LogoGlyph size={17} className="text-[var(--on-primary)]" />
-          </span>
+          <LogoGlyph size={34} />
           <span className="font-display text-lg font-semibold tracking-[-0.02em] text-[var(--cb-text)]">Slovey</span>
         </a>
 
