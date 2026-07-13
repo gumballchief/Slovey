@@ -8,7 +8,9 @@ import { RepoProvider } from "./RepoProvider";
 
 const PAGE_TITLES: Record<string, string> = {
   "/app": "Overview",
-  "/app/ask": "Ask Brain",
+  "/app/ask": "Ask Slovey",
+  "/app/preflight": "Preflight",
+  "/app/tasks": "Agent",
   "/app/memory": "Memory",
   "/app/review": "Review",
   "/app/architecture": "Architecture",

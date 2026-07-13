@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Brain,
   LayoutDashboard,
   BookOpen,
   GitPullRequest,
@@ -30,7 +29,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     label: "Workspace",
     items: [
       { href: "/app", label: "Overview", icon: LayoutDashboard, exact: true },
-      { href: "/app/ask", label: "Ask Brain", icon: Sparkles },
+      { href: "/app/ask", label: "Ask Slovey", icon: Sparkles },
       { href: "/app/tasks", label: "Agent", icon: Bot },
       { href: "/app/memory", label: "Memory", icon: BookOpen },
       { href: "/app/review", label: "Review", icon: ShieldCheck },
@@ -68,7 +67,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
       {/* Brand */}
       <div className="flex items-center gap-2.5 px-4 py-4">
         <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--primary)]">
-          <Brain size={15} className="text-[var(--on-primary)]" />
+          <LogoGlyph size={15} className="text-[var(--on-primary)]" />
         </div>
         <span className="font-display font-semibold tracking-[-0.02em] text-[var(--cb-text)]">
           Slovey
@@ -134,7 +133,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
       <div className="flex items-center justify-between border-t border-[var(--border)] px-4 py-3">
         <span className="label-mono text-[var(--text-muted)]/70">v0.1</span>
         <span className="flex items-center gap-1.5 label-mono text-[var(--text-muted)]/70">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> live
+          <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-clear)]" /> live
         </span>
       </div>
     </aside>

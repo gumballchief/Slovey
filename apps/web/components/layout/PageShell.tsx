@@ -19,7 +19,7 @@ export function PageShell({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-dvh flex-col bg-[var(--bg)] text-[var(--cb-text)]">
+    <div className="force-light flex min-h-dvh flex-col bg-[var(--bg)] text-[var(--cb-text)]">
       <PublicNav />
       <main className="mx-auto w-full max-w-4xl flex-1 px-5 pb-24 pt-32 sm:px-8">
         <p className="label-mono text-[var(--primary)]">{eyebrow}</p>

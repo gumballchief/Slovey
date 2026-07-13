@@ -62,14 +62,14 @@ export default function PreflightPage() {
             className={cn(
               "mt-6 flex items-center gap-3 rounded-xl border px-4 py-3",
               latest.run.safeToCommit
-                ? "border-emerald-500/30 bg-emerald-500/5"
+                ? "border-emerald-500/30 bg-[var(--color-clear)]/5"
                 : "border-red-500/30 bg-red-500/5",
             )}
           >
             {latest.run.safeToCommit ? (
-              <ShieldCheck size={20} className="text-emerald-500" />
+              <ShieldCheck size={20} className="text-[var(--color-clear)]" />
             ) : (
-              <ShieldX size={20} className="text-[#F43F5E]" />
+              <ShieldX size={20} className="text-[var(--color-conflict)]" />
             )}
             <div className="flex-1">
               <p className="text-sm font-semibold text-[var(--cb-text)]">
@@ -82,7 +82,7 @@ export default function PreflightPage() {
               </p>
             </div>
             {latest.run.humanReviewRequired && (
-              <span className="rounded-full bg-amber-500/15 px-2.5 py-1 text-xs font-medium text-amber-600 dark:text-amber-400">
+              <span className="rounded-full bg-[var(--color-pending)]/15 px-2.5 py-1 text-xs font-medium text-[var(--color-pending)] dark:text-amber-400">
                 human review required
               </span>
             )}
@@ -104,10 +104,10 @@ export default function PreflightPage() {
                     className={cn(
                       "inline-block h-1.5 w-1.5 rounded-full",
                       checks.some((c) => c.status === "fail")
-                        ? "bg-[#F43F5E]"
+                        ? "bg-[var(--color-conflict)]"
                         : checks.every((c) => c.status === "skipped")
                           ? "bg-[var(--text-muted)]"
-                          : "bg-emerald-500",
+                          : "bg-[var(--color-clear)]",
                     )}
                   />
                   {agent} agent
@@ -141,7 +141,7 @@ export default function PreflightPage() {
             <Section title="Decision violations">
               {latest.violations.map((v) => (
                 <div key={v.id} className="mb-2 rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-2.5">
-                  <p className="text-sm font-semibold text-[#F43F5E] flex items-center gap-1.5">
+                  <p className="text-sm font-semibold text-[var(--color-conflict)] flex items-center gap-1.5">
                     <AlertTriangle size={13} /> {v.title}
                   </p>
                   <p className="mt-1 text-sm text-[var(--cb-text)]">{v.violation}</p>
@@ -182,9 +182,9 @@ export default function PreflightPage() {
               {data.runs.map((r) => (
                 <div key={r.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
                   {r.status === "pass" ? (
-                    <CheckCircle2 size={15} className="text-emerald-500" />
+                    <CheckCircle2 size={15} className="text-[var(--color-clear)]" />
                   ) : (
-                    <XCircle size={15} className="text-[#F43F5E]" />
+                    <XCircle size={15} className="text-[var(--color-conflict)]" />
                   )}
                   <span className="text-[var(--cb-text)]">{r.summary}</span>
                   <span className="ml-auto text-xs text-[var(--text-muted)]">
@@ -231,14 +231,14 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function CheckIcon({ status }: { status: "pass" | "fail" | "skipped" | "error" }) {
-  if (status === "pass") return <CheckCircle2 size={15} className="text-emerald-500" />;
-  if (status === "fail" || status === "error") return <XCircle size={15} className="text-[#F43F5E]" />;
+  if (status === "pass") return <CheckCircle2 size={15} className="text-[var(--color-clear)]" />;
+  if (status === "fail" || status === "error") return <XCircle size={15} className="text-[var(--color-conflict)]" />;
   return <MinusCircle size={15} className="text-[var(--text-muted)]" />;
 }
 
 function PriorityDot({ priority }: { priority: string | null }) {
   const color =
-    priority === "critical" ? "bg-[#F43F5E]" : priority === "high" ? "bg-orange-500" : priority === "medium" ? "bg-amber-500" : "bg-[var(--text-muted)]";
+    priority === "critical" ? "bg-[var(--color-conflict)]" : priority === "high" ? "bg-orange-500" : priority === "medium" ? "bg-amber-500" : "bg-[var(--text-muted)]";
   return <span className={cn("mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full", color)} />;
 }
 

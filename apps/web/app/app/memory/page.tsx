@@ -177,19 +177,19 @@ export default function MemoryPage() {
             </span>
             <span className="text-[var(--text-muted)]">
               Freshness{" "}
-              <strong className="text-emerald-600 dark:text-emerald-400">{health.freshness.fresh}</strong> fresh ·{" "}
-              <strong className="text-amber-600 dark:text-amber-400">{health.freshness.aging}</strong> aging ·{" "}
-              <strong className="text-[#F43F5E]">{health.freshness.stale}</strong> stale
+              <strong className="text-[var(--color-clear)]">{health.freshness.fresh}</strong> fresh ·{" "}
+              <strong className="text-[var(--color-pending)] dark:text-amber-400">{health.freshness.aging}</strong> aging ·{" "}
+              <strong className="text-[var(--color-conflict)]">{health.freshness.stale}</strong> stale
             </span>
             <span className="text-[var(--text-muted)]">
               <strong className="text-[var(--cb-text)]">{health.reinforcement.confirmed}</strong> confirmed ·{" "}
               <strong className="text-[var(--cb-text)]">{health.reinforcement.unreviewed}</strong> unreviewed
             </span>
             {health.duplicates.length > 0 && (
-              <span className="text-amber-600 dark:text-amber-400">{health.duplicates.length} duplicate pair(s)</span>
+              <span className="text-[var(--color-pending)] dark:text-amber-400">{health.duplicates.length} duplicate pair(s)</span>
             )}
             {health.conflicts > 0 && (
-              <span className="text-[#F43F5E]">{health.conflicts} conflict(s)</span>
+              <span className="text-[var(--color-conflict)]">{health.conflicts} conflict(s)</span>
             )}
           </div>
           {health.recommendations[0] && (
@@ -315,7 +315,7 @@ export default function MemoryPage() {
             placeholder="Evidence, comma-separated (e.g. PR #1234, https://…)"
             className="w-full text-sm rounded-lg border border-[var(--border)] bg-[var(--bg-subtle)] px-3 py-2 text-[var(--cb-text)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--primary)]"
           />
-          {error && <p className="text-xs text-[#F43F5E]">{error}</p>}
+          {error && <p className="text-xs text-[var(--color-conflict)]">{error}</p>}
           <div className="flex justify-end gap-2">
             <Button variant="secondary" size="sm" onClick={() => setForm(null)}>
               Cancel
@@ -417,7 +417,7 @@ export default function MemoryPage() {
                   </button>
                   <button
                     onClick={() => remove(d.id)}
-                    className="text-[var(--text-muted)] hover:text-[#F43F5E] cursor-pointer"
+                    className="text-[var(--text-muted)] hover:text-[var(--color-conflict)] cursor-pointer"
                     aria-label="Delete decision"
                   >
                     <Trash2 size={13} />

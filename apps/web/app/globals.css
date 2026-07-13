@@ -32,9 +32,9 @@
   --color-primary-strong: var(--primary-strong);
 
   /* Shadows — soft, cool blue-tinted (Sui) */
-  --shadow-card: 0 1px 2px rgba(10,27,46,0.05), 0 1px 3px rgba(10,27,46,0.05);
-  --shadow-card-hover: 0 12px 32px -12px rgba(77,162,255,0.28), 0 2px 6px rgba(10,27,46,0.06);
-  --shadow-glow: 0 0 28px rgba(77,162,255,0.22);
+  --shadow-card: 0 1px 2px rgba(30,40,90,0.05), 0 1px 3px rgba(30,40,90,0.05);
+  --shadow-card-hover: 0 12px 32px -12px rgba(79,126,247,0.28), 0 2px 6px rgba(30,40,90,0.06);
+  --shadow-glow: 0 0 28px rgba(79,126,247,0.22);
 
   /* Animations */
   --animate-fade-in: fadeIn 0.3s ease-out;
@@ -81,21 +81,21 @@
   --border: #E3E9F5;        /* lavender hairline */
 }
 
-/* ── Dark mode — deep ocean (Sui-inspired) ── */
+/* ── Dark mode — the landing's code-island navy + brand blue/purple ── */
 .dark {
-  --app-bg: #04101E;        /* solid dark (no light gradient) */
-  --bg: #04101E;            /* deep ocean navy */
-  --bg-subtle: #071829;
-  --surface: #0B2136;
-  --primary: #4DA2FF;       /* bright blue pops on navy */
-  --primary-hover: #6FBCF0;
-  --primary-strong: #7FC0FF;
-  --primary-soft: rgba(77, 162, 255, 0.14);
-  --on-primary: #04101E;
-  --accent: #8FD0FF;
-  --cb-text: #DCEAFB;       /* cool white */
-  --text-muted: #7C97B5;    /* blue-gray */
-  --border: #123048;
+  --app-bg: #0b0f1a;        /* landing code-panel navy */
+  --bg: #0b0f1a;
+  --bg-subtle: #0e1220;
+  --surface: #101524;
+  --primary: #6B93F9;       /* lightness-adjusted landing blue for dark bg */
+  --primary-hover: #82A4FA;
+  --primary-strong: #93B0FB;
+  --primary-soft: rgba(79, 126, 247, 0.16);
+  --on-primary: #FFFFFF;
+  --accent: #9B82FF;        /* lightened landing purple */
+  --cb-text: #E7EAF6;
+  --text-muted: #9A94AD;
+  --border: #23283A;
 }
 
 /* ── Base ── */
@@ -146,7 +146,7 @@ body {
 .font-display {
   font-family: var(--font-display), system-ui, sans-serif;
   letter-spacing: -0.03em;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 /* Mono labels — the structural voice (§ markers, metadata, indices) */
@@ -290,10 +290,10 @@ body {
   inset: 0;
   z-index: 0;
   overflow: hidden;
-  background: radial-gradient(120% 60% at 50% 0%, #04121F 0%, #010B18 45%);
+  background: radial-gradient(120% 60% at 50% 0%, #0e1220 0%, #0b0f1a 45%);
 }
 .mesh-canvas.is-light {
-  background: radial-gradient(120% 120% at 50% -10%, #FFFFFF 0%, #ECF4FF 60%);
+  background: radial-gradient(120% 120% at 50% -10%, #FFFFFF 0%, #f0f5fd 60%);
 }
 
 .mesh-blob {
@@ -314,14 +314,14 @@ body {
   filter: blur(80px);
 }
 
-.mesh-blob.b-sky    { background: radial-gradient(circle, #4DA2FF, transparent 70%); }
-.mesh-blob.b-cyan   { background: radial-gradient(circle, #8FE3FF, transparent 70%); }
-.mesh-blob.b-indigo { background: radial-gradient(circle, #2E8AE6, transparent 70%); }
-.mesh-blob.b-violet { background: radial-gradient(circle, #6FD3FF, transparent 70%); }
-.is-light .mesh-blob.b-sky    { background: radial-gradient(circle, #93C8FF, transparent 70%); }
-.is-light .mesh-blob.b-cyan   { background: radial-gradient(circle, #B9EDFF, transparent 70%); }
-.is-light .mesh-blob.b-indigo { background: radial-gradient(circle, #7FB8F5, transparent 70%); }
-.is-light .mesh-blob.b-violet { background: radial-gradient(circle, #AEE7FF, transparent 70%); }
+.mesh-blob.b-sky    { background: radial-gradient(circle, #4f7ef7, transparent 70%); }
+.mesh-blob.b-cyan   { background: radial-gradient(circle, #7c5cff, transparent 70%); }
+.mesh-blob.b-indigo { background: radial-gradient(circle, #3E6DE8, transparent 70%); }
+.mesh-blob.b-violet { background: radial-gradient(circle, #9B82FF, transparent 70%); }
+.is-light .mesh-blob.b-sky    { background: radial-gradient(circle, #A9C1FB, transparent 70%); }
+.is-light .mesh-blob.b-cyan   { background: radial-gradient(circle, #CBBDFF, transparent 70%); }
+.is-light .mesh-blob.b-indigo { background: radial-gradient(circle, #93B0FB, transparent 70%); }
+.is-light .mesh-blob.b-violet { background: radial-gradient(circle, #D9CFFF, transparent 70%); }
 
 @keyframes drift1 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(8vw,6vh) scale(1.15); } }
 @keyframes drift2 { 0%,100% { transform: translate(0,0) scale(1.1); } 50% { transform: translate(-7vw,-5vh) scale(0.9); } }
@@ -346,14 +346,12 @@ body {
 /* Buttons: a blend of the palette, not a flat fill */
 .btn-mesh {
   position: relative;
-  background: linear-gradient(115deg, #2E8AE6 0%, #4DA2FF 45%, #8FD0FF 100%);
-  background-size: 180% 180%;
-  background-position: 0% 50%;
-  color: #04101E;
-  transition: background-position 0.5s ease, box-shadow 0.3s ease, transform 0.2s ease;
-  box-shadow: 0 6px 22px -8px rgba(77,162,255,0.55), inset 0 1px 0 rgba(255,255,255,0.35);
+  background: linear-gradient(120deg, #241d33, #463a63);
+  color: #fbfaff;
+  transition: filter 0.2s ease, box-shadow 0.3s ease, transform 0.2s ease;
+  box-shadow: 0 12px 30px -10px rgba(255,120,100,0.6);
 }
-.btn-mesh:hover { background-position: 100% 50%; transform: translateY(-1px); box-shadow: 0 10px 30px -8px rgba(77,162,255,0.6), inset 0 1px 0 rgba(255,255,255,0.4); }
+.btn-mesh:hover { filter: brightness(1.08); transform: translateY(-1px); box-shadow: 0 14px 34px -10px rgba(255,120,100,0.65); }
 .btn-mesh:active { transform: translateY(0); }
 
 /* Glass surface that floats over the mesh */
@@ -386,3 +384,27 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ── Verdict pills (used by components/ui/VerdictPill.tsx) ── */
+.verdict-conflict { background: color-mix(in srgb, var(--color-conflict) 12%, transparent); color: var(--color-conflict); border: 1px solid color-mix(in srgb, var(--color-conflict) 30%, transparent); }
+.verdict-clear    { background: color-mix(in srgb, var(--color-clear) 12%, transparent);    color: var(--color-clear);    border: 1px solid color-mix(in srgb, var(--color-clear) 30%, transparent); }
+.verdict-pending  { background: color-mix(in srgb, var(--color-pending) 14%, transparent);  color: #B45309;               border: 1px solid color-mix(in srgb, var(--color-pending) 35%, transparent); }
+
+/* ── force-light: public pages (login, docs, legal) always render the landing's
+   light theme, even when the html carries .dark from the app's theme cookie. ── */
+.force-light {
+  --app-bg: linear-gradient(180deg, #f4f8ff 0%, #eef3fb 55%, #f2f6fd 100%);
+  --bg: #F1F5FC;
+  --bg-subtle: #E9F0FA;
+  --surface: #FFFFFF;
+  --primary: #4F7EF7;
+  --primary-hover: #3E6DE8;
+  --primary-strong: #2F5BDD;
+  --primary-soft: #E9EFFE;
+  --on-primary: #FFFFFF;
+  --accent: #7C5CFF;
+  --cb-text: #1B1726;
+  --text-muted: #6B6678;
+  --border: #E3E9F5;
+}
+

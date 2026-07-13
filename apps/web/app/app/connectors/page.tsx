@@ -137,7 +137,7 @@ function ConnectorCard({
         <div
           className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
             isConnected || isLive
-              ? "bg-emerald-500/10 text-emerald-500"
+              ? "bg-[var(--color-clear)]/10 text-[var(--color-clear)]"
               : isComingSoon
                 ? "bg-[var(--bg-subtle)] text-[var(--text-muted)]"
                 : "bg-[var(--primary-soft)] text-[var(--primary)]"
@@ -172,7 +172,7 @@ function ConnectorCard({
       </p>
 
       {connector.lastError && (
-        <p className="text-xs text-[#F43F5E] flex items-center gap-1">
+        <p className="text-xs text-[var(--color-conflict)] flex items-center gap-1">
           <AlertTriangle size={11} /> {connector.lastError}
         </p>
       )}
@@ -215,7 +215,7 @@ function ConnectorCard({
               </>
             )}
           </Button>
-          {error && <p className="text-xs text-[#F43F5E]">{error}</p>}
+          {error && <p className="text-xs text-[var(--color-conflict)]">{error}</p>}
         </div>
       )}
 
@@ -248,7 +248,7 @@ function ConnectorCard({
           </div>
         </div>
       )}
-      {error && isConnected && <p className="text-xs text-[#F43F5E]">{error}</p>}
+      {error && isConnected && <p className="text-xs text-[var(--color-conflict)]">{error}</p>}
     </div>
   );
 }

@@ -49,7 +49,7 @@ export function Stat({ label, value, trend, trendUp, icon, className }: StatProp
           <span
             className={cn(
               "text-xs font-medium mb-0.5",
-              trendUp ? "text-emerald-500" : "text-[var(--text-muted)]"
+              trendUp ? "text-[var(--color-clear)]" : "text-[var(--text-muted)]"
             )}
           >
             {trend}

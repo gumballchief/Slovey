@@ -149,7 +149,7 @@ export default function TasksPage() {
             </button>
           </form>
           {error && (
-            <p className="mt-2 flex items-center gap-1.5 text-sm text-[#F43F5E]">
+            <p className="mt-2 flex items-center gap-1.5 text-sm text-[var(--color-conflict)]">
               <AlertTriangle size={13} /> {error}
             </p>
           )}
@@ -159,8 +159,8 @@ export default function TasksPage() {
 
           {/* Proactive: rejected patterns still in the code → one-click cleanup tasks */}
           {suggestions.length > 0 && (
-            <div className="mt-5 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
-              <p className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+            <div className="mt-5 rounded-xl border border-[var(--color-pending)]/30 bg-[var(--color-pending)]/5 p-4">
+              <p className="text-xs font-semibold text-[var(--color-pending)]">
                 Suggested by memory — rejected patterns still in the code
               </p>
               <div className="mt-2 space-y-2">
@@ -213,8 +213,8 @@ export default function TasksPage() {
 const STATUS_STYLE: Record<AgentRunRow["status"], string> = {
   queued: "bg-[var(--bg-subtle)] text-[var(--text-muted)]",
   running: "bg-[var(--primary-soft)] text-[var(--primary-strong)]",
-  ready: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-  failed: "bg-red-500/10 text-[#F43F5E]",
+  ready: "bg-[var(--color-clear)]/10 text-[var(--color-clear)]",
+  failed: "bg-red-500/10 text-[var(--color-conflict)]",
 };
 
 function RunCard({ run }: { run: AgentRunRow }) {
@@ -266,7 +266,7 @@ function RunCard({ run }: { run: AgentRunRow }) {
       )}
 
       {run.status === "failed" && run.error && (
-        <p className="mt-2 flex items-start gap-1.5 text-xs text-[#F43F5E]">
+        <p className="mt-2 flex items-start gap-1.5 text-xs text-[var(--color-conflict)]">
           <AlertTriangle size={12} className="mt-0.5 shrink-0" />
           {run.error}
         </p>
@@ -286,7 +286,7 @@ function VerdictChip({ verdict }: { verdict: string }) {
     <span
       className={cn(
         "inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium",
-        clear ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+        clear ? "bg-[var(--color-clear)]/10 text-[var(--color-clear)]" : "bg-amber-500/10 text-[var(--color-pending)]",
       )}
     >
       {clear ? <ShieldCheck size={11} /> : <ShieldX size={11} />}

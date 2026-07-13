@@ -24,7 +24,7 @@ const variants = {
   ghost:
     "text-[var(--text-muted)] hover:text-[var(--cb-text)] hover:bg-[var(--bg-subtle)]",
   danger:
-    "bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500/20",
+    "bg-[var(--color-conflict)]/10 text-[var(--color-conflict)] border border-[var(--color-conflict)]/20 hover:bg-red-500/20",
 };
 
 const sizes = {

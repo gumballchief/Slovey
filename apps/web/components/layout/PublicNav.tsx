@@ -1,6 +1,6 @@
 "use client";
 
-import { Brain } from "lucide-react";
+import { LogoGlyph } from "@/components/ui/Logo";
 import { useState, useEffect } from "react";
 
 export function PublicNav({ onDarkHero = false }: { onDarkHero?: boolean } = {}) {
@@ -39,7 +39,7 @@ export function PublicNav({ onDarkHero = false }: { onDarkHero?: boolean } = {})
       <div className="max-w-7xl mx-auto px-5 sm:px-8 flex items-center h-14 gap-6">
         <a href="/" className="flex items-center gap-2.5 shrink-0" aria-label="Slovey home">
           <div className="w-7 h-7 rounded-lg bg-[var(--primary)] flex items-center justify-center">
-            <Brain size={15} className="text-[var(--on-primary)]" />
+            <LogoGlyph size={15} className="text-[var(--on-primary)]" />
           </div>
           <span
             className={`font-display font-semibold tracking-[-0.02em] text-sm transition-colors ${
@@ -53,7 +53,7 @@ export function PublicNav({ onDarkHero = false }: { onDarkHero?: boolean } = {})
         <div className="flex items-center gap-1 flex-1">
           <a
             href="/demo"
-            className={`label-mono px-3 py-1.5 rounded-lg transition-colors ${
+            className={`label-mono px-3 py-2.5 rounded-lg transition-colors ${
               onHero
                 ? "text-white/60 hover:text-white hover:bg-white/10"
                 : "text-[var(--text-muted)] hover:text-[var(--cb-text)] hover:bg-[var(--bg-subtle)]"
@@ -93,7 +93,7 @@ export function PublicNav({ onDarkHero = false }: { onDarkHero?: boolean } = {})
           </button>
           <a
             href="/login"
-            className={`label-mono px-3 py-1.5 rounded-lg transition-colors ${
+            className={`label-mono px-3 py-2.5 rounded-lg transition-colors ${
               onHero
                 ? "text-white/70 hover:text-white hover:bg-white/10"
                 : "text-[var(--text-muted)] hover:text-[var(--cb-text)] hover:bg-[var(--bg-subtle)]"
@@ -103,9 +103,9 @@ export function PublicNav({ onDarkHero = false }: { onDarkHero?: boolean } = {})
           </a>
           <a
             href="/login"
-            className={`label-mono px-4 py-1.5 rounded-lg transition-colors ${
+            className={`label-mono px-4 py-2.5 rounded-lg transition-colors ${
               onHero
-                ? "bg-white text-[#04101E] hover:bg-white/90"
+                ? "bg-white text-[#1b1726] hover:bg-white/90"
                 : "bg-[var(--primary)] text-[var(--on-primary)] hover:bg-[var(--primary-hover)]"
             }`}
           >

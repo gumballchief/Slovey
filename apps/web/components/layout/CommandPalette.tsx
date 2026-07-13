@@ -109,14 +109,14 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
 
   return (
     <div
-      className="fixed inset-0 z-[90] flex items-start justify-center pt-[12vh] px-4 bg-black/50 backdrop-blur-sm animate-[fadeIn_0.12s_ease-out]"
+      className="fixed inset-0 z-[90] flex items-start justify-center pt-[12vh] px-4 bg-[rgba(27,23,38,0.4)] backdrop-blur-sm animate-[fadeIn_0.12s_ease-out]"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-label="Command palette"
     >
       <div
-        className="w-full max-w-lg bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden"
+        className="w-full max-w-lg bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-[var(--shadow-card-hover)] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* input */}

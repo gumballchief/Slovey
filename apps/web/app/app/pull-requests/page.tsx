@@ -82,7 +82,7 @@ export default function PullRequestsPage() {
               key={pr.number}
               id={String(pr.number)}
               className="card overflow-hidden border-l-2"
-              style={{ borderLeftColor: pr.verdict === "conflict" ? "#F43F5E" : "#10B981" }}
+              style={{ borderLeftColor: pr.verdict === "conflict" ? "var(--color-conflict)" : "var(--color-clear)" }}
             >
               {/* Row */}
               <button
@@ -103,9 +103,9 @@ export default function PullRequestsPage() {
                       <span
                         className={`text-2xs font-medium px-1.5 py-0.5 rounded shrink-0 capitalize ${
                           pr.severity === "critical" || pr.severity === "high"
-                            ? "bg-[#F43F5E]/10 text-[#F43F5E]"
+                            ? "bg-[var(--color-conflict)]/10 text-[var(--color-conflict)]"
                             : pr.severity === "medium"
-                              ? "bg-amber-500/10 text-amber-500"
+                              ? "bg-[var(--color-pending)]/10 text-[var(--color-pending)]"
                               : "bg-[var(--bg-subtle)] text-[var(--text-muted)]"
                         }`}
                       >

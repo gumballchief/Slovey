@@ -1,4 +1,4 @@
-import { Brain } from "lucide-react";
+import { LogoGlyph } from "@/components/ui/Logo";
 
 // Footer for the standalone marketing/legal pages (the animated landing has its
 // own inline footer). Mirrors the landing's link structure so nothing dead-ends.
@@ -41,7 +41,7 @@ export function SiteFooter() {
           <div>
             <a href="/" className="flex items-center gap-2.5" aria-label="Slovey home">
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--primary)]">
-                <Brain size={15} className="text-[var(--on-primary)]" />
+                <LogoGlyph size={15} className="text-[var(--on-primary)]" />
               </span>
               <span className="font-display text-sm font-semibold tracking-[-0.02em]">Slovey</span>
             </a>
