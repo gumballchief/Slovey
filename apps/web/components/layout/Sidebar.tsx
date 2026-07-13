@@ -67,9 +67,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
     <aside className="flex h-full w-60 flex-col border-r border-[var(--border)] bg-[var(--surface)]">
       {/* Brand */}
       <div className="flex items-center gap-2.5 px-4 py-4">
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--primary)]">
-          <LogoGlyph size={15} className="text-[var(--on-primary)]" />
-        </div>
+        <LogoGlyph size={30} className="shrink-0" />
         <span className="font-display font-semibold tracking-[-0.02em] text-[var(--cb-text)]">
           Slovey
         </span>

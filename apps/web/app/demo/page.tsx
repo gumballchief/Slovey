@@ -144,9 +144,7 @@ export default function DemoPage() {
                   className="w-full flex items-center gap-3 px-4 py-3 border-b border-[var(--border)] bg-rose-500/5 cursor-pointer"
                   aria-expanded={expanded}
                 >
-                  <div className="w-6 h-6 rounded-lg bg-[var(--primary)] flex items-center justify-center shrink-0">
-                    <LogoGlyph size={12} className="text-white" />
-                  </div>
+                  <LogoGlyph size={26} className="shrink-0" />
                   <span className="text-sm font-semibold text-[var(--cb-text)] flex-1 text-left">
                     Slovey · Conflict found
                   </span>

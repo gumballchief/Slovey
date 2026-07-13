@@ -23,37 +23,42 @@ export function LandingEffects() {
     // on mount (so the hero shows instantly) and the rest as they scroll in. Robust
     // against StrictMode double-mount and observer threshold edge cases.
     const revealEls = Array.from(root.querySelectorAll<HTMLElement>("[data-reveal]"));
-    const show = (el: HTMLElement) => {
+    const reveal = (el: HTMLElement) => {
       const sibs = el.parentElement
         ? Array.from(el.parentElement.querySelectorAll<HTMLElement>(":scope > [data-reveal]"))
         : [el];
       el.style.transitionDelay = `${Math.min(Math.max(0, sibs.indexOf(el)), 6) * 85}ms`;
-      el.style.opacity = "1";
-      el.style.transform = "none";
-      el.style.filter = "none";
+      el.classList.remove("cb-pre"); // animate opacity/transform back to visible
     };
-    if (reduce || typeof IntersectionObserver === "undefined") {
-      revealEls.forEach(show);
-    } else {
-      // IntersectionObserver is the robust tool the hand-rolled scroll+rAF wasn't:
-      // it fires for elements already in view on mount, keeps firing as they
-      // scroll in even when rAF is throttled (mobile, background tabs), needs no
-      // getBoundingClientRect / position caching, and isn't confused by dynamic
-      // layout. rootMargin trims 12% off the bottom so a section reveals just
-      // after it starts entering, not the instant its top edge appears.
+    // Fail-safe: elements are visible by default (CSS). Only hide the ones below
+    // the fold and animate them in on scroll — so a section can never end up
+    // permanently invisible, which is what made whole sections read as gaps.
+    if (!reduce && typeof IntersectionObserver !== "undefined") {
       const io = new IntersectionObserver(
         (entries) => {
           for (const e of entries) {
             if (e.isIntersecting) {
-              show(e.target as HTMLElement);
+              reveal(e.target as HTMLElement);
               io.unobserve(e.target);
             }
           }
         },
         { rootMargin: "0px 0px -12% 0px", threshold: 0.05 },
       );
-      revealEls.forEach((el) => io.observe(el));
-      cleanups.push(() => io.disconnect());
+      const vh = window.innerHeight;
+      for (const el of revealEls) {
+        if (el.getBoundingClientRect().top > vh * 0.9) {
+          el.classList.add("cb-pre"); // below the fold → hide, then reveal on scroll
+          io.observe(el);
+        }
+      }
+      // Absolute backstop: if IO never fires for something, reveal it anyway so
+      // nothing can stay hidden. Long enough that normal scrolling wins the race.
+      const safety = setTimeout(() => revealEls.forEach((el) => el.classList.remove("cb-pre")), 4500);
+      cleanups.push(() => {
+        io.disconnect();
+        clearTimeout(safety);
+      });
     }
 
     // ── magnetic hover (rect cached on enter; moves coalesced to one per frame) ──
