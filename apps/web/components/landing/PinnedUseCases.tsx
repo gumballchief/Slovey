@@ -19,7 +19,7 @@ function Heading() {
     <div style={{ textAlign: "center", marginBottom: 40 }}>
       <div style={{ fontFamily: "var(--font-mono), monospace", fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase", color: "#7fb0f2" }}>06 — Use cases</div>
       <MaskReveal style={{ marginTop: 14 }}>
-        <h2 style={{ fontFamily: "var(--font-display), sans-serif", fontWeight: 600, fontSize: "clamp(30px,4.4vw,50px)", lineHeight: 1.12, letterSpacing: "-0.025em", color: "#1b1726", margin: 0, paddingBottom: "0.08em" }}>Put your engineering memory to work</h2>
+        <h2 style={{ fontFamily: "var(--font-display), sans-serif", fontWeight: 600, fontSize: "clamp(30px,4.4vw,50px)", lineHeight: 1.12, letterSpacing: "-0.025em", color: "var(--l-ink)", margin: 0, paddingBottom: "0.08em" }}>Put your engineering memory to work</h2>
       </MaskReveal>
     </div>
   );
@@ -30,8 +30,8 @@ function Card({ c, i, open, done, active, reduce }: { c: UseCase; i: number; ope
     <div
       style={{
         borderRadius: 18,
-        border: `1px solid ${open ? "#c9d6f7" : "#e3e9f5"}`,
-        background: open ? "rgba(255,255,255,.92)" : "rgba(255,255,255,.55)",
+        border: `1px solid ${open ? "#c9d6f7" : "var(--l-border)"}`,
+        background: open ? "var(--l-card-strong)" : "var(--l-card-faint)",
         padding: "22px 26px",
         transition: "border-color .45s cubic-bezier(.16,1,.3,1), background-color .45s cubic-bezier(.16,1,.3,1), box-shadow .45s cubic-bezier(.16,1,.3,1), opacity .45s cubic-bezier(.16,1,.3,1), transform .45s cubic-bezier(.16,1,.3,1)",
         boxShadow: open ? "0 24px 60px -34px rgba(50,60,120,.4)" : "none",
@@ -40,12 +40,12 @@ function Card({ c, i, open, done, active, reduce }: { c: UseCase; i: number; ope
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-        <span style={{ fontFamily: "var(--font-mono), monospace", fontSize: 13, color: open || done ? "#4f7ef7" : "#a4a0b3", transition: "color .3s" }}>{c.no}</span>
-        <span style={{ fontFamily: "var(--font-mono), monospace", fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: open ? "#7c5cff" : "#a4a0b3", background: open ? "rgba(124,92,255,.1)" : "transparent", padding: open ? "3px 8px" : 0, borderRadius: 6, transition: "color .3s, background-color .3s, padding .3s, box-shadow .3s", boxShadow: open ? "0 0 14px rgba(124,92,255,.35)" : "none" }}>{c.tag}</span>
-        <h3 style={{ margin: 0, fontFamily: "var(--font-display), sans-serif", fontSize: 21, fontWeight: 600, letterSpacing: "-0.015em", color: open || done ? "#1b1726" : "#565163", transition: "color .3s" }}>{c.title}</h3>
+        <span style={{ fontFamily: "var(--font-mono), monospace", fontSize: 13, color: open || done ? "#4f7ef7" : "var(--l-muted)", transition: "color .3s" }}>{c.no}</span>
+        <span style={{ fontFamily: "var(--font-mono), monospace", fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: open ? "#7c5cff" : "var(--l-muted)", background: open ? "rgba(124,92,255,.1)" : "transparent", padding: open ? "3px 8px" : 0, borderRadius: 6, transition: "color .3s, background-color .3s, padding .3s, box-shadow .3s", boxShadow: open ? "0 0 14px rgba(124,92,255,.35)" : "none" }}>{c.tag}</span>
+        <h3 style={{ margin: 0, fontFamily: "var(--font-display), sans-serif", fontSize: 21, fontWeight: 600, letterSpacing: "-0.015em", color: open || done ? "var(--l-ink)" : "var(--l-body)", transition: "color .3s" }}>{c.title}</h3>
       </div>
       <div style={{ overflow: "hidden", maxHeight: reduce || open ? 220 : 0, opacity: reduce || open ? 1 : 0, transition: "max-height .6s cubic-bezier(.16,1,.3,1), opacity .5s ease" }}>
-        <p style={{ margin: "12px 0 0", fontSize: 16, lineHeight: 1.6, color: "#565163", maxWidth: 620 }}>{c.body}</p>
+        <p style={{ margin: "12px 0 0", fontSize: 16, lineHeight: 1.6, color: "var(--l-body)", maxWidth: 620 }}>{c.body}</p>
       </div>
     </div>
   );

@@ -5,7 +5,8 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useMinWidth } from "./motion";
 
 // spec #4: ink → accent → ink with a light accent-2 band, swept via background-position.
-const GRAD = "linear-gradient(100deg,#1b1726,#3a3350 20%,#4f7ef7 46%,#2a2440 62%,#7fb0f2 86%,#1b1726 100%)";
+// Themed via CSS var so dark mode swaps the ink anchors for light ones.
+const GRAD = "var(--l-headline)";
 
 /**
  * Hero H1 split into per-letter spans (words kept unbreakable). Each letter pops in

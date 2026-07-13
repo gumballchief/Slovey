@@ -32,7 +32,7 @@ export function TiltCard({
   // spec #10: rotateY = (px-.5)*12  → ±6°,  rotateX = (py-.5)*-10 → ±5°.
   const rotateY = useTransform(sx, [0, 1], [-6, 6]);
   const rotateX = useTransform(sy, [0, 1], [5, -5]);
-  const glare = useTransform([sx, sy], ([x, y]: number[]) => `radial-gradient(240px circle at ${x! * 100}% ${y! * 100}%, rgba(28,20,45,.12), transparent 60%)`);
+  const glare = useTransform([sx, sy], ([x, y]: number[]) => `radial-gradient(240px circle at ${x! * 100}% ${y! * 100}%, var(--l-border-soft), transparent 60%)`);
 
   if (reduce) {
     return (

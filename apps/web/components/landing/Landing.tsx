@@ -37,9 +37,10 @@ export function Landing() {
 
   return (
     <>
-      <IntroLoader onDone={() => setIntroDone(true)} />
       <AmbientBackground />
       <div id="cb-landing" style={{ position: "relative", zIndex: 1 }}>
+        {/* Inside #cb-landing so its fixed overlay inherits the theme vars. */}
+        <IntroLoader onDone={() => setIntroDone(true)} />
         <Nav />
         <Hero introDone={introDone || !!reduce} />
         <SocialProof />

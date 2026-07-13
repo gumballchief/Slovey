@@ -11,7 +11,7 @@ export function Marquee() {
   const strip = [...TOOLS, ...TOOLS];
   return (
     <div style={{ position: "relative", zIndex: 1, maxWidth: 1180, margin: "70px auto 0", padding: "0 24px" }}>
-      <div style={{ textAlign: "center", fontFamily: "var(--font-mono), monospace", fontSize: 11.5, letterSpacing: "0.18em", textTransform: "uppercase", color: "#8b86a0", marginBottom: 18 }}>
+      <div style={{ textAlign: "center", fontFamily: "var(--font-mono), monospace", fontSize: 11.5, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--l-muted)", marginBottom: 18 }}>
         Connects to the tools your team already uses
       </div>
       <div
@@ -23,7 +23,7 @@ export function Marquee() {
       >
         <div className="cb-marquee-track" style={{ display: "flex", gap: 54, width: "max-content", animation: "cbMarqueeX 24s linear infinite", willChange: "transform" }}>
           {strip.map((t, i) => (
-            <span key={i} style={{ fontFamily: "var(--font-display), sans-serif", fontSize: 20, fontWeight: 600, color: "#9aa0b8", whiteSpace: "nowrap" }}>
+            <span key={i} style={{ fontFamily: "var(--font-display), sans-serif", fontSize: 20, fontWeight: 600, color: "var(--l-muted2)", whiteSpace: "nowrap" }}>
               {t}
             </span>
           ))}

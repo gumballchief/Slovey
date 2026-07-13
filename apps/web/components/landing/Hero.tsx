@@ -28,17 +28,17 @@ export function Hero({ introDone }: { introDone: boolean }) {
 
   return (
     <section ref={sectionRef} id="top" style={{ position: "relative", zIndex: 1, maxWidth: 1180, margin: "0 auto", padding: "150px 24px 0", textAlign: "center" }}>
-      <motion.div {...rise(0.1)} style={{ display: "inline-flex", alignItems: "center", gap: 9, padding: "7px 15px", borderRadius: 99, background: "rgba(255,255,255,.85)", border: "1px solid #e3e9f5", marginBottom: 30 }}>
+      <motion.div {...rise(0.1)} style={{ display: "inline-flex", alignItems: "center", gap: 9, padding: "7px 15px", borderRadius: 99, background: "var(--l-card-strong)", border: "1px solid var(--l-border)", marginBottom: 30 }}>
         <span className="cb-dot-pulse" style={{ width: 7, height: 7, borderRadius: 99, background: "#4f7ef7" }} />
-        <span style={{ fontFamily: "var(--font-mono), monospace", fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase", color: "#565163" }}>Engineering Intelligence Platform</span>
+        <span style={{ fontFamily: "var(--font-mono), monospace", fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--l-body)" }}>Engineering Intelligence Platform</span>
       </motion.div>
 
       <div style={{ display: "flex", justifyContent: "center" }}>
         <AnimatedHeadline text="The intelligence layer beneath your AI coding agents" start={introDone} />
       </div>
 
-      <motion.p {...rise(0.35)} style={{ margin: "26px auto 0", maxWidth: 620, fontSize: 18, lineHeight: 1.6, color: "#565163" }}>
-        AI writes great code — it just doesn&apos;t know your company. Slovey gives it your context: your codebase, decisions, and history, so mistakes are caught <strong style={{ color: "#1b1726", fontWeight: 600 }}>before</strong> code is ever committed.
+      <motion.p {...rise(0.35)} style={{ margin: "26px auto 0", maxWidth: 620, fontSize: 18, lineHeight: 1.6, color: "var(--l-body)" }}>
+        AI writes great code — it just doesn&apos;t know your company. Slovey gives it your context: your codebase, decisions, and history, so mistakes are caught <strong style={{ color: "var(--l-ink)", fontWeight: 600 }}>before</strong> code is ever committed.
       </motion.p>
 
       <motion.div {...rise(0.5)} style={{ marginTop: 38, display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap" }}>
@@ -47,12 +47,12 @@ export function Hero({ introDone }: { introDone: boolean }) {
             Start free <span className="cb-cta-arrow" aria-hidden>→</span>
           </a>
         </Magnetic>
-        <a href="#workflow" style={{ display: "inline-flex", alignItems: "center", padding: "14px 24px", borderRadius: 12, fontWeight: 500, fontSize: 15, color: "#1b1726", textDecoration: "none", background: "#fff", border: "1px solid #e3e9f5" }}>
+        <a href="#workflow" style={{ display: "inline-flex", alignItems: "center", padding: "14px 24px", borderRadius: 12, fontWeight: 500, fontSize: 15, color: "var(--l-ink)", textDecoration: "none", background: "var(--l-card-strong)", border: "1px solid var(--l-border)" }}>
           See how it works
         </a>
       </motion.div>
 
-      <motion.div {...rise(0.62)} style={{ marginTop: 20, fontFamily: "var(--font-mono), monospace", fontSize: 12.5, letterSpacing: "0.04em", color: "#8b86a0" }}>
+      <motion.div {...rise(0.62)} style={{ marginTop: 20, fontFamily: "var(--font-mono), monospace", fontSize: 12.5, letterSpacing: "0.04em", color: "var(--l-muted)" }}>
         No credit card · <a href={GITHUB_APP_INSTALL} target="_blank" rel="noreferrer" style={{ color: "inherit" }}>Connect a repo in minutes</a>
       </motion.div>
 

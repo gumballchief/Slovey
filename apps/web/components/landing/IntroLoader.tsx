@@ -106,7 +106,7 @@ export function IntroLoader({ onDone }: { onDone: () => void }) {
             position: "fixed",
             inset: 0,
             zIndex: 200,
-            background: "#f4f2f8",
+            background: "var(--l-loader-bg)",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
@@ -121,7 +121,7 @@ export function IntroLoader({ onDone }: { onDone: () => void }) {
               fontSize: "clamp(80px, 16vw, 190px)",
               lineHeight: 1,
               letterSpacing: "-0.04em",
-              background: "linear-gradient(120deg, #1b1726 0%, #4f7ef7 90%)",
+              background: "linear-gradient(120deg, var(--l-ink) 0%, #4f7ef7 90%)",
               WebkitBackgroundClip: "text",
               backgroundClip: "text",
               WebkitTextFillColor: "transparent",
@@ -139,7 +139,7 @@ export function IntroLoader({ onDone }: { onDone: () => void }) {
               fontSize: 12,
               letterSpacing: "0.18em",
               textTransform: "uppercase",
-              color: "#6b6678",
+              color: "var(--l-muted)",
             }}
           >
             Loading engineering memory
