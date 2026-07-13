@@ -32,65 +32,28 @@ export function LandingEffects() {
       el.style.transform = "none";
       el.style.filter = "none";
     };
-    if (reduce) {
+    if (reduce || typeof IntersectionObserver === "undefined") {
       revealEls.forEach(show);
     } else {
-      // Perf contract: scroll work is ONE passive listener → ONE rAF → reads
-      // before writes. Element positions are cached in PAGE space (top/bottom +
-      // scrollY at measure time), so scrolling triggers zero getBoundingClientRect
-      // calls — only a resize re-measures.
-      type Slot = { el: HTMLElement; top: number; bottom: number };
-      let pending: Slot[] = [];
-      const measure = () => {
-        const sy = window.scrollY;
-        pending = revealEls
-          .filter((el) => el.style.opacity !== "1")
-          .map((el) => {
-            const r = el.getBoundingClientRect(); // batch: reads only
-            return { el, top: r.top + sy, bottom: r.bottom + sy };
-          });
-      };
-      let raf = 0;
-      const frame = () => {
-        raf = 0;
-        const viewTop = window.scrollY;
-        const trigger = viewTop + window.innerHeight * 0.9;
-        const due = pending.filter((s) => s.top < trigger && s.bottom > viewTop);
-        if (!due.length) return;
-        pending = pending.filter((s) => !due.includes(s));
-        for (const s of due) show(s.el); // batch: writes only
-        if (!pending.length) {
-          window.removeEventListener("scroll", onScroll);
-          window.removeEventListener("resize", onResize);
-        }
-      };
-      const onScroll = () => {
-        if (!raf) raf = requestAnimationFrame(frame);
-      };
-      let resizeRaf = 0;
-      const onResize = () => {
-        if (resizeRaf) return;
-        resizeRaf = requestAnimationFrame(() => {
-          resizeRaf = 0;
-          measure();
-          frame();
-        });
-      };
-      measure();
-      frame(); // reveal above-the-fold immediately
-      window.addEventListener("scroll", onScroll, { passive: true });
-      window.addEventListener("resize", onResize, { passive: true });
-      // content-visibility:auto wrappers have no inner layout while skipped —
-      // when the browser starts rendering one, re-measure the cached positions.
-      const cvBlocks = Array.from(root.querySelectorAll<HTMLElement>("[data-cv]"));
-      for (const b of cvBlocks) b.addEventListener("contentvisibilityautostatechange", onResize);
-      cleanups.push(() => {
-        cancelAnimationFrame(raf);
-        cancelAnimationFrame(resizeRaf);
-        window.removeEventListener("scroll", onScroll);
-        window.removeEventListener("resize", onResize);
-        for (const b of cvBlocks) b.removeEventListener("contentvisibilityautostatechange", onResize);
-      });
+      // IntersectionObserver is the robust tool the hand-rolled scroll+rAF wasn't:
+      // it fires for elements already in view on mount, keeps firing as they
+      // scroll in even when rAF is throttled (mobile, background tabs), needs no
+      // getBoundingClientRect / position caching, and isn't confused by dynamic
+      // layout. rootMargin trims 12% off the bottom so a section reveals just
+      // after it starts entering, not the instant its top edge appears.
+      const io = new IntersectionObserver(
+        (entries) => {
+          for (const e of entries) {
+            if (e.isIntersecting) {
+              show(e.target as HTMLElement);
+              io.unobserve(e.target);
+            }
+          }
+        },
+        { rootMargin: "0px 0px -12% 0px", threshold: 0.05 },
+      );
+      revealEls.forEach((el) => io.observe(el));
+      cleanups.push(() => io.disconnect());
     }
 
     // ── magnetic hover (rect cached on enter; moves coalesced to one per frame) ──
