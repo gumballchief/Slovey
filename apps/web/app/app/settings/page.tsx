@@ -241,7 +241,7 @@ export default function SettingsPage() {
             </>
           ) : rebuilt ? (
             <>
-              <Check size={13} className="text-emerald-500" />
+              <Check size={13} className="text-[var(--color-clear)]" />
               Rebuild complete
             </>
           ) : (

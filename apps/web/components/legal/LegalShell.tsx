@@ -11,7 +11,7 @@ export function LegalShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-dvh bg-[var(--bg)] text-[var(--cb-text)]">
+    <div className="force-light min-h-dvh bg-[var(--bg)] text-[var(--cb-text)]">
       <PublicNav />
       <main className="mx-auto max-w-3xl px-5 pb-24 pt-28 sm:px-8">
         <p className="label-mono text-[var(--text-muted)]">Legal</p>

@@ -4,7 +4,8 @@ import { useState } from "react";
 import { PublicNav } from "@/components/layout/PublicNav";
 import { VerdictPill } from "@/components/ui/VerdictPill";
 import { Badge } from "@/components/ui/Badge";
-import { Brain, ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
+import { ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
+import { LogoGlyph } from "@/components/ui/Logo";
 
 const DEMO_PRS = [
   {
@@ -65,7 +66,7 @@ export default function DemoPage() {
         {/* Header */}
         <div className="mb-8 text-center">
           <div className="inline-flex items-center gap-2 text-xs font-medium bg-[var(--primary-soft)] text-[var(--primary)] px-3 py-1.5 rounded-full border border-[var(--primary)]/20 mb-4">
-            <Brain size={12} />
+            <LogoGlyph size={12} />
             Interactive Demo — No install needed
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-[var(--cb-text)] tracking-tight">
@@ -144,7 +145,7 @@ export default function DemoPage() {
                   aria-expanded={expanded}
                 >
                   <div className="w-6 h-6 rounded-lg bg-[var(--primary)] flex items-center justify-center shrink-0">
-                    <Brain size={12} className="text-white" />
+                    <LogoGlyph size={12} className="text-white" />
                   </div>
                   <span className="text-sm font-semibold text-[var(--cb-text)] flex-1 text-left">
                     Slovey · Conflict found
@@ -201,7 +202,7 @@ export default function DemoPage() {
             ) : (
               <div className="card p-5 flex items-center gap-4">
                 <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0">
-                  <Brain size={18} className="text-emerald-500" />
+                  <LogoGlyph size={18} className="text-[var(--color-clear)]" />
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-[var(--cb-text)]">No conflicts found</p>

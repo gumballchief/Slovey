@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Brain, ChevronDown, Loader2, Mail } from "lucide-react";
+import { ChevronDown, Loader2, Mail } from "lucide-react";
+import { LogoGlyph } from "@/components/ui/Logo";
 import { createSupabaseBrowser } from "@/lib/supabase-browser";
 
 type Mode = "signin" | "signup";
@@ -58,27 +59,27 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="dark flex min-h-dvh items-center justify-center bg-[var(--bg)] px-5 py-12 text-[var(--cb-text)]">
+    <div className="force-light relative flex min-h-dvh items-center justify-center bg-[var(--bg)] px-5 py-12 text-[var(--cb-text)]">
       {/* ambient wash */}
       <div
         aria-hidden
         className="pointer-events-none absolute left-1/2 top-0 h-[520px] w-[900px] -translate-x-1/2 blur-[60px]"
-        style={{ background: "radial-gradient(50% 50% at 50% 30%, rgba(77,162,255,0.14), transparent 70%)" }}
+        style={{ background: "radial-gradient(50% 50% at 50% 30%, rgba(79,126,247,0.14), transparent 70%)" }}
       />
 
       <div className="relative w-full max-w-sm">
         <a href="/" className="mb-8 flex items-center justify-center gap-2.5">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--primary)]">
-            <Brain size={17} className="text-[var(--on-primary)]" />
+            <LogoGlyph size={17} className="text-[var(--on-primary)]" />
           </span>
-          <span className="font-display text-lg font-semibold tracking-[-0.02em] text-white">Slovey</span>
+          <span className="font-display text-lg font-semibold tracking-[-0.02em] text-[var(--cb-text)]">Slovey</span>
         </a>
 
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-7 shadow-2xl backdrop-blur-xl">
-          <h1 className="font-display text-2xl font-semibold tracking-[-0.02em] text-white">
+        <div className="rounded-2xl border border-[var(--border)] bg-white/85 p-7 shadow-[var(--shadow-card-hover)]">
+          <h1 className="font-display text-2xl font-semibold tracking-[-0.02em] text-[var(--cb-text)]">
             {mode === "signin" ? "Sign in" : "Create your account"}
           </h1>
-          <p className="mt-1.5 text-sm text-white/50">
+          <p className="mt-1.5 text-sm text-[var(--text-muted)]">
             {mode === "signin" ? "Welcome back to your engineering memory." : "Start capturing your team's decisions."}
           </p>
 
@@ -96,7 +97,7 @@ export default function LoginPage() {
               {busy === "github" ? <Loader2 size={16} className="animate-spin" /> : <GitHubIcon />}
               Continue with GitHub
             </button>
-            <p className="mt-2 text-center text-xs text-white/40">
+            <p className="mt-2 text-center text-xs text-[var(--text-muted)]">
               GitHub is required to connect your repositories.
             </p>
           </div>
@@ -105,7 +106,7 @@ export default function LoginPage() {
           <button
             type="button"
             onClick={() => setShowMore((v) => !v)}
-            className="mt-5 flex w-full items-center justify-center gap-1.5 text-xs text-white/45 hover:text-white/70"
+            className="mt-5 flex w-full items-center justify-center gap-1.5 text-xs text-[var(--text-muted)] hover:text-[var(--cb-text)]"
           >
             {showMore ? "Hide other options" : "Other ways to sign in"}
             <ChevronDown size={13} className={showMore ? "rotate-180 transition-transform" : "transition-transform"} />
@@ -113,23 +114,23 @@ export default function LoginPage() {
 
           {showMore && (
             <div className="mt-4">
-              <p className="mb-3 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs leading-relaxed text-white/45">
+              <p className="mb-3 rounded-lg border border-[var(--border)] bg-[var(--bg-subtle)] px-3 py-2 text-xs leading-relaxed text-[var(--text-muted)]">
                 Google and email sign-in let you browse, but connecting repositories still requires GitHub.
               </p>
               <button
                 onClick={() => oauth("google")}
                 disabled={!!busy}
-                className="flex w-full cursor-pointer items-center justify-center gap-2.5 rounded-xl border border-white/12 bg-white/[0.04] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-white/[0.08] disabled:opacity-50"
+                className="flex w-full cursor-pointer items-center justify-center gap-2.5 rounded-xl border border-[var(--border)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--cb-text)] transition-colors hover:bg-[var(--bg-subtle)] disabled:opacity-50"
               >
                 {busy === "google" ? <Loader2 size={16} className="animate-spin" /> : <GoogleIcon />}
                 Continue with Google
               </button>
 
               {/* divider */}
-              <div className="my-5 flex items-center gap-3 text-white/30">
-                <span className="h-px flex-1 bg-white/10" />
+              <div className="my-5 flex items-center gap-3 text-[var(--text-muted)]">
+                <span className="h-px flex-1 bg-[var(--border)]" />
                 <span className="label-mono">or</span>
-                <span className="h-px flex-1 bg-white/10" />
+                <span className="h-px flex-1 bg-[var(--border)]" />
               </div>
 
               {/* Email */}
@@ -141,7 +142,7 @@ export default function LoginPage() {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@company.com"
               autoComplete="email"
-              className="w-full rounded-xl border border-white/12 bg-white/[0.03] px-3.5 py-2.5 text-sm text-white placeholder:text-white/35 focus:border-[var(--primary)]/60 focus:outline-none"
+              className="w-full rounded-xl border border-[var(--border)] bg-white px-3.5 py-2.5 text-sm text-[var(--cb-text)] placeholder:text-[var(--text-muted)] focus:border-[var(--primary)] focus:outline-none"
             />
             <input
               type="password"
@@ -151,7 +152,7 @@ export default function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Password (8+ characters)"
               autoComplete={mode === "signin" ? "current-password" : "new-password"}
-              className="w-full rounded-xl border border-white/12 bg-white/[0.03] px-3.5 py-2.5 text-sm text-white placeholder:text-white/35 focus:border-[var(--primary)]/60 focus:outline-none"
+              className="w-full rounded-xl border border-[var(--border)] bg-white px-3.5 py-2.5 text-sm text-[var(--cb-text)] placeholder:text-[var(--text-muted)] focus:border-[var(--primary)] focus:outline-none"
             />
             <button
               type="submit"
@@ -163,7 +164,7 @@ export default function LoginPage() {
             </button>
           </form>
 
-              <p className="mt-5 text-center text-sm text-white/50">
+              <p className="mt-5 text-center text-sm text-[var(--text-muted)]">
                 {mode === "signin" ? "Don't have an account? " : "Already have an account? "}
                 <button
                   type="button"
@@ -180,14 +181,14 @@ export default function LoginPage() {
             </div>
           )}
 
-          {error && <p className="mt-4 text-sm text-[#FF6B8A]">{error}</p>}
+          {error && <p className="mt-4 text-sm text-[var(--color-conflict)]">{error}</p>}
           {notice && <p className="mt-4 text-sm text-[var(--primary)]">{notice}</p>}
         </div>
 
-        <p className="mt-6 text-center text-xs text-white/35">
+        <p className="mt-6 text-center text-xs text-[var(--text-muted)]">
           By continuing you agree to the{" "}
-          <a href="/terms" className="text-white/60 underline hover:text-white">Terms</a> and{" "}
-          <a href="/privacy" className="text-white/60 underline hover:text-white">Privacy Policy</a>.
+          <a href="/terms" className="text-[var(--cb-text)]/80 underline hover:text-[var(--cb-text)]">Terms</a> and{" "}
+          <a href="/privacy" className="text-[var(--cb-text)]/80 underline hover:text-[var(--cb-text)]">Privacy Policy</a>.
         </p>
       </div>
     </div>

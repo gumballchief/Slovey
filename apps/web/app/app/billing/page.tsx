@@ -51,7 +51,7 @@ function Meter({ label, used, limit }: { label: string; used: number; limit: num
     <div>
       <div className="flex justify-between text-xs mb-1">
         <span className="text-[var(--text-muted)]">{label}</span>
-        <span className={over ? "text-[#F43F5E]" : "text-[var(--cb-text)]"}>
+        <span className={over ? "text-[var(--color-conflict)]" : "text-[var(--cb-text)]"}>
           {used}
           {unlimited ? "" : ` / ${limit}`}
         </span>
@@ -61,7 +61,7 @@ function Meter({ label, used, limit }: { label: string; used: number; limit: num
           className="h-full rounded-full"
           style={{
             width: unlimited ? "8%" : `${p}%`,
-            background: over ? "#F43F5E" : "var(--primary)",
+            background: over ? "var(--color-conflict)" : "var(--primary)",
           }}
         />
       </div>
@@ -213,7 +213,7 @@ export default function BillingPage() {
                 ) : (
                   <>
                     <Zap size={13} />
-                    {plan.id === "enterprise" ? "Contact sales" : plan.id === "pro" ? "Upgrade — $" + "20/mo" : `Switch to ${plan.name}`}
+                    {plan.id === "enterprise" ? "Contact sales" : plan.id === "pro" ? "Upgrade — $" + "19/mo" : `Switch to ${plan.name}`}
                   </>
                 )}
               </Button>

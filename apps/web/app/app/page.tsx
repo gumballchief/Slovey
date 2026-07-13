@@ -9,7 +9,8 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ConnectRepoButton } from "@/components/ui/ConnectRepoButton";
 import { ReconnectGitHubButton } from "@/components/ui/ReconnectGitHubButton";
 import { VerdictPill } from "@/components/ui/VerdictPill";
-import { Brain, GitPullRequest, AlertTriangle, Clock } from "lucide-react";
+import { GitPullRequest, AlertTriangle, Clock } from "lucide-react";
+import { LogoGlyph } from "@/components/ui/Logo";
 import { formatRelativeTime } from "@/lib/utils";
 import {
   AreaChart,
@@ -38,7 +39,7 @@ export default function OverviewPage() {
     return (
       <div className="p-6 max-w-6xl mx-auto">
         <EmptyState
-          icon={<Brain size={22} />}
+          icon={<LogoGlyph size={22} />}
           title="No repository connected yet"
           description="Two things bring a repo in: (1) install the Slovey GitHub App on it, and (2) make sure you signed in with GitHub — repo access is tied to your GitHub account. Already did both but don't see it? Reconnect GitHub to refresh."
           action={
@@ -100,11 +101,11 @@ export default function OverviewPage() {
         <div
           aria-hidden
           className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full opacity-70 blur-3xl"
-          style={{ background: "radial-gradient(circle, rgba(77,162,255,0.16), transparent 70%)" }}
+          style={{ background: "radial-gradient(circle, rgba(79,126,247,0.16), transparent 70%)" }}
         />
         <div className="relative">
           <span className="label-mono flex items-center gap-2 text-[var(--primary-strong)]">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> {repo.name} · synced
+            <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-clear)]" /> {repo.name} · synced
           </span>
           <h2 className="mt-2 font-display text-[1.7rem] font-semibold tracking-[-0.02em] text-[var(--cb-text)]">
             {repo.decisionsCount} decisions in memory
@@ -121,7 +122,7 @@ export default function OverviewPage() {
           label="Decisions Remembered"
           value={repo.decisionsCount}
           trend="in memory"
-          icon={<Brain size={16} />}
+          icon={<LogoGlyph size={16} />}
         />
         <Stat
           label="PRs Checked"
@@ -156,12 +157,12 @@ export default function OverviewPage() {
               <AreaChart data={repo.trend} margin={{ top: 4, right: 0, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="clearGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10B981" stopOpacity={0.2} />
-                    <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
+                    <stop offset="5%" stopColor="var(--color-clear)" stopOpacity={0.2} />
+                    <stop offset="95%" stopColor="var(--color-clear)" stopOpacity={0} />
                   </linearGradient>
                   <linearGradient id="conflictGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#F43F5E" stopOpacity={0.2} />
-                    <stop offset="95%" stopColor="#F43F5E" stopOpacity={0} />
+                    <stop offset="5%" stopColor="var(--color-conflict)" stopOpacity={0.2} />
+                    <stop offset="95%" stopColor="var(--color-conflict)" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <XAxis
@@ -188,7 +189,7 @@ export default function OverviewPage() {
                   type="monotone"
                   dataKey="clears"
                   name="Clear"
-                  stroke="#10B981"
+                  stroke="var(--color-clear)"
                   strokeWidth={2}
                   fill="url(#clearGrad)"
                 />
@@ -196,7 +197,7 @@ export default function OverviewPage() {
                   type="monotone"
                   dataKey="conflicts"
                   name="Conflicts"
-                  stroke="#F43F5E"
+                  stroke="var(--color-conflict)"
                   strokeWidth={2}
                   fill="url(#conflictGrad)"
                 />
@@ -247,7 +248,7 @@ export default function OverviewPage() {
               <span
                 aria-hidden="true"
                 className={`absolute left-0 top-0 bottom-0 w-[3px] ${
-                  pr.verdict === "conflict" ? "bg-[#F43F5E]" : "bg-[#10B981]"
+                  pr.verdict === "conflict" ? "bg-[var(--color-conflict)]" : "bg-[#10B981]"
                 } opacity-0 group-hover:opacity-100 transition-opacity`}
               />
               <VerdictPill verdict={pr.verdict} size="sm" />

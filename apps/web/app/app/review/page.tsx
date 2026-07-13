@@ -65,7 +65,7 @@ export default function ReviewPage() {
             Review queue
           </h1>
           <p className="text-xs text-[var(--text-muted)] mt-1">
-            Confirm what the brain learned. Approving makes it trusted memory; rejecting records it as
+            Confirm what Slovey learned. Approving makes it trusted memory; rejecting records it as
             “we decided against this.”
           </p>
         </div>
@@ -77,7 +77,7 @@ export default function ReviewPage() {
         <EmptyState
           icon={<Sparkles size={22} />}
           title="Nothing to review"
-          description="Every learned decision has been confirmed. New decisions appear here as the brain learns them."
+          description="Every learned decision has been confirmed. New decisions appear here as Slovey learns them."
         />
       ) : (
         <>

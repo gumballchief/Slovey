@@ -200,7 +200,7 @@ function TurnView({ turn, onFollow }: { turn: Turn; onFollow: (q: string) => voi
         {turn.loading ? (
           <Reasoning />
         ) : turn.error ? (
-          <div className="flex items-start gap-2 text-sm text-[#F43F5E]">
+          <div className="flex items-start gap-2 text-sm text-[var(--color-conflict)]">
             <AlertTriangle size={15} className="mt-0.5 shrink-0" />
             <span>{turn.error}</span>
           </div>
@@ -230,8 +230,8 @@ function Reasoning() {
 }
 
 const CONF_STYLE: Record<Confidence, string> = {
-  high: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-  medium: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  high: "bg-[var(--color-clear)]/10 text-[var(--color-clear)]",
+  medium: "bg-amber-500/10 text-[var(--color-pending)] dark:text-amber-400",
   low: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
   none: "bg-[var(--bg-subtle)] text-[var(--text-muted)]",
 };
@@ -283,8 +283,8 @@ function RejectedPrecedent({
 }) {
   if (!items.length) return null;
   return (
-    <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2.5 space-y-1.5">
-      <p className="text-xs font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+    <div className="rounded-lg border border-[var(--color-pending)]/30 bg-[var(--color-pending)]/5 px-3 py-2.5 space-y-1.5">
+      <p className="text-xs font-semibold text-[var(--color-pending)] dark:text-amber-400 flex items-center gap-1.5">
         <AlertTriangle size={12} /> We already tried this
       </p>
       {items.map((p, i) => (
@@ -352,8 +352,8 @@ function AskView({ data, onFollow }: { data: AskAnswer; onFollow: (q: string) =>
 }
 
 const VERDICT: Record<CanIAnswer["verdict"], { icon: typeof CheckCircle2; cls: string; label: string }> = {
-  allowed: { icon: CheckCircle2, cls: "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10", label: "Allowed" },
-  disallowed: { icon: Ban, cls: "text-[#F43F5E] bg-red-500/10", label: "Disallowed" },
+  allowed: { icon: CheckCircle2, cls: "text-[var(--color-clear)] bg-[var(--color-clear)]/10", label: "Allowed" },
+  disallowed: { icon: Ban, cls: "text-[var(--color-conflict)] bg-red-500/10", label: "Disallowed" },
   unclear: { icon: CircleHelp, cls: "text-[var(--text-muted)] bg-[var(--bg-subtle)]", label: "Unclear" },
 };
 
@@ -379,9 +379,9 @@ function CanIView({ data }: { data: CanIAnswer }) {
 }
 
 const RISK_STYLE: Record<PlanAnswer["risk"], string> = {
-  low: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-  medium: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-  high: "bg-red-500/10 text-[#F43F5E]",
+  low: "bg-[var(--color-clear)]/10 text-[var(--color-clear)]",
+  medium: "bg-amber-500/10 text-[var(--color-pending)] dark:text-amber-400",
+  high: "bg-red-500/10 text-[var(--color-conflict)]",
 };
 
 function PlanView({ data }: { data: PlanAnswer }) {
@@ -400,7 +400,7 @@ function PlanView({ data }: { data: PlanAnswer }) {
 
       {data.conflicts.length > 0 && (
         <div className="rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-2.5 space-y-1.5">
-          <p className="text-xs font-semibold text-[#F43F5E] flex items-center gap-1.5">
+          <p className="text-xs font-semibold text-[var(--color-conflict)] flex items-center gap-1.5">
             <AlertTriangle size={12} /> Blockers
           </p>
           {data.conflicts.map((c, i) => (
