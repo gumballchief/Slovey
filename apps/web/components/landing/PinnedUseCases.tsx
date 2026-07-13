@@ -87,7 +87,7 @@ function UseCasesPinned() {
 
   return (
     <section id="usecases">
-      <div ref={outerRef} style={{ position: "relative", height: "420vh" }}>
+      <div ref={outerRef} style={{ position: "relative", height: "340vh" }}>
         <div style={{ position: "sticky", top: 0, minHeight: "100vh", display: "flex", flexDirection: "column", justifyContent: "center", padding: "40px 0" }}>
           <div style={{ maxWidth: 860, margin: "0 auto", padding: "0 24px", width: "100%" }}>
             <Heading />
