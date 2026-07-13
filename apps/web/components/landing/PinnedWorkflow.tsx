@@ -21,7 +21,7 @@ function Heading() {
     <div style={{ textAlign: "center", marginBottom: 8 }}>
       <div style={{ fontFamily: "var(--font-mono), monospace", fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase", color: "#7fb0f2" }}>04 — Pipeline</div>
       <MaskReveal style={{ marginTop: 14 }}>
-        <h2 style={{ fontFamily: "var(--font-display), sans-serif", fontWeight: 600, fontSize: "clamp(30px,4.4vw,50px)", lineHeight: 1.12, letterSpacing: "-0.025em", color: "#1b1726", margin: 0, paddingBottom: "0.08em" }}>What happens on every change</h2>
+        <h2 style={{ fontFamily: "var(--font-display), sans-serif", fontWeight: 600, fontSize: "clamp(30px,4.4vw,50px)", lineHeight: 1.12, letterSpacing: "-0.025em", color: "var(--l-ink)", margin: 0, paddingBottom: "0.08em" }}>What happens on every change</h2>
       </MaskReveal>
     </div>
   );
@@ -46,11 +46,11 @@ function WorkflowStacked() {
       <Heading />
       <div style={{ marginTop: 40, display: "grid", gap: 16 }}>
         {STEPS.map((s) => (
-          <div key={s.no} style={{ display: "flex", gap: 16, padding: 20, borderRadius: 16, border: "1px solid #e3e9f5", background: "rgba(255,255,255,.7)" }}>
+          <div key={s.no} style={{ display: "flex", gap: 16, padding: 20, borderRadius: 16, border: "1px solid var(--l-border)", background: "var(--l-card)" }}>
             <div style={{ fontFamily: "var(--font-mono), monospace", color: "#4f7ef7", fontSize: 13 }}>{s.no}</div>
             <div>
-              <h3 style={{ margin: 0, fontSize: 18, fontFamily: "var(--font-display), sans-serif", color: "#1b1726" }}>{s.title}</h3>
-              <p style={{ margin: "6px 0 0", fontSize: 14.5, color: "#565163" }}>{s.body}</p>
+              <h3 style={{ margin: 0, fontSize: 18, fontFamily: "var(--font-display), sans-serif", color: "var(--l-ink)" }}>{s.title}</h3>
+              <p style={{ margin: "6px 0 0", fontSize: 14.5, color: "var(--l-body)" }}>{s.body}</p>
             </div>
           </div>
         ))}
@@ -79,14 +79,14 @@ function WorkflowPinned() {
             <div style={{ marginTop: 44, display: "grid", gridTemplateColumns: "minmax(0,340px) 1fr", gap: 48, alignItems: "center" }} data-flow>
               {/* left rail */}
               <div style={{ position: "relative", paddingLeft: 26 }}>
-                <div style={{ position: "absolute", left: 5, top: 6, bottom: 6, width: 2, background: "#e3e9f5", borderRadius: 2 }} />
+                <div style={{ position: "absolute", left: 5, top: 6, bottom: 6, width: 2, background: "var(--l-border)", borderRadius: 2 }} />
                 <div style={{ position: "absolute", left: 5, top: 6, width: 2, height: railH, background: "linear-gradient(#4f7ef7,#7c5cff)", borderRadius: 2, transition: "height .4s cubic-bezier(.16,1,.3,1)" }} />
                 {STEPS.map((s, i) => {
                   const reached = i <= active;
                   return (
                     <div key={s.no} style={{ position: "relative", padding: "13px 0" }}>
-                      <span style={{ position: "absolute", left: -26, top: 18, width: 12, height: 12, borderRadius: 99, background: reached ? "#4f7ef7" : "#fff", border: `2px solid ${reached ? "#4f7ef7" : "#cfd8ec"}`, transition: "background-color .3s, border-color .3s, transform .3s, box-shadow .3s", transform: i === active ? "scale(1.25)" : "scale(1)", boxShadow: i === active ? "0 0 0 5px rgba(79,126,247,.15)" : "none" }} />
-                      <div style={{ fontFamily: "var(--font-inter-tight), sans-serif", fontSize: 15.5, fontWeight: i === active ? 600 : 500, color: reached ? "#1b1726" : "#a4a0b3", transition: "color .3s" }}>{s.title}</div>
+                      <span style={{ position: "absolute", left: -26, top: 18, width: 12, height: 12, borderRadius: 99, background: reached ? "#4f7ef7" : "#fff", border: `2px solid ${reached ? "#4f7ef7" : "var(--l-border)"}`, transition: "background-color .3s, border-color .3s, transform .3s, box-shadow .3s", transform: i === active ? "scale(1.25)" : "scale(1)", boxShadow: i === active ? "0 0 0 5px rgba(79,126,247,.15)" : "none" }} />
+                      <div style={{ fontFamily: "var(--font-inter-tight), sans-serif", fontSize: 15.5, fontWeight: i === active ? 600 : 500, color: reached ? "var(--l-ink)" : "var(--l-muted)", transition: "color .3s" }}>{s.title}</div>
                     </div>
                   );
                 })}
@@ -102,8 +102,8 @@ function WorkflowPinned() {
                     style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", justifyContent: "center" }}
                   >
                     <div style={{ fontFamily: "var(--font-display), sans-serif", fontSize: 64, fontWeight: 700, color: "#e6ecfb", lineHeight: 1 }}>{s.no}</div>
-                    <h3 style={{ fontFamily: "var(--font-display), sans-serif", fontSize: 30, fontWeight: 600, letterSpacing: "-0.02em", color: "#1b1726", margin: "8px 0 0" }}>{s.title}</h3>
-                    <p style={{ fontSize: 17, lineHeight: 1.6, color: "#565163", margin: "12px 0 0", maxWidth: 460 }}>{s.body}</p>
+                    <h3 style={{ fontFamily: "var(--font-display), sans-serif", fontSize: 30, fontWeight: 600, letterSpacing: "-0.02em", color: "var(--l-ink)", margin: "8px 0 0" }}>{s.title}</h3>
+                    <p style={{ fontSize: 17, lineHeight: 1.6, color: "var(--l-body)", margin: "12px 0 0", maxWidth: 460 }}>{s.body}</p>
                     <div style={{ marginTop: 20, display: "inline-flex", alignSelf: "flex-start", fontFamily: "var(--font-mono), monospace", fontSize: 13, color: s.ok ? "#6ea8ff" : "#ff9cae", background: "#0e1220", padding: "10px 14px", borderRadius: 10, border: "1px solid rgba(255,255,255,.08)" }}>{s.term}</div>
                   </motion.div>
                 ))}

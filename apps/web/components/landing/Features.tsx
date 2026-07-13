@@ -27,7 +27,7 @@ export function Features() {
         03 — Capabilities
       </Reveal>
       <MaskReveal delay={0.06} style={{ margin: "16px auto 0", maxWidth: 720, textAlign: "center" }}>
-        <h2 style={{ fontFamily: "var(--font-display), sans-serif", fontWeight: 600, fontSize: "clamp(30px,4.4vw,50px)", lineHeight: 1.12, letterSpacing: "-0.025em", color: "#1b1726", margin: 0, paddingBottom: "0.08em" }}>
+        <h2 style={{ fontFamily: "var(--font-display), sans-serif", fontWeight: 600, fontSize: "clamp(30px,4.4vw,50px)", lineHeight: 1.12, letterSpacing: "-0.025em", color: "var(--l-ink)", margin: 0, paddingBottom: "0.08em" }}>
           Everything an agent needs to write code your way
         </h2>
       </MaskReveal>
@@ -38,13 +38,13 @@ export function Features() {
             <RevealItem key={f.title}>
               <TiltCard
                 className="cb-feat-card"
-                style={{ borderRadius: 20, border: "1px solid #e3e9f5", background: "rgba(255,255,255,.78)", padding: 28, height: "100%", boxShadow: "0 20px 50px -30px rgba(30,40,90,.35)" }}
+                style={{ borderRadius: 20, border: "1px solid var(--l-border)", background: "var(--l-card)", padding: 28, height: "100%", boxShadow: "0 20px 50px -30px rgba(30,40,90,.35)" }}
               >
-                <div style={{ transform: "translateZ(38px)", width: 46, height: 46, borderRadius: 13, background: "#eaf0fe", display: "grid", placeItems: "center", marginBottom: 20 }}>
+                <div style={{ transform: "translateZ(38px)", width: 46, height: 46, borderRadius: 13, background: "var(--l-icon-chip)", display: "grid", placeItems: "center", marginBottom: 20 }}>
                   {f.icon}
                 </div>
-                <h3 style={{ transform: "translateZ(26px)", fontFamily: "var(--font-display), sans-serif", fontSize: 19, fontWeight: 600, letterSpacing: "-0.01em", color: "#1b1726", margin: "0 0 10px" }}>{f.title}</h3>
-                <p style={{ transform: "translateZ(16px)", fontSize: 14.5, lineHeight: 1.6, color: "#565163", margin: 0 }}>{f.body}</p>
+                <h3 style={{ transform: "translateZ(26px)", fontFamily: "var(--font-display), sans-serif", fontSize: 19, fontWeight: 600, letterSpacing: "-0.01em", color: "var(--l-ink)", margin: "0 0 10px" }}>{f.title}</h3>
+                <p style={{ transform: "translateZ(16px)", fontSize: 14.5, lineHeight: 1.6, color: "var(--l-body)", margin: 0 }}>{f.body}</p>
               </TiltCard>
             </RevealItem>
           ))}

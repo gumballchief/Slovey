@@ -156,7 +156,7 @@ export function LandingEffects() {
     const openAnswer = faqButtons.map((b) => b.nextElementSibling as HTMLElement | null).find((el) => el && !("dataset" in el && (el as HTMLElement).dataset.cbFaq));
     const answerCss =
       (openAnswer?.getAttribute("style") || "").replace(/max-height:[^;]*;?/g, "") ||
-      "padding:0 4px 4px;color:#565163;font-size:15px;line-height:1.6";
+      "padding:0 4px 4px;color:var(--l-body);font-size:15px;line-height:1.6";
     let openBtn: HTMLButtonElement | null = null;
     // Normalize the design's initially-open answer so it collapses uniformly.
     for (const b of faqButtons) {

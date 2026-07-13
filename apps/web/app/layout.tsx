@@ -99,6 +99,12 @@ export default async function RootLayout({
   }, true);
 })();`}
         </Script>
+        {/* Apply the saved landing theme before paint so dark-mode visitors
+            never see a flash of the light landing. Scoped class on <html>;
+            the landing's dark vars key off html.cb-dark #cb-landing. */}
+        <Script id="landing-theme-init" strategy="beforeInteractive">
+          {`(function(){try{if(localStorage.getItem('slovey-landing-theme')==='dark')document.documentElement.classList.add('cb-dark');}catch(e){}})();`}
+        </Script>
         {children}
       </body>
     </html>
