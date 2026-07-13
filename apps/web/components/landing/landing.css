@@ -45,7 +45,7 @@ html.cb-dark #cb-landing{
 html:has(#cb-landing),body:has(#cb-landing){background:#f0f5fd}
 html.cb-dark:has(#cb-landing),html.cb-dark body:has(#cb-landing){background:#090c14}
 #cb-landing *{box-sizing:border-box}
-#cb-landing{margin:0;background:var(--l-bg);color:var(--l-body);font-family:var(--font-inter-tight),system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden;min-height:100vh;position:relative;scroll-behavior:smooth}
+#cb-landing{margin:0;background:var(--l-bg);color:var(--l-body);font-family:var(--font-inter-tight),system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden;min-height:100vh;position:relative}
 #cb-landing ::selection{background:rgba(79,126,247,.35)}
 #cb-landing [data-reveal]{opacity:0;transform:translateY(46px);transition:opacity 1.1s cubic-bezier(.16,1,.3,1),transform 1.1s cubic-bezier(.16,1,.3,1)}
 #cb-landing [data-magnetic]{transition:transform .4s cubic-bezier(.16,1,.3,1),box-shadow .4s ease;will-change:transform}
@@ -74,7 +74,8 @@ html.cb-dark:has(#cb-landing),html.cb-dark body:has(#cb-landing){background:#090
 @keyframes cbAur2{0%{transform:translate(0,0) scale(1)}33%{transform:translate(-9vw,-5vh) scale(1.1)}66%{transform:translate(6vw,-9vh) scale(1.2)}100%{transform:translate(0,0) scale(1)}}
 @keyframes cbAur3{0%{transform:translate(0,0) scale(1.05)}50%{transform:translate(7vw,-6vh) scale(.9)}100%{transform:translate(0,0) scale(1.05)}}
 @keyframes cbHue{0%,100%{filter:blur(70px) hue-rotate(0deg)}50%{filter:blur(80px) hue-rotate(22deg)}}
-@media (min-width:760px){#cb-landing{scroll-snap-type:y proximity}#cb-landing section{scroll-snap-align:start}}
+/* No scroll-snap: it fights Lenis smooth scroll and makes the page feel like
+   it's tugging against you. Lenis provides the polished scroll feel instead. */
 #cb-landing section{scroll-margin-top:84px}
 @media (max-width:720px){
   #cb-landing [data-flow]{grid-template-columns:1fr!important}

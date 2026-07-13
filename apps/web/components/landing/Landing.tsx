@@ -22,9 +22,6 @@ import restB2b from "./rest-b2b.json";
 const PinnedWorkflow = dynamic(() => import("./PinnedWorkflow").then((m) => m.PinnedWorkflow));
 const PinnedUseCases = dynamic(() => import("./PinnedUseCases").then((m) => m.PinnedUseCases));
 
-// Below-the-fold innerHTML blocks skip layout/paint until they near the
-// viewport; the intrinsic size keeps the scrollbar stable.
-const cvAuto: React.CSSProperties = { contentVisibility: "auto", containIntrinsicSize: "auto 1200px" };
 
 /**
  * Landing shell. The hero + nav are real animated components (framer-motion); the
@@ -46,12 +43,12 @@ export function Landing() {
         <SocialProof />
         <Marquee />
         <StatementSection />
-        <div style={cvAuto} data-cv dangerouslySetInnerHTML={{ __html: (restAfterStatement as { html: string }).html }} />
+        <div dangerouslySetInnerHTML={{ __html: (restAfterStatement as { html: string }).html }} />
         <Features />
         <PinnedWorkflow />
-        <div style={cvAuto} data-cv dangerouslySetInnerHTML={{ __html: (restB2a as { html: string }).html }} />
+        <div dangerouslySetInnerHTML={{ __html: (restB2a as { html: string }).html }} />
         <PinnedUseCases />
-        <div style={cvAuto} data-cv dangerouslySetInnerHTML={{ __html: (restB2b as { html: string }).html }} />
+        <div dangerouslySetInnerHTML={{ __html: (restB2b as { html: string }).html }} />
       </div>
       <LandingEffects />
     </>
