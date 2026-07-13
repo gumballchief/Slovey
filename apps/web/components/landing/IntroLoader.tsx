@@ -3,10 +3,20 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 
+const COUNT_MS = 1500; // 0 → 100 duration
+const HOLD_MS = 240; // pause at 100 before the fade
+const easeOutExpo = (t: number) => (t >= 1 ? 1 : 1 - 2 ** (-10 * t));
+
 /**
- * Full-screen intro loader (spec #1): a large gradient number counts 0→100 with a
- * thin fill bar + mono caption, locks scroll while active, then fades out (~700ms)
- * and calls onDone. Reduced-motion: skips entirely (renders nothing, fires onDone).
+ * Full-screen intro loader (spec #1): a gradient number counts 0→100, locks
+ * scroll while active, then fades out and calls onDone.
+ *
+ * Resilience is the whole point of the rewrite: the count is driven by
+ * wall-clock elapsed time (not per-frame increments), and a hard setTimeout
+ * safety net force-completes the loader even if requestAnimationFrame is
+ * throttled or paused (background tabs, battery saver, heavy mobile pages) —
+ * so the overlay can never permanently cover the page or leave scroll locked.
+ * Tap / scroll / key also skips. Reduced-motion: skips entirely.
  */
 export function IntroLoader({ onDone }: { onDone: () => void }) {
   const reduce = useReducedMotion();
@@ -21,40 +31,65 @@ export function IntroLoader({ onDone }: { onDone: () => void }) {
     }
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    // Single rAF loop (no stacked timers). Same pacing as the spec: each tick
-    // advances by ~10% of the remaining gap (min 1) + jitter, ticks 26–66ms
-    // apart (~1.5–2.2s to 100), then 260ms hold → .7s fade → unlock + release.
+
+    const start = performance.now();
     let raf = 0;
-    let p = 0;
-    let nextTickAt = performance.now() + 26 + Math.random() * 40;
-    let doneAt = 0; // when p hit 100 (0 = still counting)
-    let faded = false;
-    const loop = (now: number) => {
-      if (!doneAt) {
-        if (now >= nextTickAt) {
-          p += Math.max(1, (100 - p) * 0.1) + Math.random() * 1.5;
-          if (p >= 100) {
-            setPct(100);
-            doneAt = now;
-          } else {
-            setPct(Math.floor(p));
-            nextTickAt = now + 26 + Math.random() * 40;
-          }
-        }
-      } else if (!faded && now >= doneAt + 260) {
-        faded = true;
-        setGone(true); // begins the .7s exit fade
-      } else if (faded && now >= doneAt + 260 + 720) {
-        document.body.style.overflow = prevOverflow;
-        onDone(); // release the hero letter pop-in
-        return; // loop ends
-      }
-      raf = requestAnimationFrame(loop);
+    let finished = false;
+
+    // Single idempotent exit: unlock scroll, start the fade, release the hero.
+    // Called from whichever fires first — the rAF completion or the safety net.
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      cancelAnimationFrame(raf);
+      clearTimeout(safety);
+      setPct(100);
+      document.body.style.overflow = prevOverflow;
+      setGone(true); // triggers the AnimatePresence exit fade
+      onDone(); // release the hero letter pop-in
     };
-    raf = requestAnimationFrame(loop);
+
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / COUNT_MS);
+      setPct(Math.round(easeOutExpo(t) * 100));
+      if (t >= 1) {
+        setTimeout(finish, HOLD_MS);
+        return;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+
+    // Hard safety net — setTimeout still fires in throttled/background tabs even
+    // when rAF is paused, guaranteeing the page is never left bricked.
+    const safety = setTimeout(finish, COUNT_MS + HOLD_MS + 500);
+
+    // Returning to a backgrounded tab: snap to the correct value / finish.
+    const onVis = () => {
+      if (finished || document.hidden) return;
+      if (performance.now() - start >= COUNT_MS) finish();
+      else {
+        cancelAnimationFrame(raf);
+        raf = requestAnimationFrame(tick);
+      }
+    };
+    // Manual escape hatch.
+    const skip = () => finish();
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("pointerdown", skip);
+    window.addEventListener("keydown", skip);
+    window.addEventListener("wheel", skip, { passive: true });
+    window.addEventListener("touchstart", skip, { passive: true });
+
     return () => {
       cancelAnimationFrame(raf);
+      clearTimeout(safety);
       document.body.style.overflow = prevOverflow;
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("pointerdown", skip);
+      window.removeEventListener("keydown", skip);
+      window.removeEventListener("wheel", skip);
+      window.removeEventListener("touchstart", skip);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reduce]);
@@ -66,7 +101,7 @@ export function IntroLoader({ onDone }: { onDone: () => void }) {
       {!gone && (
         <motion.div
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
           style={{
             position: "fixed",
             inset: 0,
