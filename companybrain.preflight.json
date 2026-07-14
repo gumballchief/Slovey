@@ -9,5 +9,35 @@
     "typecheck": "pnpm typecheck",
     "test": "pnpm test",
     "build": "pnpm build"
+  },
+  "architectureChecks": {
+    "enabled": true,
+    "deriveFromDecisions": true,
+    "rules": [
+      {
+        "type": "forbidden-import",
+        "module": "@company-brain/web",
+        "in": "packages/**",
+        "reason": "Shared packages must not depend on the web app — that inverts the dependency layering (apps depend on packages, never the reverse)."
+      },
+      {
+        "type": "forbidden-import",
+        "module": "@company-brain/worker",
+        "in": "packages/**",
+        "reason": "Shared packages must not depend on an app (worker)."
+      },
+      {
+        "type": "forbidden-import",
+        "module": "@company-brain/core",
+        "in": "packages/db/**",
+        "reason": "The db package is the lowest layer; it must not import core (core depends on db, not the reverse)."
+      },
+      {
+        "type": "forbidden-import",
+        "module": "@company-brain/db",
+        "in": "apps/web/components/**",
+        "reason": "UI components must not touch the database directly — go through an API route (server boundary + client-bundle safety)."
+      }
+    ]
   }
 }
