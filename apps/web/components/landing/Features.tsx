@@ -22,7 +22,7 @@ const FEATURES: Feat[] = [
 
 export function Features() {
   return (
-    <section id="features" style={{ position: "relative", zIndex: 1, maxWidth: 1180, margin: "0 auto", padding: "130px 24px 0" }}>
+    <section id="features" style={{ position: "relative", zIndex: 1, maxWidth: 1180, margin: "0 auto", padding: "clamp(88px, 10vh, 132px) 24px 0" }}>
       <Reveal style={{ textAlign: "center", fontFamily: "var(--font-mono), monospace", fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase", color: "#7fb0f2" }}>
         03 — Capabilities
       </Reveal>

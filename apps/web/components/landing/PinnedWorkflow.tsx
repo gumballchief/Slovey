@@ -43,7 +43,7 @@ export function PinnedWorkflow() {
 // Reduced-motion / narrow-viewport (<760px): a normal stacked list.
 function WorkflowStacked() {
   return (
-    <section id="workflow" style={{ position: "relative", zIndex: 1, maxWidth: 1000, margin: "0 auto", padding: "130px 24px 0" }}>
+    <section id="workflow" style={{ position: "relative", zIndex: 1, maxWidth: 1000, margin: "0 auto", padding: "clamp(88px, 10vh, 132px) 24px 0" }}>
       <Heading />
       <div style={{ marginTop: 40, display: "grid", gap: 16 }}>
         {STEPS.map((s) => (

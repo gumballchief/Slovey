@@ -89,8 +89,8 @@ export function PricingSection() {
         fontSize: 14,
         fontWeight: 500,
         transition: "background .25s, color .25s",
-        background: active ? "linear-gradient(120deg,#241d33,#463a63)" : "transparent",
-        color: active ? "#fbfaff" : "var(--l-muted)",
+        background: active ? "var(--l-btn)" : "transparent",
+        color: active ? "var(--l-btn-text)" : "var(--l-muted)",
       }}
     >
       {label}
@@ -98,7 +98,7 @@ export function PricingSection() {
   );
 
   return (
-    <section id="pricing" style={{ position: "relative", zIndex: 1, maxWidth: 1180, margin: "0 auto", padding: "130px 24px 0", textAlign: "center" }}>
+    <section id="pricing" style={{ position: "relative", zIndex: 1, maxWidth: 1180, margin: "0 auto", padding: "clamp(88px, 10vh, 132px) 24px 0", textAlign: "center" }}>
       <div style={{ fontFamily: "var(--font-mono), monospace", fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase", color: "#7fb0f2" }}>07 — Pricing</div>
       <h2 style={{ fontFamily: "var(--font-display), sans-serif", fontWeight: 600, fontSize: "clamp(30px,4.4vw,52px)", lineHeight: 1.06, letterSpacing: "-0.025em", margin: "16px auto 0", color: "var(--l-ink)" }}>
         Start free. Scale when it pays for itself.
@@ -152,7 +152,7 @@ export function PricingSection() {
                 href={p.cta.href}
                 style={
                   p.cta.kind === "primary"
-                    ? { display: "block", textAlign: "center", marginTop: 22, padding: 12, borderRadius: 11, background: "linear-gradient(120deg,#241d33,#463a63)", color: "#fbfaff", textDecoration: "none", fontWeight: 600, fontSize: 14.5, boxShadow: "0 12px 34px -14px rgba(255,120,100,.8)" }
+                    ? { display: "block", textAlign: "center", marginTop: 22, padding: 12, borderRadius: 11, background: "var(--l-btn)", color: "var(--l-btn-text)", textDecoration: "none", fontWeight: 500, fontSize: 14.5 }
                     : { display: "block", textAlign: "center", marginTop: 22, padding: 12, borderRadius: 11, border: "1px solid var(--l-border-soft)", background: "var(--l-card)", color: "var(--l-body)", textDecoration: "none", fontWeight: 500, fontSize: 14.5 }
                 }
               >
