@@ -32,6 +32,14 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       await dashboard.setOrgStripe(org.id, { stripeCustomerId: customerId });
     }
 
+    // Derive the redirect origin from the request (x-forwarded-host on Render),
+    // falling back to APP_BASE_URL — so the post-payment redirect returns to the
+    // real deployed domain even when APP_BASE_URL is unset (it would otherwise
+    // default to localhost and bounce the user off-site after paying).
+    const fwdHost = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
+    const fwdProto = req.headers.get("x-forwarded-proto") ?? "https";
+    const origin = fwdHost ? `${fwdProto}://${fwdHost}` : appBaseUrl();
+
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer: customerId,
@@ -39,8 +47,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       // and without this Stripe rejects the session outright.
       payment_method_types: ["card"],
       line_items: [proLineItem(interval)],
-      success_url: `${appBaseUrl()}/app/billing?checkout=success`,
-      cancel_url: `${appBaseUrl()}/app/billing?checkout=cancelled`,
+      success_url: `${origin}/app/billing?checkout=success`,
+      cancel_url: `${origin}/app/billing?checkout=cancelled`,
       metadata: { orgId: org.id },
       subscription_data: { metadata: { orgId: org.id } },
     });
