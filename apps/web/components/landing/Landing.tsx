@@ -9,6 +9,7 @@ import { Hero } from "./Hero";
 import { IntroLoader } from "./IntroLoader";
 import { LandingEffects } from "./LandingEffects";
 import { FAQSection } from "./FAQSection";
+import { FooterSection } from "./FooterSection";
 import { Marquee } from "./Marquee";
 import { Nav } from "./Nav";
 import { PinnedCodeMock } from "./PinnedCodeMock";
@@ -55,6 +56,7 @@ export function Landing() {
         <PricingSection />
         <FAQSection />
         <div dangerouslySetInnerHTML={{ __html: (restCta as { html: string }).html }} />
+        <FooterSection />
       </div>
       <LandingEffects />
     </>
