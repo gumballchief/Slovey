@@ -3,13 +3,15 @@
    these, so dark mode is a single class toggle. Accents (blue/purple/coral),
    the code-island panels, and the dark CTA button stay fixed across themes. */
 #cb-landing{
-  --l-canvas:#f0f5fd;
-  --l-bg:linear-gradient(180deg,#f4f8ff 0%,#eef3fb 55%,#f2f6fd 100%);
-  --l-ink:#1b1726;
-  --l-body:#565163;
-  --l-muted:#6b6678;
-  --l-muted2:#8b96ab;
-  --l-border:#e3e9f5;
+  /* Landing headlines are set in the serif display face (editorial register). */
+  --font-display:var(--font-serif);
+  --l-canvas:#f7f8fa;
+  --l-bg:linear-gradient(180deg,#fbfbfc 0%,#f4f5f7 60%,#f6f6f8 100%);
+  --l-ink:#17191c;
+  --l-body:#54565c;
+  --l-muted:#6b6d75;
+  --l-muted2:#8b8f99;
+  --l-border:#e7e8ec;
   --l-border-soft:rgba(28,20,45,.08);
   --l-card:rgba(255,255,255,.72);
   --l-card-strong:rgba(255,255,255,.9);
@@ -20,13 +22,19 @@
   /* un-lit statement words: dimmed but always legible (lit words go to --l-ink) */
   --l-word-off:rgba(27,23,38,.34);
   --l-icon-chip:#eaf0fe;
-  --l-headline:linear-gradient(100deg,#1b1726,#3a3350 20%,#4f7ef7 46%,#2a2440 62%,#7fb0f2 86%,#1b1726 100%);
+  /* ambient background — aurora glows + technical grid (see AmbientBackground) */
+  --l-aur-a:rgba(79,126,247,.16);
+  --l-aur-b:rgba(124,92,255,.13);
+  --l-aur-c:rgba(127,176,242,.15);
+  --l-grid:rgba(70,95,160,.06);
+  /* headline: near-solid ink with a whisper of depth (editorial, not rainbow) */
+  --l-headline:linear-gradient(180deg,#191b1f 0%,#3a3d44 100%);
 }
 html.cb-dark #cb-landing{
-  --l-canvas:#090c14;
-  --l-bg:linear-gradient(180deg,#0b0f1a 0%,#0c1119 55%,#090d16 100%);
-  --l-ink:#eaedf8;
-  --l-body:#b4bacd;
+  --l-canvas:#0a0b0d;
+  --l-bg:linear-gradient(180deg,#0e0f12 0%,#0a0b0d 60%,#0b0c0f 100%);
+  --l-ink:#f2f3f5;
+  --l-body:#adb0ba;
   --l-muted:#8b90a6;
   --l-muted2:#7f88a2;
   --l-border:rgba(255,255,255,.1);
@@ -39,7 +47,11 @@ html.cb-dark #cb-landing{
   --l-loader-bg:#0b0f1a;
   --l-word-off:rgba(234,237,248,.44);
   --l-icon-chip:rgba(79,126,247,.16);
-  --l-headline:linear-gradient(100deg,#eaedf8,#c6cbe8 20%,#6ea8ff 46%,#b3bce0 62%,#7fb0f2 86%,#eaedf8 100%);
+  --l-aur-a:rgba(79,126,247,.22);
+  --l-aur-b:rgba(124,92,255,.20);
+  --l-aur-c:rgba(110,150,255,.17);
+  --l-grid:rgba(150,175,235,.05);
+  --l-headline:linear-gradient(180deg,#f4f5f7 0%,#bcc0c8 100%);
 }
 /* The page canvas behind the landing tracks the theme, so fast scrolling into
    not-yet-painted regions never flashes the wrong background. */

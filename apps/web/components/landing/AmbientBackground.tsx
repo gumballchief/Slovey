@@ -1,60 +1,57 @@
 "use client";
 
 /**
- * Ambient background (spec #13): two large soft blue radial washes drifting slowly
- * and independently, behind a faint masked grid. Fixed, z-0, non-interactive.
- * Loops are CSS keyframes (always-on) and stop under reduced-motion via globals.
+ * Ambient background — a calm, editorial substrate. A soft overhead light, a
+ * faint hairline grid that fades toward the center, two column rules that frame
+ * the content width, and edge vignettes that quiet the sides. Deliberately still:
+ * the typography, whitespace, and scroll motion carry the page. Fixed, z-0,
+ * non-interactive, no animation loop (nothing to throttle or repaint).
  */
 export function AmbientBackground() {
   return (
     <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", overflow: "hidden" }}>
-      {/* masked grid — 72px cells, faded to an ellipse at the top */}
+      {/* soft overhead light — a restrained brand whisper at the top center */}
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          left: "50%",
+          width: "120vw",
+          height: "54vh",
+          transform: "translateX(-50%)",
+          background: "radial-gradient(ellipse 48% 100% at 50% 0%, var(--l-aur-a), transparent 72%)",
+          opacity: 0.55,
+        }}
+      />
+      {/* faint hairline grid, masked to fade toward the center */}
       <div
         style={{
           position: "absolute",
           inset: 0,
-          backgroundImage:
-            "linear-gradient(rgba(90,110,160,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(90,110,160,.045) 1px, transparent 1px)",
-          backgroundSize: "72px 72px",
-          maskImage: "radial-gradient(ellipse 92% 60% at 50% 0%, #000 0%, transparent 75%)",
-          WebkitMaskImage: "radial-gradient(ellipse 92% 60% at 50% 0%, #000 0%, transparent 75%)",
+          backgroundImage: "linear-gradient(var(--l-grid) 1px, transparent 1px), linear-gradient(90deg, var(--l-grid) 1px, transparent 1px)",
+          backgroundSize: "64px 64px",
+          maskImage: "radial-gradient(ellipse 94% 72% at 50% 32%, #000 18%, transparent 78%)",
+          WebkitMaskImage: "radial-gradient(ellipse 94% 72% at 50% 32%, #000 18%, transparent 78%)",
         }}
       />
-      {/* Wash A (accent): 120vw × 80vh, top-centered, drifts over 40s.
-          No filter:blur — the long radial falloff reads as blurred, and the layer
-          is promoted once (translateZ) so the drift is compositor-only. */}
+      {/* two hairline column rules framing the content width — editorial structure */}
       <div
-        className="cb-aurora-a"
         style={{
           position: "absolute",
-          top: "-24%",
+          top: 0,
+          bottom: 0,
           left: "50%",
-          marginLeft: "-60vw",
-          width: "120vw",
-          height: "80vh",
-          borderRadius: "50%",
-          background: "radial-gradient(closest-side, rgba(79,126,247,.10), rgba(79,126,247,.04) 45%, transparent 72%)",
-          transform: "translateZ(0)",
-          animation: "cbAuroraA 40s ease-in-out infinite",
-          willChange: "transform",
+          width: 1180,
+          maxWidth: "94vw",
+          transform: "translateX(-50%)",
+          borderLeft: "1px solid var(--l-grid)",
+          borderRight: "1px solid var(--l-grid)",
+          maskImage: "linear-gradient(#000 0%, #000 55%, transparent 100%)",
+          WebkitMaskImage: "linear-gradient(#000 0%, #000 55%, transparent 100%)",
         }}
       />
-      {/* Wash B (accent-2): 60vw square, bottom-right, drifts over 46s */}
-      <div
-        className="cb-aurora-b"
-        style={{
-          position: "absolute",
-          bottom: "-30%",
-          right: "-10%",
-          width: "60vw",
-          height: "60vw",
-          borderRadius: "50%",
-          background: "radial-gradient(closest-side, rgba(127,176,242,.09), rgba(127,176,242,.035) 45%, transparent 72%)",
-          transform: "translateZ(0)",
-          animation: "cbAuroraB 46s ease-in-out infinite",
-          willChange: "transform",
-        }}
-      />
+      {/* edge vignettes → fade the sides into the canvas so the center reads clean */}
+      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, var(--l-canvas), transparent 15%, transparent 85%, var(--l-canvas))" }} />
     </div>
   );
 }

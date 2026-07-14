@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, Hanken_Grotesk, Inter_Tight, JetBrains_Mono } from "next/font/google";
+import { Bricolage_Grotesque, Fraunces, Hanken_Grotesk, Inter_Tight, JetBrains_Mono } from "next/font/google";
 import { cookies } from "next/headers";
 import Script from "next/script";
 import "./globals.css";
@@ -11,6 +11,18 @@ const bricolage = Bricolage_Grotesque({
   display: "swap",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],
+});
+
+// Serif display — Fraunces: a high-contrast, literary variable serif. The
+// editorial voice for the landing's headlines (an intentional, un-templated
+// pairing against the grotesque body — the calm, premium register the design
+// is built around).
+const fraunces = Fraunces({
+  variable: "--font-serif",
+  display: "swap",
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  style: ["normal", "italic"],
 });
 
 // Body — Hanken Grotesk: a warm, clean grotesk (deliberately not Inter/Roboto).
@@ -76,7 +88,7 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
-      className={`${bricolage.variable} ${hanken.variable} ${interTight.variable} ${jetbrainsMono.variable} h-full${isDark ? " dark" : ""}`}
+      className={`${bricolage.variable} ${fraunces.variable} ${hanken.variable} ${interTight.variable} ${jetbrainsMono.variable} h-full${isDark ? " dark" : ""}`}
       suppressHydrationWarning
     >
       <body className="min-h-full bg-[var(--bg)] text-[var(--cb-text)] font-body antialiased">
