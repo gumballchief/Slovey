@@ -90,17 +90,20 @@ export function Nav() {
     >
       <nav style={{ maxWidth: 1180, margin: "0 auto", padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24 }}>
         <a href="#top" style={{ display: "flex", alignItems: "center", gap: 11, textDecoration: "none", color: "var(--l-ink)" }}>
-          <LogoGlyph size={34} />
-          <span style={{ fontFamily: "var(--font-display), sans-serif", fontWeight: 600, fontSize: 17, letterSpacing: "-0.01em" }}>Slovey</span>
+          <LogoGlyph size={32} />
+          <span style={{ fontFamily: "var(--font-serif), Georgia, serif", fontWeight: 500, fontSize: 20, letterSpacing: "-0.01em" }}>Slovey</span>
         </a>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 14.5, color: "var(--l-body)" }} className="cb-nav-links">
+        <div style={{ display: "flex", alignItems: "center", gap: 2, fontSize: 14, color: "var(--l-body)" }} className="cb-nav-links">
           {(Object.keys(MENUS) as MenuKey[]).map((k) => (
-            <div key={k} onMouseEnter={() => enter(k)} style={{ padding: "10px 14px", borderRadius: 9, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, color: open === k ? "var(--l-ink)" : "var(--l-body)", transition: "color .2s" }}>
-              {MENUS[k].label} <span style={{ fontSize: 9, opacity: 0.55, transform: open === k ? "rotate(180deg)" : "none", transition: "transform .2s" }}>▼</span>
+            <div key={k} onMouseEnter={() => enter(k)} style={{ padding: "9px 13px", borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 5, color: open === k ? "var(--l-ink)" : "var(--l-body)", transition: "color .2s" }}>
+              {MENUS[k].label}
+              <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ opacity: 0.45, transform: open === k ? "rotate(180deg)" : "none", transition: "transform .22s cubic-bezier(.16,1,.3,1)" }} aria-hidden>
+                <path d="M3 4.5 6 7.5 9 4.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </div>
           ))}
-          <a href="#pricing" style={{ padding: "10px 14px", color: "inherit", textDecoration: "none" }}>Pricing</a>
+          <a href="#pricing" style={{ padding: "9px 13px", color: "inherit", textDecoration: "none", transition: "color .2s" }} onMouseEnter={(e) => (e.currentTarget.style.color = "var(--l-ink)")} onMouseLeave={(e) => (e.currentTarget.style.color = "inherit")}>Pricing</a>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
@@ -143,9 +146,9 @@ export function Nav() {
           >
             <div style={{ maxWidth: 1180, margin: "0 auto", padding: "22px 24px", display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 8 }}>
               {MENUS[open].items.map((it) => (
-                <a key={it.t} href={it.href} style={{ display: "block", padding: "12px 14px", borderRadius: 11, textDecoration: "none", transition: "background .2s" }} onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f5fc")} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
-                  <div style={{ fontFamily: "var(--font-display), sans-serif", fontWeight: 600, fontSize: 15, color: "var(--l-ink)" }}>{it.t}</div>
-                  <div style={{ fontSize: 13, color: "var(--l-muted)", marginTop: 3 }}>{it.d}</div>
+                <a key={it.t} href={it.href} style={{ display: "block", padding: "12px 14px", borderRadius: 10, textDecoration: "none", transition: "background .2s" }} onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(125,130,145,.10)")} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+                  <div style={{ fontFamily: "var(--font-inter-tight), sans-serif", fontWeight: 600, fontSize: 14.5, letterSpacing: "-0.01em", color: "var(--l-ink)" }}>{it.t}</div>
+                  <div style={{ fontSize: 13, color: "var(--l-muted)", marginTop: 3, lineHeight: 1.45 }}>{it.d}</div>
                 </a>
               ))}
             </div>
