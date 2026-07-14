@@ -318,12 +318,12 @@ async function doctor(cwd: string): Promise<void> {
       const r = await resolveRepo(slug);
       lines.push(
         r
-          ? { level: "pass", label: "Connected to Company Brain", detail: `${r.fullName} is connected` }
-          : { level: "warn", label: "Connected to Company Brain", detail: `${slug} isn't connected — install the app: https://github.com/apps/company-brain/installations/new` },
+          ? { level: "pass", label: "Connected to Slovey", detail: `${r.fullName} is connected` }
+          : { level: "warn", label: "Connected to Slovey", detail: `${slug} isn't connected — install the app: https://github.com/apps/slovey-dev/installations/new` },
       );
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      lines.push({ level: "warn", label: "Connected to Company Brain", detail: `couldn't reach the decision store (${msg.slice(0, 50)}) — local checks still run` });
+      lines.push({ level: "warn", label: "Connected to Slovey", detail: `couldn't reach the decision store (${msg.slice(0, 50)}) — local checks still run` });
     }
   }
 

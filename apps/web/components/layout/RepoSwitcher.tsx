@@ -3,6 +3,7 @@
 import { ChevronDown, GitBranch } from "lucide-react";
 import { useState } from "react";
 import { useRepo } from "@/app/app/RepoProvider";
+import { GITHUB_APP_INSTALL_URL } from "@/lib/github-app";
 import { cn } from "@/lib/utils";
 
 export function RepoSwitcher() {
@@ -14,7 +15,7 @@ export function RepoSwitcher() {
   if (!current) {
     return (
       <a
-        href="https://github.com/apps/company-brain/installations/new"
+        href={GITHUB_APP_INSTALL_URL}
         target="_blank"
         rel="noreferrer"
         className="flex items-center gap-2 w-full px-3 py-2 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border)] text-sm text-[var(--text-muted)] hover:text-[var(--primary)] hover:border-[var(--primary)] transition-colors"

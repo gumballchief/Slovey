@@ -2,10 +2,10 @@
 
 import { useRef } from "react";
 import { motion, useReducedMotion } from "framer-motion";
+import { GITHUB_APP_INSTALL_URL } from "@/lib/github-app";
 import { AnimatedHeadline } from "./AnimatedHeadline";
 import { Magnetic } from "./motion";
 
-const GITHUB_APP_INSTALL = "https://github.com/apps/company-brain/installations/new";
 const EASE = [0.16, 1, 0.3, 1] as const;
 
 /** Hero section — headline pop-in gated on the intro loader, magnetic CTAs. */
@@ -49,7 +49,7 @@ export function Hero({ introDone }: { introDone: boolean }) {
       </motion.div>
 
       <motion.div {...rise(0.62)} style={{ marginTop: 20, marginBottom: 20, fontFamily: "var(--font-mono), monospace", fontSize: 12.5, letterSpacing: "0.04em", color: "var(--l-muted)" }}>
-        No credit card · <a href={GITHUB_APP_INSTALL} target="_blank" rel="noreferrer" style={{ color: "inherit" }}>Connect a repo in minutes</a>
+        No credit card · <a href={GITHUB_APP_INSTALL_URL} target="_blank" rel="noreferrer" style={{ color: "inherit" }}>Connect a repo in minutes</a>
       </motion.div>
     </section>
   );
