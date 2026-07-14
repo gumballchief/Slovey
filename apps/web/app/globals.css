@@ -31,10 +31,10 @@
   --color-on-primary: var(--on-primary);
   --color-primary-strong: var(--primary-strong);
 
-  /* Shadows — soft, cool blue-tinted (Sui) */
-  --shadow-card: 0 1px 2px rgba(30,40,90,0.05), 0 1px 3px rgba(30,40,90,0.05);
-  --shadow-card-hover: 0 12px 32px -12px rgba(79,126,247,0.28), 0 2px 6px rgba(30,40,90,0.06);
-  --shadow-glow: 0 0 28px rgba(79,126,247,0.22);
+  /* Shadows — soft, neutral (calm editorial) */
+  --shadow-card: 0 1px 2px rgba(20,22,28,0.04), 0 1px 3px rgba(20,22,28,0.05);
+  --shadow-card-hover: 0 14px 34px -14px rgba(20,22,28,0.16), 0 2px 6px rgba(20,22,28,0.05);
+  --shadow-glow: 0 0 28px rgba(20,22,28,0.10);
 
   /* Animations */
   --animate-fade-in: fadeIn 0.3s ease-out;
@@ -65,37 +65,44 @@
 
 /* ── Light mode — airy, sea-blue (Sui-inspired) ── */
 :root {
-  /* Matched to the marketing landing (light lavender + blue/purple). */
-  --app-bg: linear-gradient(180deg, #f4f8ff 0%, #eef3fb 55%, #f2f6fd 100%);
-  --bg: #F1F5FC;            /* landing lavender base */
-  --bg-subtle: #E9F0FA;
+  /* Calm editorial neutral, matched to the marketing landing. */
+  --app-bg: linear-gradient(180deg, #fafbfc 0%, #f4f5f7 100%);
+  --bg: #f6f7f9;
+  --bg-subtle: #eef0f3;
   --surface: #FFFFFF;
-  --primary: #4F7EF7;       /* landing blue — the brand signal */
+  --primary: #4F7EF7;       /* blue kept as a restrained accent (links/marks) */
   --primary-hover: #3E6DE8;
-  --primary-strong: #2F5BDD; /* small blue text / links on light */
-  --primary-soft: #E9EFFE;  /* pale blue fill */
-  --on-primary: #FFFFFF;    /* white ink on the blue */
-  --accent: #7C5CFF;        /* landing purple partner */
-  --cb-text: #1B1726;       /* landing ink (headings/strong) */
-  --text-muted: #6B6678;    /* landing muted */
-  --border: #E3E9F5;        /* lavender hairline */
+  --primary-strong: #2F5BDD;
+  --primary-soft: #eef1f6;  /* neutral soft fill */
+  --on-primary: #FFFFFF;
+  --accent: #7C5CFF;
+  --cb-text: #17191c;       /* neutral near-black ink */
+  --text-muted: #6b6d75;
+  --border: #e7e8ec;        /* neutral hairline */
+  /* primary button — solid ink, inverted (dark in light mode) */
+  --btn: #17191c;
+  --btn-text: #fbfbfc;
+  --btn-hover: #2a2d33;
 }
 
 /* ── Dark mode — the landing's code-island navy + brand blue/purple ── */
 .dark {
-  --app-bg: #0b0f1a;        /* landing code-panel navy */
-  --bg: #0b0f1a;
-  --bg-subtle: #0e1220;
-  --surface: #101524;
-  --primary: #6B93F9;       /* lightness-adjusted landing blue for dark bg */
+  --app-bg: #0b0c0e;        /* neutral editorial dark */
+  --bg: #0b0c0e;
+  --bg-subtle: #101216;
+  --surface: #131519;
+  --primary: #6B93F9;
   --primary-hover: #82A4FA;
   --primary-strong: #93B0FB;
-  --primary-soft: rgba(79, 126, 247, 0.16);
+  --primary-soft: rgba(140, 150, 170, 0.14);
   --on-primary: #FFFFFF;
-  --accent: #9B82FF;        /* lightened landing purple */
-  --cb-text: #E7EAF6;
-  --text-muted: #9A94AD;
-  --border: #23283A;
+  --accent: #9B82FF;
+  --cb-text: #f2f3f5;
+  --text-muted: #9a9ca4;
+  --border: #24262c;
+  --btn: #f1f2f4;
+  --btn-text: #141519;
+  --btn-hover: #ffffff;
 }
 
 /* ── Base ── */
@@ -142,11 +149,11 @@ body {
   .cb-shimmer, .cb-caret, .cb-dot-pulse { animation: none !important; }
 }
 
-/* ── Display type: tight, editorial ── */
+/* ── Display type: editorial serif (matches the marketing landing) ── */
 .font-display {
-  font-family: var(--font-display), system-ui, sans-serif;
-  letter-spacing: -0.03em;
-  font-weight: 600;
+  font-family: var(--font-serif), Georgia, serif;
+  letter-spacing: -0.015em;
+  font-weight: 500;
 }
 
 /* Mono labels — the structural voice (§ markers, metadata, indices) */
@@ -343,15 +350,14 @@ body {
 }
 
 /* ───────────────────────── Mixed-gradient surfaces ───────────────────────── */
-/* Buttons: a blend of the palette, not a flat fill */
+/* Primary button — solid ink, inverted, editorial (matches the landing). */
 .btn-mesh {
   position: relative;
-  background: linear-gradient(120deg, #241d33, #463a63);
-  color: #fbfaff;
-  transition: filter 0.2s ease, box-shadow 0.3s ease, transform 0.2s ease;
-  box-shadow: 0 12px 30px -10px rgba(255,120,100,0.6);
+  background: var(--btn);
+  color: var(--btn-text);
+  transition: background 0.2s ease, filter 0.2s ease, transform 0.2s ease;
 }
-.btn-mesh:hover { filter: brightness(1.08); transform: translateY(-1px); box-shadow: 0 14px 34px -10px rgba(255,120,100,0.65); }
+.btn-mesh:hover { background: var(--btn-hover); transform: translateY(-1px); }
 .btn-mesh:active { transform: translateY(0); }
 
 /* Glass surface that floats over the mesh */
@@ -393,18 +399,21 @@ body {
 /* ── force-light: public pages (login, docs, legal) always render the landing's
    light theme, even when the html carries .dark from the app's theme cookie. ── */
 .force-light {
-  --app-bg: linear-gradient(180deg, #f4f8ff 0%, #eef3fb 55%, #f2f6fd 100%);
-  --bg: #F1F5FC;
-  --bg-subtle: #E9F0FA;
+  --app-bg: linear-gradient(180deg, #fafbfc 0%, #f4f5f7 100%);
+  --bg: #f6f7f9;
+  --bg-subtle: #eef0f3;
   --surface: #FFFFFF;
   --primary: #4F7EF7;
   --primary-hover: #3E6DE8;
   --primary-strong: #2F5BDD;
-  --primary-soft: #E9EFFE;
+  --primary-soft: #eef1f6;
   --on-primary: #FFFFFF;
   --accent: #7C5CFF;
-  --cb-text: #1B1726;
-  --text-muted: #6B6678;
-  --border: #E3E9F5;
+  --cb-text: #17191c;
+  --text-muted: #6b6d75;
+  --border: #e7e8ec;
+  --btn: #17191c;
+  --btn-text: #fbfbfc;
+  --btn-hover: #2a2d33;
 }
 
