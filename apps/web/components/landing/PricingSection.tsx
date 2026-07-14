@@ -100,7 +100,7 @@ export function PricingSection() {
   return (
     <section id="pricing" style={{ position: "relative", zIndex: 1, maxWidth: 1180, margin: "0 auto", padding: "clamp(88px, 10vh, 132px) 24px 0", textAlign: "center" }}>
       <div style={{ fontFamily: "var(--font-mono), monospace", fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--l-muted2)" }}>07 — Pricing</div>
-      <h2 style={{ fontFamily: "var(--font-display), sans-serif", fontWeight: 600, fontSize: "clamp(30px,4.4vw,52px)", lineHeight: 1.06, letterSpacing: "-0.025em", margin: "16px auto 0", color: "var(--l-ink)" }}>
+      <h2 style={{ fontFamily: "var(--font-display), Georgia, serif", fontWeight: 500, fontSize: "clamp(30px,4.4vw,52px)", lineHeight: 1.06, letterSpacing: "-0.025em", margin: "16px auto 0", color: "var(--l-ink)" }}>
         Start free. Scale when it pays for itself.
       </h2>
 

@@ -27,7 +27,7 @@ export function Features() {
         03 — Capabilities
       </Reveal>
       <MaskReveal delay={0.06} style={{ margin: "16px auto 0", maxWidth: 720, textAlign: "center" }}>
-        <h2 style={{ fontFamily: "var(--font-display), sans-serif", fontWeight: 600, fontSize: "clamp(30px,4.4vw,50px)", lineHeight: 1.12, letterSpacing: "-0.025em", color: "var(--l-ink)", margin: 0, paddingBottom: "0.08em" }}>
+        <h2 style={{ fontFamily: "var(--font-display), Georgia, serif", fontWeight: 500, fontSize: "clamp(30px,4.4vw,50px)", lineHeight: 1.12, letterSpacing: "-0.025em", color: "var(--l-ink)", margin: 0, paddingBottom: "0.08em" }}>
           Everything an agent needs to write code your way
         </h2>
       </MaskReveal>

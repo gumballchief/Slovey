@@ -21,7 +21,7 @@ function Heading() {
     <div style={{ textAlign: "center", marginBottom: 8 }}>
       <div style={{ fontFamily: "var(--font-mono), monospace", fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--l-muted2)" }}>04 — Pipeline</div>
       <MaskReveal style={{ marginTop: 14 }}>
-        <h2 style={{ fontFamily: "var(--font-display), sans-serif", fontWeight: 600, fontSize: "clamp(30px,4.4vw,50px)", lineHeight: 1.12, letterSpacing: "-0.025em", color: "var(--l-ink)", margin: 0, paddingBottom: "0.08em" }}>What happens on every change</h2>
+        <h2 style={{ fontFamily: "var(--font-display), Georgia, serif", fontWeight: 500, fontSize: "clamp(30px,4.4vw,50px)", lineHeight: 1.12, letterSpacing: "-0.025em", color: "var(--l-ink)", margin: 0, paddingBottom: "0.08em" }}>What happens on every change</h2>
       </MaskReveal>
     </div>
   );
