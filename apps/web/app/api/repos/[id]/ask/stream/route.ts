@@ -26,12 +26,33 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     const encoder = new TextEncoder();
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
-        const send = (obj: unknown) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
+        let closed = false;
+        const write = (s: string) => {
+          if (closed) return;
+          try {
+            controller.enqueue(encoder.encode(s));
+          } catch {
+            closed = true; // client disconnected
+          }
+        };
+        const send = (obj: unknown) => write(`data: ${JSON.stringify(obj)}\n\n`);
+
+        // Defeat proxy buffering (Render's edge / nginx-style layers): an initial
+        // ~2KB comment forces intermediaries to start forwarding the response
+        // immediately instead of buffering it whole, and a keepalive ping every
+        // 1.5s keeps bytes flowing during the pre-first-token retrieval + model
+        // "thinking" gap. Comment lines (":") are ignored by the SSE client, so
+        // this is invisible to the answer stream.
+        write(`:${" ".repeat(2048)}\n\n`);
+        const ping = setInterval(() => write(": ping\n\n"), 1500);
+
         try {
           for await (const ev of reasoning.engineeringSearchStream(id, q)) send(ev);
         } catch (err) {
           send({ type: "error", message: err instanceof Error ? err.message : "stream failed" });
         } finally {
+          clearInterval(ping);
+          closed = true;
           controller.close();
         }
       },
