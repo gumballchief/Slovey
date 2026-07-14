@@ -8,14 +8,16 @@ import { Features } from "./Features";
 import { Hero } from "./Hero";
 import { IntroLoader } from "./IntroLoader";
 import { LandingEffects } from "./LandingEffects";
+import { FAQSection } from "./FAQSection";
 import { Marquee } from "./Marquee";
 import { Nav } from "./Nav";
 import { PinnedCodeMock } from "./PinnedCodeMock";
+import { PricingSection } from "./PricingSection";
 import { SocialProof } from "./SocialProof";
 import { StatementSection } from "./StatementSection";
 import restAfterStatement from "./rest-after-statement.json";
 import restB2a from "./rest-b2a.json";
-import restB2b from "./rest-b2b.json";
+import restCta from "./rest-cta.json";
 
 // The two pinned scrollytelling sections are the heaviest client components on
 // the page — split them out of the main bundle (they still SSR, so content and
@@ -50,7 +52,9 @@ export function Landing() {
         <PinnedWorkflow />
         <div dangerouslySetInnerHTML={{ __html: (restB2a as { html: string }).html }} />
         <PinnedUseCases />
-        <div dangerouslySetInnerHTML={{ __html: (restB2b as { html: string }).html }} />
+        <PricingSection />
+        <FAQSection />
+        <div dangerouslySetInnerHTML={{ __html: (restCta as { html: string }).html }} />
       </div>
       <LandingEffects />
     </>
