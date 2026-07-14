@@ -26,8 +26,11 @@ const SILENCE_DISTANCE = 0.6;
  */
 export async function canI(repoId: string, intent: string): Promise<CanIResult> {
   const ranked = await retrieveRanked(repoId, intent);
-  const closest = ranked[0];
-  if (!closest || closest.distance > SILENCE_DISTANCE) {
+  // Gate on the nearest decision by distance, not ranked[0] (best blended rank) —
+  // otherwise a fresher-but-farther decision outranking a closer governing one
+  // makes the guardrail wrongly say "nothing recorded" and allow the change.
+  const nearestDist = ranked.length ? Math.min(...ranked.map((r) => r.distance)) : Number.POSITIVE_INFINITY;
+  if (!ranked.length || nearestDist > SILENCE_DISTANCE) {
     return {
       intent,
       verdict: "unclear",

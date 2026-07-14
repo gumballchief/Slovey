@@ -442,6 +442,63 @@ export function askBrain(repoId: string, question: string): Promise<AskAnswer> {
   return getOrThrow<AskAnswer>(`/api/repos/${repoId}/ask?q=${encodeURIComponent(question)}`);
 }
 
+type AskStreamEvent =
+  | { type: "token"; text: string }
+  | { type: "done"; answer: AskAnswer }
+  | { type: "error"; message: string };
+
+/**
+ * Streaming Ask: consumes the SSE endpoint, calling `onToken` with each prose
+ * chunk as it arrives, and resolves with the final answer (citations +
+ * confidence). Throws on any transport failure so the caller can fall back to
+ * the plain {@link askBrain}.
+ */
+export async function askBrainStream(
+  repoId: string,
+  question: string,
+  onToken: (text: string) => void,
+): Promise<AskAnswer> {
+  const res = await fetch(`/api/repos/${repoId}/ask/stream?q=${encodeURIComponent(question)}`, {
+    headers: { accept: "text/event-stream" },
+    cache: "no-store",
+  });
+  if (!res.ok || !res.body) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || `Request failed (${res.status})`);
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  let done: AskAnswer | null = null;
+
+  for (;;) {
+    const { done: streamDone, value } = await reader.read();
+    if (streamDone) break;
+    buf += decoder.decode(value, { stream: true });
+    const frames = buf.split("\n\n");
+    buf = frames.pop() ?? "";
+    for (const frame of frames) {
+      const line = frame.split("\n").find((l) => l.startsWith("data:"));
+      if (!line) continue;
+      const payload = line.slice(5).trim();
+      if (!payload) continue;
+      let ev: AskStreamEvent;
+      try {
+        ev = JSON.parse(payload) as AskStreamEvent;
+      } catch {
+        continue;
+      }
+      if (ev.type === "token") onToken(ev.text);
+      else if (ev.type === "done") done = ev.answer;
+      else if (ev.type === "error") throw new Error(ev.message || "stream error");
+    }
+  }
+
+  if (!done) throw new Error("stream ended without a final answer");
+  return done;
+}
+
 export function canIBrain(repoId: string, intent: string): Promise<CanIAnswer> {
   return send<CanIAnswer>(`/api/repos/${repoId}/can-i`, "POST", { intent });
 }

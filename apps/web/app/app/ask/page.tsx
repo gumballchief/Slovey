@@ -16,6 +16,7 @@ import {
 import { useRepo } from "@/app/app/RepoProvider";
 import {
   askBrain,
+  askBrainStream,
   canIBrain,
   planBrain,
   type AskAnswer,
@@ -42,7 +43,7 @@ const EXAMPLES: Record<Mode, string[]> = {
 };
 
 type Turn =
-  | { id: number; mode: "ask"; q: string; loading: boolean; error?: string; data?: AskAnswer }
+  | { id: number; mode: "ask"; q: string; loading: boolean; error?: string; data?: AskAnswer; streamText?: string }
   | { id: number; mode: "can-i"; q: string; loading: boolean; error?: string; data?: CanIAnswer }
   | { id: number; mode: "plan"; q: string; loading: boolean; error?: string; data?: PlanAnswer };
 
@@ -66,8 +67,23 @@ export default function AskPage() {
 
     try {
       if (mode === "ask") {
-        const data = await askBrain(activeRepoId, q);
-        update(id, { loading: false, data });
+        try {
+          // Stream the answer token-by-token; the UI types it out as it arrives.
+          const data = await askBrainStream(activeRepoId, q, (text) =>
+            setTurns((t) =>
+              t.map((turn) =>
+                turn.id === id && turn.mode === "ask"
+                  ? { ...turn, streamText: (turn.streamText ?? "") + text }
+                  : turn,
+              ),
+            ),
+          );
+          update(id, { loading: false, data });
+        } catch {
+          // Streaming unavailable (proxy, older deploy) — fall back to the plain call.
+          const data = await askBrain(activeRepoId, q);
+          update(id, { loading: false, data });
+        }
       } else if (mode === "can-i") {
         const data = await canIBrain(activeRepoId, q);
         update(id, { loading: false, data });
@@ -198,7 +214,11 @@ function TurnView({ turn, onFollow }: { turn: Turn; onFollow: (q: string) => voi
       {/* Answer */}
       <div className="card p-5">
         {turn.loading ? (
-          <Reasoning />
+          turn.mode === "ask" && turn.streamText ? (
+            <StreamingAnswer text={turn.streamText} />
+          ) : (
+            <Reasoning />
+          )
         ) : turn.error ? (
           <div className="flex items-start gap-2 text-sm text-[var(--color-conflict)]">
             <AlertTriangle size={15} className="mt-0.5 shrink-0" />
@@ -226,6 +246,16 @@ function Reasoning() {
       </span>
       Reasoning over the decision graph…
     </div>
+  );
+}
+
+/** The answer prose as it streams in, with a blinking caret (ChatGPT-style). */
+function StreamingAnswer({ text }: { text: string }) {
+  return (
+    <p className="text-sm text-[var(--cb-text)] leading-relaxed whitespace-pre-wrap">
+      {text}
+      <span className="inline-block w-[2px] h-[1.05em] ml-0.5 -mb-[0.15em] bg-[var(--primary)] animate-pulse align-baseline" />
+    </p>
   );
 }
 

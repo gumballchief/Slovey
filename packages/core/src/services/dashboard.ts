@@ -149,8 +149,26 @@ async function repoTrend(repoId: string) {
   return bucketTrend(rows);
 }
 
-export async function listRepos(): Promise<ApiRepo[]> {
+/** Which repos a viewer may see: ones they own (by GitHub id, or login for
+ *  un-backfilled rows) or belong to via an org membership. */
+export interface RepoScope {
+  githubId?: number;
+  login: string;
+  orgIds: string[];
+}
+
+export async function listRepos(scope?: RepoScope): Promise<ApiRepo[]> {
   const db = getDb();
+  // TENANCY: without scoping, this returned EVERY tenant's repos (names + metrics)
+  // to any authenticated user. When a scope is passed, restrict to repos the
+  // viewer owns or is an org member of. No scope = dev/local (returns all).
+  const visible = scope
+    ? or(
+        scope.githubId != null ? eq(repos.ownerGithubId, scope.githubId) : undefined,
+        sql`lower(${repos.owner}) = lower(${scope.login})`,
+        scope.orgIds.length ? inArray(installations.orgId, scope.orgIds) : undefined,
+      )
+    : undefined;
   // Grouped aggregates instead of 4 queries per repo: the per-repo loop was an
   // N+1 that exhausted the connection pool under concurrent load (each request
   // fired ~4×N sequential round-trips; 100 concurrent users → 30s+ tails).
@@ -163,7 +181,8 @@ export async function listRepos(): Promise<ApiRepo[]> {
         accountLogin: installations.accountLogin,
       })
       .from(repos)
-      .innerJoin(installations, eq(repos.installationId, installations.id)),
+      .innerJoin(installations, eq(repos.installationId, installations.id))
+      .where(visible),
     db
       .select({ repoId: decisions.repoId, n: sql<number>`count(*)::int` })
       .from(decisions)
@@ -207,6 +226,15 @@ export async function listRepos(): Promise<ApiRepo[]> {
       trend: bucketTrend(trendByRepo.get(r.id) ?? []),
     };
   });
+}
+
+/** Org ids the user belongs to (for scoping repo listings to their tenancy). */
+export async function listUserOrgIds(userId: string): Promise<string[]> {
+  const rows = await getDb()
+    .select({ orgId: memberships.orgId })
+    .from(memberships)
+    .where(eq(memberships.userId, userId));
+  return rows.map((r) => r.orgId);
 }
 
 export async function getOverview(repoId: string) {

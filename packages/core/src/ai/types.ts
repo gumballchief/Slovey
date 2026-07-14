@@ -22,6 +22,13 @@ export interface AIProvider {
   complete(prompt: string, opts?: AICompleteOptions): Promise<string>;
   /** Completes and parses JSON, tolerating ```fences. Returns null on failure. */
   completeJSON<T>(prompt: string, opts?: AICompleteOptions): Promise<T | null>;
+  /**
+   * Optional streaming completion: yields answer text chunks as the model emits
+   * them, so callers can render token-by-token instead of waiting for the full
+   * response. Providers that don't implement it are handled by callers falling
+   * back to complete() (chunked server-side).
+   */
+  completeStream?(prompt: string, opts?: AICompleteOptions): AsyncGenerator<string, void, unknown>;
 }
 
 export type Severity = "low" | "medium" | "high" | "critical";
