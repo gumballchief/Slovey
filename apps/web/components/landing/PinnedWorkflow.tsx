@@ -19,7 +19,7 @@ const STEPS: Step[] = [
 function Heading() {
   return (
     <div style={{ textAlign: "center", marginBottom: 8 }}>
-      <div style={{ fontFamily: "var(--font-mono), monospace", fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase", color: "#7fb0f2" }}>04 — Pipeline</div>
+      <div style={{ fontFamily: "var(--font-mono), monospace", fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--l-muted2)" }}>04 — Pipeline</div>
       <MaskReveal style={{ marginTop: 14 }}>
         <h2 style={{ fontFamily: "var(--font-display), sans-serif", fontWeight: 600, fontSize: "clamp(30px,4.4vw,50px)", lineHeight: 1.12, letterSpacing: "-0.025em", color: "var(--l-ink)", margin: 0, paddingBottom: "0.08em" }}>What happens on every change</h2>
       </MaskReveal>
@@ -48,7 +48,7 @@ function WorkflowStacked() {
       <div style={{ marginTop: 40, display: "grid", gap: 16 }}>
         {STEPS.map((s) => (
           <div key={s.no} style={{ display: "flex", gap: 16, padding: 20, borderRadius: 16, border: "1px solid var(--l-border)", background: "var(--l-card)" }}>
-            <div style={{ fontFamily: "var(--font-mono), monospace", color: "#4f7ef7", fontSize: 13 }}>{s.no}</div>
+            <div style={{ fontFamily: "var(--font-mono), monospace", color: "var(--l-ink)", fontSize: 13 }}>{s.no}</div>
             <div>
               <h3 style={{ margin: 0, fontSize: 18, fontFamily: "var(--font-display), sans-serif", color: "var(--l-ink)" }}>{s.title}</h3>
               <p style={{ margin: "6px 0 0", fontSize: 14.5, color: "var(--l-body)" }}>{s.body}</p>
@@ -81,12 +81,12 @@ function WorkflowPinned() {
               {/* left rail */}
               <div style={{ position: "relative", paddingLeft: 26 }}>
                 <div style={{ position: "absolute", left: 5, top: 6, bottom: 6, width: 2, background: "var(--l-border)", borderRadius: 2 }} />
-                <div style={{ position: "absolute", left: 5, top: 6, width: 2, height: railH, background: "linear-gradient(#4f7ef7,#7c5cff)", borderRadius: 2, transition: "height .4s cubic-bezier(.16,1,.3,1)" }} />
+                <div style={{ position: "absolute", left: 5, top: 6, width: 2, height: railH, background: "var(--l-ink)", borderRadius: 2, transition: "height .4s cubic-bezier(.16,1,.3,1)" }} />
                 {STEPS.map((s, i) => {
                   const reached = i <= active;
                   return (
                     <div key={s.no} style={{ position: "relative", padding: "13px 0" }}>
-                      <span style={{ position: "absolute", left: -26, top: 18, width: 12, height: 12, borderRadius: 99, background: reached ? "#4f7ef7" : "#fff", border: `2px solid ${reached ? "#4f7ef7" : "var(--l-border)"}`, transition: "background-color .3s, border-color .3s, transform .3s, box-shadow .3s", transform: i === active ? "scale(1.25)" : "scale(1)", boxShadow: i === active ? "0 0 0 5px rgba(79,126,247,.15)" : "none" }} />
+                      <span style={{ position: "absolute", left: -26, top: 18, width: 12, height: 12, borderRadius: 99, background: reached ? "var(--l-ink)" : "var(--l-surface)", border: `2px solid ${reached ? "var(--l-ink)" : "var(--l-border)"}`, transition: "background-color .3s, border-color .3s, transform .3s, box-shadow .3s", transform: i === active ? "scale(1.25)" : "scale(1)", boxShadow: i === active ? "0 0 0 5px rgba(23,25,28,.12)" : "none" }} />
                       <div style={{ fontFamily: "var(--font-inter-tight), sans-serif", fontSize: 15.5, fontWeight: i === active ? 600 : 500, color: reached ? "var(--l-ink)" : "var(--l-muted)", transition: "color .3s" }}>{s.title}</div>
                     </div>
                   );

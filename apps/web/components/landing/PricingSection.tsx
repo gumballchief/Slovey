@@ -58,7 +58,7 @@ const PLANS: Plan[] = [
 
 function Check() {
   return (
-    <span style={{ display: "inline-flex", flexShrink: 0, color: "#4f7ef7" }}>
+    <span style={{ display: "inline-flex", flexShrink: 0, color: "var(--l-ink)" }}>
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
         <path d="M5 12.5l4.5 4.5L19 7.5" />
       </svg>
@@ -99,7 +99,7 @@ export function PricingSection() {
 
   return (
     <section id="pricing" style={{ position: "relative", zIndex: 1, maxWidth: 1180, margin: "0 auto", padding: "clamp(88px, 10vh, 132px) 24px 0", textAlign: "center" }}>
-      <div style={{ fontFamily: "var(--font-mono), monospace", fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase", color: "#7fb0f2" }}>07 — Pricing</div>
+      <div style={{ fontFamily: "var(--font-mono), monospace", fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--l-muted2)" }}>07 — Pricing</div>
       <h2 style={{ fontFamily: "var(--font-display), sans-serif", fontWeight: 600, fontSize: "clamp(30px,4.4vw,52px)", lineHeight: 1.06, letterSpacing: "-0.025em", margin: "16px auto 0", color: "var(--l-ink)" }}>
         Start free. Scale when it pays for itself.
       </h2>
@@ -121,12 +121,12 @@ export function PricingSection() {
                 position: "relative",
                 padding: "30px 28px",
                 borderRadius: 20,
-                border: p.popular ? "1px solid rgba(79,126,247,.45)" : "1px solid var(--l-border-soft)",
-                background: p.popular ? "linear-gradient(rgba(79,126,247,.14),rgba(79,126,247,.02))" : "linear-gradient(var(--l-card),rgba(255,255,255,.01))",
+                border: p.popular ? "1px solid var(--l-ink)" : "1px solid var(--l-border-soft)",
+                background: p.popular ? "var(--l-card-strong)" : "linear-gradient(var(--l-card),rgba(255,255,255,.01))",
               }}
             >
               {p.popular && (
-                <div style={{ position: "absolute", top: 18, right: 18, padding: "5px 11px", borderRadius: 999, background: "linear-gradient(120deg,#4f7ef7,#7fb0f2)", color: "#fbfaff", fontSize: 11, fontWeight: 500, letterSpacing: "0.06em", fontFamily: "var(--font-inter-tight), sans-serif" }}>
+                <div style={{ position: "absolute", top: 18, right: 18, padding: "5px 11px", borderRadius: 999, background: "var(--l-btn)", color: "var(--l-btn-text)", fontSize: 11, fontWeight: 500, letterSpacing: "0.06em", fontFamily: "var(--font-inter-tight), sans-serif" }}>
                   MOST POPULAR
                 </div>
               )}

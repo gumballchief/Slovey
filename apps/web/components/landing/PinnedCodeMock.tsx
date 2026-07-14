@@ -118,7 +118,7 @@ export function PinnedCodeMock() {
         <div style={{ position: "sticky", top: 0, minHeight: "100vh", display: "flex", flexDirection: "column", justifyContent: "center", padding: "40px 0" }}>
           <div style={{ maxWidth: 1180, margin: "0 auto", padding: "0 24px", width: "100%" }}>
             <div style={{ textAlign: "center", marginBottom: 34 }}>
-              <div style={{ fontFamily: "var(--font-mono), monospace", fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase", color: "#7fb0f2" }}>01 — Live review</div>
+              <div style={{ fontFamily: "var(--font-mono), monospace", fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--l-muted2)" }}>01 — Live review</div>
               <h2 style={{ fontFamily: "var(--font-display), sans-serif", fontWeight: 600, fontSize: "clamp(26px,3.6vw,40px)", lineHeight: 1.12, letterSpacing: "-0.025em", color: "var(--l-ink)", margin: "12px 0 0", paddingBottom: "0.08em" }}>Watch it catch a mistake, live</h2>
             </div>
             {Panel}
