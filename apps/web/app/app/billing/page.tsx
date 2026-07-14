@@ -82,6 +82,7 @@ export default function BillingPage() {
   }, []);
 
   function load() {
+    if (!activeRepoId) return; // billing is scoped through a repo; skip until one is active
     fetchBilling(activeRepoId).then(setData);
   }
   useEffect(load, [activeRepoId]);
@@ -90,6 +91,10 @@ export default function BillingPage() {
     if (!data || plan === data.plan) return;
     if (plan === "enterprise") {
       window.location.href = "/contact";
+      return;
+    }
+    if (!activeRepoId) {
+      setNotice("Your workspace is still loading — give it a moment and try again. If it persists, connect a repository first.");
       return;
     }
     setBusy(plan);
@@ -111,6 +116,10 @@ export default function BillingPage() {
   }
 
   async function openPortal() {
+    if (!activeRepoId) {
+      setNotice("Your workspace is still loading — give it a moment and try again.");
+      return;
+    }
     setBusy("pro");
     try {
       const { url } = await openBillingPortal(activeRepoId);
@@ -143,7 +152,7 @@ export default function BillingPage() {
             </p>
           </div>
           {current !== "free" && (
-            <Button variant="secondary" size="sm" onClick={openPortal} disabled={busy !== null}>
+            <Button variant="secondary" size="sm" onClick={openPortal} disabled={busy !== null || !activeRepoId}>
               Manage billing
             </Button>
           )}
@@ -200,7 +209,7 @@ export default function BillingPage() {
               <Button
                 variant={isCurrent ? "secondary" : "primary"}
                 size="sm"
-                disabled={isCurrent || busy !== null}
+                disabled={isCurrent || busy !== null || !activeRepoId}
                 onClick={() => selectPlan(plan.id)}
               >
                 {isCurrent ? (
