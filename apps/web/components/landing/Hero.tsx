@@ -33,13 +33,13 @@ export function Hero({ introDone }: { introDone: boolean }) {
         <AnimatedHeadline text="The intelligence layer beneath your AI coding agents" start={introDone} />
       </div>
 
-      <motion.p {...rise(0.35)} style={{ margin: "26px auto 0", maxWidth: 620, fontSize: 18, lineHeight: 1.6, color: "var(--l-body)" }}>
-        AI writes great code — it just doesn&apos;t know your company. Slovey gives it your context: your codebase, decisions, and history, so mistakes are caught <strong style={{ color: "var(--l-ink)", fontWeight: 600 }}>before</strong> code is ever committed.
+      <motion.p {...rise(0.35)} style={{ margin: "28px auto 0", maxWidth: 640, fontFamily: "var(--font-serif), Georgia, serif", fontSize: 20, lineHeight: 1.62, color: "var(--l-body)" }}>
+        AI writes great code — it just doesn&apos;t know your company. Slovey gives it your context: your codebase, decisions, and history, so mistakes are caught <em style={{ color: "var(--l-ink)", fontStyle: "italic" }}>before</em> code is ever committed.
       </motion.p>
 
       <motion.div {...rise(0.5)} style={{ marginTop: 38, display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap" }}>
         <Magnetic>
-          <a href="/login" className="cb-cta" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "14px 26px", borderRadius: 12, fontWeight: 600, fontSize: 15, color: "#fbfaff", textDecoration: "none", background: "linear-gradient(120deg,#241d33,#463a63)", boxShadow: "0 12px 30px -10px rgba(255,120,100,.6)" }}>
+          <a href="/login" className="cb-cta" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "14px 26px", borderRadius: 12, fontWeight: 500, fontSize: 15, color: "var(--l-btn-text)", textDecoration: "none", background: "var(--l-btn)", transition: "background .2s ease, filter .2s ease" }}>
             Start free <span className="cb-cta-arrow" aria-hidden>→</span>
           </a>
         </Magnetic>

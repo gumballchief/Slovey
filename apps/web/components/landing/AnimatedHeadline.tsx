@@ -4,10 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { useMinWidth } from "./motion";
 
-// spec #4: ink → accent → ink with a light accent-2 band, swept via background-position.
-// Themed via CSS var so dark mode swaps the ink anchors for light ones.
-const GRAD = "var(--l-headline)";
-
 /**
  * Hero H1 split into per-letter spans (words kept unbreakable). Each letter pops in
  * (translateY(52) scale(.86) opacity:0 → rest, staggered ~26ms, easeOutExpo), carries
@@ -98,13 +94,13 @@ export function AnimatedHeadline({ text, start }: { text: string; start: boolean
     <h1
       ref={rootRef}
       style={{
-        fontFamily: "var(--font-display), sans-serif",
-        fontWeight: 600,
+        fontFamily: "var(--font-display), Georgia, serif",
+        fontWeight: 500,
         fontSize: "clamp(40px, 6.6vw, 82px)",
-        lineHeight: 1.02,
-        letterSpacing: "-0.035em",
+        lineHeight: 1.07,
+        letterSpacing: "-0.02em",
         margin: 0,
-        maxWidth: 900,
+        maxWidth: 940,
       }}
     >
       {words.map((word, wi) => (
@@ -116,14 +112,9 @@ export function AnimatedHeadline({ text, start }: { text: string; start: boolean
                 ref={(el) => {
                   if (el) letterRefs.current.push(el);
                 }}
-                className="cb-shimmer"
                 style={{
                   display: "inline-block",
-                  backgroundImage: GRAD,
-                  backgroundSize: "220% auto",
-                  WebkitBackgroundClip: "text",
-                  backgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
+                  color: "var(--l-ink)",
                   transition: "transform .3s cubic-bezier(.2,.85,.25,1)",
                 }}
               >

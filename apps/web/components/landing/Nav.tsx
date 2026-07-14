@@ -123,7 +123,7 @@ export function Nav() {
           </button>
           <a href="/login" style={{ fontSize: 14.5, color: "var(--l-body)", textDecoration: "none" }}>Sign in</a>
           <Magnetic>
-            <a href="/login" className="cb-cta" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 500, color: "#fbfaff", textDecoration: "none", padding: "9px 17px", borderRadius: 10, background: "linear-gradient(120deg,#241d33,#463a63)", boxShadow: "0 8px 26px -10px rgba(255,120,100,.7)" }}>
+            <a href="/login" className="cb-cta" style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 14, fontWeight: 500, color: "var(--l-btn-text)", textDecoration: "none", padding: "9px 18px", borderRadius: 10, background: "var(--l-btn)", transition: "background .2s ease, filter .2s ease" }}>
               Start free <span className="cb-cta-arrow" aria-hidden>→</span>
             </a>
           </Magnetic>
