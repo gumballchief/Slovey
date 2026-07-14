@@ -27,6 +27,10 @@
   --l-aur-b:rgba(124,92,255,.13);
   --l-aur-c:rgba(127,176,242,.15);
   --l-grid:rgba(70,95,160,.06);
+  /* primary button — solid ink, inverted (dark button in light mode) */
+  --l-btn:#17191c;
+  --l-btn-text:#fbfbfc;
+  --l-btn-hover:#2a2d33;
   /* headline: near-solid ink with a whisper of depth (editorial, not rainbow) */
   --l-headline:linear-gradient(180deg,#191b1f 0%,#3a3d44 100%);
 }
@@ -51,6 +55,9 @@ html.cb-dark #cb-landing{
   --l-aur-b:rgba(124,92,255,.20);
   --l-aur-c:rgba(110,150,255,.17);
   --l-grid:rgba(150,175,235,.05);
+  --l-btn:#f1f2f4;
+  --l-btn-text:#141519;
+  --l-btn-hover:#ffffff;
   --l-headline:linear-gradient(180deg,#f4f5f7 0%,#bcc0c8 100%);
 }
 /* The page canvas behind the landing tracks the theme, so fast scrolling into
