@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-
-const GITHUB_APP_INSTALL = "https://github.com/apps/company-brain/installations/new";
+import { GITHUB_APP_INSTALL_URL } from "@/lib/github-app";
 
 /**
  * Client-side effects for the ported design landing. The markup is rendered via
@@ -108,7 +107,7 @@ export function LandingEffects() {
       if (t === "sign in") a.href = "/login";
       else if (/^(start free|get started|start building|start now|create account)/.test(t)) a.href = "/login";
       else if (/connect (a )?repo/.test(t)) {
-        a.href = GITHUB_APP_INSTALL;
+        a.href = GITHUB_APP_INSTALL_URL;
         a.target = "_blank";
         a.rel = "noreferrer";
       }

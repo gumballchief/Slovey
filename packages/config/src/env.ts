@@ -70,7 +70,7 @@ const schema = z.object({
   GITHUB_APP_PRIVATE_KEY: z.string().optional(),
   GITHUB_APP_PRIVATE_KEY_PATH: z.string().optional(),
   GITHUB_WEBHOOK_SECRET: z.string().optional(),
-  GITHUB_APP_SLUG: z.string().default("company-brain"),
+  GITHUB_APP_SLUG: z.string().default("slovey-dev"),
 
   // GitHub OAuth + Auth.js
   GITHUB_CLIENT_ID: z.string().optional(),

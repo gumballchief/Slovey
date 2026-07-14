@@ -59,7 +59,7 @@ Then in **Supabase → Authentication → URL Configuration**:
 `https://<ref>.supabase.co/auth/v1/callback` and do **not** change per deploy.)
 
 ## 5. Point the GitHub App at the deployment
-In the GitHub App settings (github.com/settings/apps/company-brain):
+In the GitHub App settings (github.com/settings/apps/slovey-dev):
 - **Webhook URL** → `https://company-brain-web.onrender.com/api/github/webhooks`
   (this replaces the dev smee tunnel).
 - Confirm the **Webhook secret** matches `GITHUB_WEBHOOK_SECRET`.

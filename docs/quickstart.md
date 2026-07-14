@@ -14,7 +14,7 @@ history, and comments when a change conflicts with one — always citing the
 specific decision and the PR it came from.
 
 1. **Install the app** on the repo you want:
-   → https://github.com/apps/company-brain/installations/new
+   → https://github.com/apps/slovey-dev/installations/new
    Pick the repository (grant it a single repo to start; you can add more later).
 
 2. **Sign in with GitHub** at the dashboard so it can match your repositories to
