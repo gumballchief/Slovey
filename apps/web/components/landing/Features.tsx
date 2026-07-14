@@ -6,7 +6,7 @@ import { TiltCard } from "./TiltCard";
 type Feat = { title: string; body: string; icon: React.ReactNode };
 
 const I = (d: string) => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4f7ef7" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--l-ink)" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
     {d.split("|").map((p, i) => (p.startsWith("c:") ? <circle key={i} cx={+p.split(",")[1]!} cy={+p.split(",")[2]!} r={+p.split(",")[3]!} /> : <path key={i} d={p} />))}
   </svg>
 );
@@ -23,7 +23,7 @@ const FEATURES: Feat[] = [
 export function Features() {
   return (
     <section id="features" style={{ position: "relative", zIndex: 1, maxWidth: 1180, margin: "0 auto", padding: "clamp(88px, 10vh, 132px) 24px 0" }}>
-      <Reveal style={{ textAlign: "center", fontFamily: "var(--font-mono), monospace", fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase", color: "#7fb0f2" }}>
+      <Reveal style={{ textAlign: "center", fontFamily: "var(--font-mono), monospace", fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--l-muted2)" }}>
         03 — Capabilities
       </Reveal>
       <MaskReveal delay={0.06} style={{ margin: "16px auto 0", maxWidth: 720, textAlign: "center" }}>

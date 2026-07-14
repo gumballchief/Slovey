@@ -17,7 +17,7 @@ const CASES: UseCase[] = [
 function Heading() {
   return (
     <div style={{ textAlign: "center", marginBottom: 40 }}>
-      <div style={{ fontFamily: "var(--font-mono), monospace", fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase", color: "#7fb0f2" }}>06 — Use cases</div>
+      <div style={{ fontFamily: "var(--font-mono), monospace", fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--l-muted2)" }}>06 — Use cases</div>
       <MaskReveal style={{ marginTop: 14 }}>
         <h2 style={{ fontFamily: "var(--font-display), sans-serif", fontWeight: 600, fontSize: "clamp(30px,4.4vw,50px)", lineHeight: 1.12, letterSpacing: "-0.025em", color: "var(--l-ink)", margin: 0, paddingBottom: "0.08em" }}>Put your engineering memory to work</h2>
       </MaskReveal>
@@ -40,7 +40,7 @@ function Card({ c, i, open, done, active, reduce }: { c: UseCase; i: number; ope
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-        <span style={{ fontFamily: "var(--font-mono), monospace", fontSize: 13, color: open || done ? "#4f7ef7" : "var(--l-muted)", transition: "color .3s" }}>{c.no}</span>
+        <span style={{ fontFamily: "var(--font-mono), monospace", fontSize: 13, color: open || done ? "var(--l-ink)" : "var(--l-muted)", transition: "color .3s" }}>{c.no}</span>
         <span style={{ fontFamily: "var(--font-mono), monospace", fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: open ? "#7c5cff" : "var(--l-muted)", background: open ? "rgba(124,92,255,.1)" : "transparent", padding: open ? "3px 8px" : 0, borderRadius: 6, transition: "color .3s, background-color .3s, padding .3s, box-shadow .3s", boxShadow: open ? "0 0 14px rgba(124,92,255,.35)" : "none" }}>{c.tag}</span>
         <h3 style={{ margin: 0, fontFamily: "var(--font-display), sans-serif", fontSize: 21, fontWeight: 600, letterSpacing: "-0.015em", color: open || done ? "var(--l-ink)" : "var(--l-body)", transition: "color .3s" }}>{c.title}</h3>
       </div>
