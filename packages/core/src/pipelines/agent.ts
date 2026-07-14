@@ -290,7 +290,11 @@ Output the COMPLETE new contents of ${target.path} and NOTHING else — no prose
         message: `Revise per Company Brain review (round ${reviseRounds})\n\n${feedback.slice(0, 400)}`,
         files,
       });
-      review = await checkPr({ repoId, installationId, owner, name, fullName, prNumber: pr.number, action: "synchronize" });
+      // "manual", not "synchronize": this is the agent's own explicit re-review,
+      // which must run regardless of the repo's triggerSynchronize webhook setting
+      // (synchronize is gated off by default, which silently skipped the re-check
+      // and let unverified revisions through with a stale verdict).
+      review = await checkPr({ repoId, installationId, owner, name, fullName, prNumber: pr.number, action: "manual" });
       verdict = review.verdict;
       reviewPosted = review.posted || reviewPosted;
     }

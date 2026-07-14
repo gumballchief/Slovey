@@ -104,7 +104,7 @@ export async function checkPr(params: CheckPrParams): Promise<CheckPrResult> {
 
   // Idempotency: already processed this exact head sha?
   const existing = await db
-    .select({ id: prChecks.id })
+    .select({ id: prChecks.id, verdict: prChecks.verdict })
     .from(prChecks)
     .where(
       and(
@@ -114,7 +114,9 @@ export async function checkPr(params: CheckPrParams): Promise<CheckPrResult> {
       ),
     )
     .limit(1);
-  if (existing.length > 0) {
+  // A prior "skipped" row means the judge transiently failed — allow a re-run so
+  // the check can self-heal. A real clear/conflict result stays idempotent.
+  if (existing.length > 0 && existing[0]!.verdict !== "skipped") {
     return { verdict: "skipped", posted: false, reason: "already-checked", checkId: existing[0]!.id };
   }
 
@@ -217,6 +219,21 @@ export async function checkPr(params: CheckPrParams): Promise<CheckPrResult> {
           description,
         });
         posted = verdict === "conflict";
+      } else {
+        // verdict "skipped" (judge failed): the "pending" status posted above
+        // would otherwise stick forever and block a required merge gate. Resolve
+        // it to an honest error; the row stays "skipped" so the next push/rescan
+        // re-runs and produces a real success/failure.
+        await octokit.rest.repos
+          .createCommitStatus({
+            owner: params.owner,
+            repo: params.name,
+            sha: pr.headSha,
+            state: "error",
+            context: "company-brain",
+            description: "Company Brain couldn't complete the check — it will retry.",
+          })
+          .catch(() => {});
       }
     } else if (verdict === "conflict" && matchedDecisionText) {
       const body = buildComment({
@@ -243,9 +260,10 @@ export async function checkPr(params: CheckPrParams): Promise<CheckPrResult> {
         existingComment,
       );
       posted = true;
-    } else {
-      // No conflict now — if we previously warned on this PR, replace that stale
-      // comment with a resolved note instead of leaving it hanging.
+    } else if (verdict === "clear") {
+      // Genuinely re-checked and clear — if we previously warned on this PR,
+      // replace that stale comment with a resolved note. NOT done for "skipped"
+      // (judge failure): that would falsely mark an unresolved conflict as fixed.
       const existingComment = await findBotComment(
         octokit,
         params.owner,

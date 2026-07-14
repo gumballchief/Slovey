@@ -1,4 +1,4 @@
-import { preflight, resolveRepoById, verifyApiToken } from "@company-brain/core";
+import { dashboard, preflight, resolveRepoById, verifyApiToken } from "@company-brain/core";
 import { HttpError, handle, ok } from "@/lib/server/respond";
 import { clientIp, rateLimit } from "@/lib/server/ratelimit";
 
@@ -32,6 +32,17 @@ export async function POST(req: Request): Promise<Response> {
     // deleted/re-synced repo behind a stale token).
     const repo = await resolveRepoById(verified.repoId);
     if (!repo) throw new HttpError(404, "The repository this token was issued for no longer exists.");
+
+    // Re-verify the token's user STILL has access to the repo's org. Membership is
+    // refreshed + pruned at login (linkUserMemberships), so a teammate removed
+    // from the org loses access on their next sign-in and this token stops
+    // working — the token itself is not auto-revoked on removal.
+    if (repo.orgId) {
+      const orgIds = await dashboard.listUserOrgIds(verified.userId);
+      if (!orgIds.includes(repo.orgId)) {
+        throw new HttpError(403, "Your access to this repository has been revoked.");
+      }
+    }
 
     const body = (await req.json().catch(() => ({}))) as {
       diff?: string;

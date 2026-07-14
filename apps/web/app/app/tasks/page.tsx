@@ -41,7 +41,10 @@ export default function TasksPage() {
   const refresh = useCallback(async () => {
     if (!activeRepoId) return;
     const rows = await fetchAgentRuns(activeRepoId);
-    setRuns(rows);
+    // A transient poll failure returns [] (getJSON swallows errors). Don't let
+    // that wipe in-flight runs from the UI and stop the poll — agent runs are
+    // append-only, so an empty result when we had runs means the fetch failed.
+    setRuns((prev) => (rows.length === 0 && prev.length > 0 ? prev : rows));
     return rows;
   }, [activeRepoId]);
 
