@@ -85,10 +85,14 @@ export async function reason(repoId: string, question: string): Promise<Reasoned
   const ranked = await retrieveRanked(repoId, question);
   reasoning.push(`Retrieved ${ranked.length} candidate decisions from the graph.`);
 
-  const closest = ranked[0];
-  if (!closest || closest.distance > SILENCE_DISTANCE) {
+  // Gate on the NEAREST decision by cosine distance — not ranked[0], which is
+  // the best similarity×freshness *blend* and can sit past the threshold while a
+  // slightly-less-fresh but closer decision (within threshold) exists. Using
+  // ranked[0] here caused false "nothing matched" declines on answerable questions.
+  const nearestDist = ranked.length ? Math.min(...ranked.map((r) => r.distance)) : Number.POSITIVE_INFINITY;
+  if (!ranked.length || nearestDist > SILENCE_DISTANCE) {
     reasoning.push(
-      `Closest decision distance ${closest ? closest.distance.toFixed(2) : "n/a"} exceeds the silence threshold ${SILENCE_DISTANCE}; declining.`,
+      `Nearest decision distance ${ranked.length ? nearestDist.toFixed(2) : "n/a"} exceeds the silence threshold ${SILENCE_DISTANCE}; declining.`,
     );
     return {
       question,
@@ -167,4 +171,114 @@ Respond ONLY with JSON: {"answer": "<concise answer citing [n]>", "used": [<numb
   if (citations.length === 0) conf = "low";
 
   return { question, answer: res.answer, confidence: conf, citations, reasoning };
+}
+
+export type ReasonStreamEvent =
+  | { type: "token"; text: string }
+  | { type: "done"; answer: ReasonedAnswer };
+
+/**
+ * Streaming variant of {@link reason}: same retrieve→rank→silence-or-reason flow,
+ * but the answer prose is yielded token-by-token as the model emits it (so the UI
+ * types it out instead of waiting), then a final `done` event carries the resolved
+ * citations + confidence. Citations are parsed from the [n] markers the model
+ * cites inline, so no separate structured call is needed.
+ */
+export async function* reasonStream(
+  repoId: string,
+  question: string,
+): AsyncGenerator<ReasonStreamEvent, void, unknown> {
+  const reasoning: string[] = [];
+  const ranked = await retrieveRanked(repoId, question);
+  reasoning.push(`Retrieved ${ranked.length} candidate decisions from the graph.`);
+
+  // Gate on the NEAREST decision by cosine distance — not ranked[0], which is
+  // the best similarity×freshness *blend* and can sit past the threshold while a
+  // slightly-less-fresh but closer decision (within threshold) exists. Using
+  // ranked[0] here caused false "nothing matched" declines on answerable questions.
+  const nearestDist = ranked.length ? Math.min(...ranked.map((r) => r.distance)) : Number.POSITIVE_INFINITY;
+  if (!ranked.length || nearestDist > SILENCE_DISTANCE) {
+    reasoning.push(
+      `Nearest decision distance ${ranked.length ? nearestDist.toFixed(2) : "n/a"} exceeds the silence threshold ${SILENCE_DISTANCE}; declining.`,
+    );
+    const answer =
+      "No recorded engineering decision addresses this. (Nothing in the decision graph matched closely enough to answer with evidence.)";
+    yield { type: "token", text: answer };
+    yield { type: "done", answer: { question, answer, confidence: "none", citations: [], reasoning } };
+    return;
+  }
+
+  const considered = ranked.slice(0, 6);
+  reasoning.push(
+    `Ranked by similarity×freshness; resolved lifecycle (superseded/deprecated/rejected down-weighted). Using top ${considered.length}.`,
+  );
+
+  const numbered = considered
+    .map((r, i) => {
+      const meta = `status=${r.row.status}, importance=${r.row.importance}, freshness=${r.freshness.toFixed(2)}, evidence=${(r.row.evidence ?? []).join(", ") || "—"}`;
+      const extra =
+        r.row.status === "rejected" && r.row.rejectionReason
+          ? `\n   rejected because: ${r.row.rejectionReason}` +
+            (r.row.alternatives?.length ? `; instead: ${r.row.alternatives.join(", ")}` : "")
+          : "";
+      return `[${i + 1}] ${r.row.decision}\n   why: ${r.row.why || "—"}\n   (${meta})${extra}`;
+    })
+    .join("\n\n");
+
+  const prompt = `You are the engineering decision brain for a team. Answer the question USING ONLY the decisions below. Cite the decisions you use inline by their [number]. If the decisions do not actually answer the question, say so plainly — do NOT invent or generalize. Prefer active decisions over superseded/deprecated ones, and surface rejected approaches when relevant ("we tried X, rejected because…").
+
+QUESTION: ${question}
+
+DECISIONS:
+${numbered}
+
+Write a concise answer (2–5 sentences) as plain prose, citing sources inline as [n]. Do not output JSON or headings.`;
+
+  const ai = getAI();
+  let full = "";
+  try {
+    if (ai.completeStream) {
+      for await (const chunk of ai.completeStream(prompt, { tier: "premium", maxTokens: 500 })) {
+        full += chunk;
+        yield { type: "token", text: chunk };
+      }
+    } else {
+      // Provider without native streaming: fetch the whole answer, then emit it
+      // word-by-word so the UI still types it out.
+      const text = await ai.complete(prompt, { tier: "premium", maxTokens: 500 });
+      full = text;
+      for (const w of text.match(/\S+\s*/g) ?? [text]) yield { type: "token", text: w };
+    }
+  } catch {
+    /* keep whatever streamed; handled below */
+  }
+
+  full = full.trim();
+  if (!full) {
+    const answer = "Unable to produce a grounded answer from the decision graph right now.";
+    yield { type: "token", text: answer };
+    yield { type: "done", answer: { question, answer, confidence: "none", citations: [], reasoning } };
+    return;
+  }
+
+  // Citations = the decisions the answer actually referenced by [n].
+  const usedIdx = [...new Set([...full.matchAll(/\[(\d+)\]/g)].map((m) => Number(m[1])))].filter(
+    (n) => n >= 1 && n <= considered.length,
+  );
+  const citations = usedIdx.map((n) => considered[n - 1]!).map(toCitation);
+  reasoning.push(
+    citations.length
+      ? `Reasoner cited ${citations.length} decision(s).`
+      : "Reasoner used no decision; answer is not grounded in recorded evidence.",
+  );
+
+  // Reinforcement: a citation is weak evidence the decision is still relevant.
+  await Promise.all(
+    citations.map((c) => reinforce(repoId, c.decisionId, "referenced").catch(() => undefined)),
+  );
+
+  const conf: AnswerConfidence =
+    citations.length >= 2 ? "high" : citations.length === 1 ? "medium" : "low";
+
+  yield { type: "done", answer: { question, answer: full, confidence: conf, citations, reasoning } };
 }

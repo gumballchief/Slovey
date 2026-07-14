@@ -103,6 +103,80 @@ export class GeminiProvider implements AIProvider {
     return this.call(prompt, opts, false);
   }
 
+  /**
+   * Streaming completion via streamGenerateContent (SSE). Yields answer text as
+   * the model emits it. On any transport/parse failure it falls back to a single
+   * complete() call yielded as one chunk, so callers always get an answer.
+   */
+  async *completeStream(prompt: string, opts: AICompleteOptions = {}): AsyncGenerator<string, void, unknown> {
+    const model = this.model(opts.tier);
+    const url = `${BASE}/${model}:streamGenerateContent?alt=sse&key=${this.cfg.apiKey}`;
+    const body: Record<string, unknown> = {
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: {
+        maxOutputTokens: (opts.maxTokens ?? 800) + THINKING_HEADROOM,
+        temperature: opts.temperature ?? 0,
+      },
+    };
+    if (opts.system) body.systemInstruction = { parts: [{ text: opts.system }] };
+
+    let res: Response;
+    try {
+      res = await fetchWithTimeout(
+        url,
+        { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) },
+        budgetMs(opts),
+        "Gemini stream",
+      );
+    } catch {
+      yield await this.call(prompt, opts, false);
+      return;
+    }
+    if (!res.ok || !res.body) {
+      yield await this.call(prompt, opts, false);
+      return;
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    let emitted = false;
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        // SSE frames are separated by blank lines; each carries one `data:` line.
+        const frames = buf.split("\n");
+        buf = frames.pop() ?? "";
+        for (const line of frames) {
+          const t = line.trim();
+          if (!t.startsWith("data:")) continue;
+          const payload = t.slice(5).trim();
+          if (!payload || payload === "[DONE]") continue;
+          try {
+            const data = JSON.parse(payload) as {
+              candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+            };
+            for (const p of data.candidates?.[0]?.content?.parts ?? []) {
+              if (p.text) {
+                emitted = true;
+                yield p.text;
+              }
+            }
+          } catch {
+            /* partial JSON across chunk boundary — ignore, next read completes it */
+          }
+        }
+      }
+    } catch {
+      if (!emitted) yield await this.call(prompt, opts, false);
+      return;
+    }
+    // Stream ended with no text at all → fall back so the user still gets an answer.
+    if (!emitted) yield await this.call(prompt, opts, false);
+  }
+
   async completeJSON<T>(prompt: string, opts: AICompleteOptions = {}): Promise<T | null> {
     // Up to 2 calls, but ONLY re-issue the network request when the first call
     // succeeded yet returned unparseable JSON. A thrown error (timeout / network
