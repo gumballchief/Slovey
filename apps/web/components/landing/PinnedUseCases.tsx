@@ -65,7 +65,7 @@ export function PinnedUseCases() {
 // Reduced-motion / narrow-viewport (<760px): every card open.
 function UseCasesStacked() {
   return (
-    <section id="usecases" style={{ position: "relative", zIndex: 1, maxWidth: 860, margin: "0 auto", padding: "130px 24px 0" }}>
+    <section id="usecases" style={{ position: "relative", zIndex: 1, maxWidth: 860, margin: "0 auto", padding: "clamp(88px, 10vh, 132px) 24px 0" }}>
       <Heading />
       <div style={{ display: "grid", gap: 14 }}>
         {CASES.map((c, i) => (

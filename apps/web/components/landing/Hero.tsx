@@ -23,7 +23,7 @@ export function Hero({ introDone }: { introDone: boolean }) {
         };
 
   return (
-    <section ref={sectionRef} id="top" style={{ position: "relative", zIndex: 1, maxWidth: 1180, margin: "0 auto", padding: "150px 24px 0", textAlign: "center" }}>
+    <section ref={sectionRef} id="top" style={{ position: "relative", zIndex: 1, maxWidth: 1180, margin: "0 auto", padding: "clamp(120px, 15vh, 158px) 24px 0", textAlign: "center" }}>
       <motion.div {...rise(0.1)} style={{ display: "inline-flex", alignItems: "center", gap: 9, padding: "7px 15px", borderRadius: 99, background: "var(--l-card-strong)", border: "1px solid var(--l-border)", marginBottom: 30 }}>
         <span className="cb-dot-pulse" style={{ width: 7, height: 7, borderRadius: 99, background: "#4f7ef7" }} />
         <span style={{ fontFamily: "var(--font-mono), monospace", fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--l-body)" }}>Engineering Intelligence Platform</span>

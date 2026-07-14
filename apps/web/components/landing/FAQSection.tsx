@@ -17,7 +17,7 @@ export function FAQSection() {
   const [open, setOpen] = useState(0);
 
   return (
-    <section id="faq" style={{ position: "relative", zIndex: 1, maxWidth: 820, margin: "0 auto", padding: "130px 24px 0" }}>
+    <section id="faq" style={{ position: "relative", zIndex: 1, maxWidth: 820, margin: "0 auto", padding: "clamp(88px, 10vh, 132px) 24px 0" }}>
       <div style={{ textAlign: "center" }}>
         <div style={{ fontFamily: "var(--font-mono), monospace", fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase", color: "#7fb0f2" }}>08 — FAQ</div>
         <h2 style={{ fontFamily: "var(--font-display), sans-serif", fontWeight: 600, fontSize: "clamp(30px,4.4vw,50px)", lineHeight: 1.1, letterSpacing: "-0.025em", margin: "14px 0 0", color: "var(--l-ink)" }}>

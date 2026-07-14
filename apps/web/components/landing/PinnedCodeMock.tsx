@@ -108,7 +108,7 @@ export function PinnedCodeMock() {
 
   if (reduce) {
     return (
-      <section id="preview" style={{ position: "relative", zIndex: 1, maxWidth: 1180, margin: "0 auto", padding: "60px 24px 0" }}>{Panel}</section>
+      <section id="preview" style={{ position: "relative", zIndex: 1, maxWidth: 1180, margin: "0 auto", padding: "clamp(56px, 7vh, 84px) 24px 0" }}>{Panel}</section>
     );
   }
 
