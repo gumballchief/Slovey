@@ -29,9 +29,22 @@ export default function ArchitecturePage() {
       setLoading(false);
     }
   }
+  // Load on repo switch with an ordering guard: a slow fetch for the PREVIOUS
+  // repo must not overwrite the new repo's data if it resolves late. Also reset
+  // loading so the switch shows a loading state instead of stale content.
   useEffect(() => {
-    void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let cancelled = false;
+    setLoading(true);
+    fetchArchitecture(activeRepoId)
+      .then((d) => {
+        if (!cancelled) setData(d);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [activeRepoId]);
 
   async function reindex() {

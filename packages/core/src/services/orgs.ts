@@ -1,5 +1,5 @@
 import { getDb, installations, memberships, organizations, users } from "@company-brain/db";
-import { and, eq } from "drizzle-orm";
+import { and, eq, notInArray } from "drizzle-orm";
 
 export type Role = "owner" | "admin" | "member" | "viewer";
 
@@ -68,6 +68,7 @@ export async function linkUserMemberships(
     return;
   }
 
+  const accessibleOrgIds: string[] = [];
   for (const inst of accessible) {
     const [row] = await db
       .select({ orgId: installations.orgId, accountLogin: installations.accountLogin })
@@ -75,6 +76,7 @@ export async function linkUserMemberships(
       .where(eq(installations.githubInstallationId, inst.id))
       .limit(1);
     if (!row?.orgId) continue;
+    accessibleOrgIds.push(row.orgId);
     const role: Role =
       row.accountLogin?.toLowerCase() === login.toLowerCase() ? "owner" : "member";
     await db
@@ -85,4 +87,17 @@ export async function linkUserMemberships(
         set: { role },
       });
   }
+
+  // Prune memberships for orgs the user can no longer access on GitHub, so being
+  // removed from an org actually revokes their access here (and their CLI tokens
+  // stop working) on their next sign-in — rather than lingering forever. Only
+  // runs after a successful installations fetch (early-returns above on failure),
+  // so a transient GitHub error never wrongly wipes memberships.
+  await db
+    .delete(memberships)
+    .where(
+      accessibleOrgIds.length
+        ? and(eq(memberships.userId, userId), notInArray(memberships.orgId, accessibleOrgIds))
+        : eq(memberships.userId, userId),
+    );
 }

@@ -35,7 +35,12 @@ export async function POST(
       throw new HttpError(402, `The ${headroom.plan} plan is capped at ${headroom.limit} decisions (you have ${headroom.used}). Upgrade to import more.`);
     }
 
-    const result = await importDocs(id, docs);
+    // The pre-check above only guaranteed room for ONE decision, but a multi-doc
+    // import upserts many at once — without a cap a free org at 199/200 could
+    // import 30 docs and blow past the 200 limit. Bound the import to the org's
+    // remaining headroom (undefined = unlimited plan).
+    const maxNew = headroom.limit < 0 ? undefined : Math.max(0, headroom.limit - headroom.used);
+    const result = await importDocs(id, docs, maxNew);
     await logAudit({
       repoId: id,
       actorUser: viewer.login,

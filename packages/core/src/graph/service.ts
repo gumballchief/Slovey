@@ -1,5 +1,5 @@
 import { decisionEdges, decisions, decisionVersions, getDb } from "@company-brain/db";
-import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, inArray, or, sql } from "drizzle-orm";
 import { getEmbeddings } from "../embeddings";
 import {
   ACTIVE_STATUSES,
@@ -157,7 +157,14 @@ export async function updateDecision(
     patch.title !== undefined ||
     patch.why !== undefined ||
     patch.examples !== undefined;
-  const set: Record<string, unknown> = { ...patch, updatedAt: new Date(), version: current.version + 1 };
+  // Increment version atomically in SQL, not current.version+1 computed in JS
+  // between the SELECT above and this UPDATE — two concurrent writers would
+  // otherwise both write the same version and duplicate the history snapshot.
+  const set: Record<string, unknown> = {
+    ...patch,
+    updatedAt: new Date(),
+    version: sql`${decisions.version} + 1`,
+  };
   if (textChanged) {
     set.embedding = await getEmbeddings().embedOne(
       embedText({
@@ -184,7 +191,14 @@ export async function transitionStatus(
   status: DecisionRow["status"],
   opts: { supersededById?: string; rejectionReason?: string; by?: string } = {},
 ): Promise<DecisionRow | null> {
-  const set: Record<string, unknown> = { status, updatedAt: new Date() };
+  // Bump the version (atomically) so the status change gets its own history
+  // snapshot — previously version was omitted, so the snapshot re-used the
+  // decision's current version number, producing duplicate version rows.
+  const set: Record<string, unknown> = {
+    status,
+    updatedAt: new Date(),
+    version: sql`${decisions.version} + 1`,
+  };
   if (status === "approved") set.approvedAt = new Date();
   if (status === "superseded" && opts.supersededById) set.supersededById = opts.supersededById;
   if (status === "rejected" && opts.rejectionReason) set.rejectionReason = opts.rejectionReason;
@@ -360,7 +374,7 @@ export async function reviewDecision(
       approvedAt: current.approvedAt ?? new Date(),
       updatedAt: new Date(),
       confidence: sql`least(0.99, ${decisions.confidence} + 0.1)`,
-      version: current.version + 1,
+      version: sql`${decisions.version} + 1`,
     })
     .where(and(eq(decisions.id, id), eq(decisions.repoId, repoId)))
     .returning();
@@ -391,8 +405,11 @@ export async function activeDecisionsForScope(
   const db = getDb();
   // Fetch active decisions for the repo, then score scope relevance in JS (more
   // flexible than SQL for directory-prefix matching; counts are bounded).
+  // Exclude the 1024-dim embedding (≈8KB/row, unused here): selecting it for
+  // every active decision pulled ~32MB into the small-pool worker on this hot
+  // path. Overriding the column with NULL keeps the DecisionRow shape intact.
   const rows = await db
-    .select()
+    .select({ ...getTableColumns(decisions), embedding: sql<number[] | null>`null` })
     .from(decisions)
     .where(and(eq(decisions.repoId, repoId), inArray(decisions.status, ACTIVE_STATUSES)));
 

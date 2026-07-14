@@ -37,8 +37,15 @@ export async function PATCH(
     }
     const body = (await req.json()) as { plan?: string };
     if (!body.plan || !PLANS.has(body.plan)) throw new HttpError(400, "invalid plan");
-    // With Stripe live, paid plans go through Checkout — the manual switch would
-    // grant Pro without payment. Downgrades/enterprise (sales-led) stay manual.
+    // Enterprise (unlimited repos/decisions/agent-runs) is sales-led — it must
+    // NEVER be self-assignable through this dashboard PATCH, or any owner/admin
+    // could grant themselves the unlimited plan for free. It's set out-of-band
+    // (admin/sales tooling calling setOrgPlan directly).
+    if (body.plan === "enterprise") {
+      throw new HttpError(403, "Enterprise plans are set up with our team — contact sales.");
+    }
+    // With Stripe live, Pro goes through Checkout — a manual switch would grant
+    // Pro without payment. Downgrades to free stay manual.
     if (isBillingConfigured() && body.plan === "pro") {
       throw new HttpError(400, "Upgrade to Pro via checkout (POST billing/checkout)");
     }

@@ -80,7 +80,12 @@ export function splitDocs(raw: string, fallbackPath = "pasted-doc"): ImportDoc[]
  * seed the graph from the docs you already wrote. Reuses the same extractor as
  * PR/doc ingestion; everything lands in the review queue (source = "doc").
  */
-export async function importDocs(repoId: string, docs: ImportDoc[]): Promise<ImportResult> {
+export async function importDocs(
+  repoId: string,
+  docs: ImportDoc[],
+  /** Plan headroom: never upsert more than this many decisions (undefined = unlimited). */
+  maxNew?: number,
+): Promise<ImportResult> {
   const ai = getAI();
   const items: { d: ExtractedDecision; source: "doc" }[] = [];
   let extracted = 0;
@@ -100,7 +105,10 @@ export async function importDocs(repoId: string, docs: ImportDoc[]): Promise<Imp
     }
   }
 
-  if (items.length === 0) return { docs: docs.length, extracted: 0, inserted: 0, updated: 0 };
-  const { inserted, updated } = await upsertDecisions(repoId, items, "import");
+  // Enforce the org's remaining plan headroom so one import can't exceed the cap
+  // (conservative: counts every item as new, so we never overshoot the limit).
+  const toUpsert = maxNew !== undefined && maxNew >= 0 ? items.slice(0, maxNew) : items;
+  if (toUpsert.length === 0) return { docs: docs.length, extracted, inserted: 0, updated: 0 };
+  const { inserted, updated } = await upsertDecisions(repoId, toUpsert, "import");
   return { docs: docs.length, extracted, inserted, updated };
 }

@@ -103,7 +103,21 @@ export default function MemoryPage() {
     fetchDecisions(activeRepoId).then(setDecisions);
     fetchMemoryHealth(activeRepoId).then(setHealth);
   }
-  useEffect(load, [activeRepoId]);
+  // Load on repo switch with an ordering guard: a late response for the PREVIOUS
+  // repo must not populate the list/health under the new repo — otherwise edits
+  // or deletes from that stale list would target the wrong repo's decision IDs.
+  useEffect(() => {
+    let cancelled = false;
+    fetchDecisions(activeRepoId).then((d) => {
+      if (!cancelled) setDecisions(d);
+    });
+    fetchMemoryHealth(activeRepoId).then((h) => {
+      if (!cancelled) setHealth(h);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeRepoId]);
 
   const filtered = useMemo(() => {
     return decisions.filter((d) => {

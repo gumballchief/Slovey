@@ -15,9 +15,9 @@ export async function GET(): Promise<Response> {
       time: new Date().toISOString(),
     });
   } catch (err) {
-    return Response.json(
-      { status: "degraded", db: "down", error: (err as Error).message },
-      { status: 503 },
-    );
+    // Don't leak the raw driver error (host/port/db name/internals) to this
+    // unauthenticated probe — log it server-side, return a generic status.
+    console.error("[health] db check failed:", err);
+    return Response.json({ status: "degraded", db: "down" }, { status: 503 });
   }
 }
