@@ -4,7 +4,7 @@ import { useState } from "react";
 
 // PLACEHOLDER inbox — replace with your real address. The form has no backend;
 // it opens the visitor's mail client pre-filled via mailto:.
-const CONTACT_EMAIL = "hello@slovey.dev";
+const CONTACT_EMAIL = "support@slovey.dev";
 
 export function ContactForm({ salesIntent }: { salesIntent?: boolean }) {
   const [name, setName] = useState("");
