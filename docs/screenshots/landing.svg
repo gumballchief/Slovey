@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 750" width="1200" height="750" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0d0f15"/>
+      <stop offset="1" stop-color="#0a0b10"/>
+    </linearGradient>
+    <linearGradient id="s" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7C3AED"/>
+      <stop offset="1" stop-color="#2E9BF5"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="750" rx="18" fill="url(#bg)"/>
+  <rect x="0.5" y="0.5" width="1199" height="749" rx="18" fill="none" stroke="#232733"/>
+  <!-- hairline grid -->
+  <g stroke="#171a22" stroke-width="1">
+    <line x1="300" y1="120" x2="300" y2="750"/><line x1="600" y1="120" x2="600" y2="750"/><line x1="900" y1="120" x2="900" y2="750"/>
+  </g>
+  <!-- browser chrome -->
+  <rect x="0" y="0" width="1200" height="64" rx="18" fill="#12141c"/>
+  <rect x="0" y="46" width="1200" height="18" fill="#12141c"/>
+  <circle cx="34" cy="32" r="7" fill="#2c303c"/><circle cx="60" cy="32" r="7" fill="#2c303c"/><circle cx="86" cy="32" r="7" fill="#2c303c"/>
+  <rect x="132" y="18" width="380" height="28" rx="14" fill="#0c0e14" stroke="#232733"/>
+  <text x="156" y="37" fill="#8b90a6" font-size="15">slovey.dev</text>
+  <!-- eyebrow -->
+  <text x="80" y="200" fill="#8b90a6" font-size="15" letter-spacing="3">ENGINEERING MEMORY</text>
+  <!-- headline -->
+  <text x="78" y="286" fill="#eef0f6" font-size="66" font-weight="600" font-family="Georgia, Times New Roman, serif">Ship without</text>
+  <text x="78" y="360" fill="#eef0f6" font-size="66" font-weight="600" font-family="Georgia, Times New Roman, serif">relitigating the past.</text>
+  <!-- subhead -->
+  <text x="80" y="418" fill="#9aa0b0" font-size="21">Slovey remembers why every decision was made — and warns</text>
+  <text x="80" y="448" fill="#9aa0b0" font-size="21">the moment a change would contradict one.</text>
+  <!-- buttons -->
+  <rect x="80" y="492" width="196" height="52" rx="10" fill="#f1f2f4"/>
+  <text x="112" y="525" fill="#111319" font-size="17" font-weight="600">Install the GitHub App</text>
+  <rect x="292" y="492" width="132" height="52" rx="10" fill="none" stroke="#2c303c"/>
+  <text x="322" y="525" fill="#c9ccd6" font-size="17">Read docs</text>
+  <!-- S mark -->
+  <text x="1046" y="300" fill="url(#s)" font-size="150" font-weight="800" font-family="Georgia, serif">S</text>
+  <!-- label -->
+  <rect x="80" y="660" width="150" height="34" rx="17" fill="#14171f" stroke="#232733"/>
+  <text x="100" y="682" fill="#8b90a6" font-size="14">▸ Landing</text>
+  <text x="1120" y="682" fill="#5a5f70" font-size="13" text-anchor="end">preview</text>
+</svg>

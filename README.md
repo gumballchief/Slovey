@@ -1,110 +1,179 @@
+<div align="center">
+
+<img src="apps/web/public/slovey-mark.png" alt="Slovey" width="96" />
+
 # Slovey
 
-**Engineering memory for teams and AI agents.** Slovey learns a team's decisions
-from GitHub history and warns on pull requests that conflict with them — always
-citing the specific decision and the PR it came from.
+**Engineering memory for teams &amp; AI agents.**
 
-### 🌐 [slovey.dev](https://slovey.dev)
+Slovey learns your team's decisions from GitHub history and blocks the pull requests<br/>
+that contradict them — always citing the exact decision and the PR it came from.
 
-- **GitHub App** — install it and PRs get checked automatically, no local setup.
-- **Preflight gate** — a pre-commit / pre-PR check that blocks changes which
-  contradict a recorded decision, so your coding agent can't relitigate settled calls.
-- **Ask Slovey** — ask "why is it done this way?" and get an answer grounded in the
-  actual decision graph, with citations.
-- **MCP server** — expose the memory to any MCP-compatible agent.
+<br/>
 
-**Getting started as a user?** See **[docs/quickstart.md](./docs/quickstart.md)** —
-install the GitHub App or wire the Preflight gate into your coding agent.
+[![live](https://img.shields.io/badge/live-slovey.dev-6E1FE0?style=flat-square&labelColor=17191c)](https://slovey.dev)
+[![Next.js 16](https://img.shields.io/badge/Next.js_16-000000?style=flat-square&logo=nextdotjs&logoColor=white)](https://nextjs.org)
+[![React 19](https://img.shields.io/badge/React_19-20232A?style=flat-square&logo=react&logoColor=61DAFB)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![Postgres + pgvector](https://img.shields.io/badge/Postgres_+_pgvector-4169E1?style=flat-square&logo=postgresql&logoColor=white)](https://github.com/pgvector/pgvector)
+[![Drizzle](https://img.shields.io/badge/Drizzle_ORM-C5F74F?style=flat-square&logo=drizzle&logoColor=000000)](https://orm.drizzle.team)
+[![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=flat-square&logo=supabase&logoColor=white)](https://supabase.com)
+[![Stripe](https://img.shields.io/badge/Stripe-635BFF?style=flat-square&logo=stripe&logoColor=white)](https://stripe.com)
+[![Gemini](https://img.shields.io/badge/Gemini-8E75FF?style=flat-square&logo=googlegemini&logoColor=white)](https://ai.google.dev)
+[![pnpm](https://img.shields.io/badge/pnpm-F69220?style=flat-square&logo=pnpm&logoColor=white)](https://pnpm.io)
 
-Building on it? **[BACKEND.md](./BACKEND.md)** has the architecture decisions and roadmap.
+[![last commit](https://img.shields.io/github/last-commit/gumballchief/slovey?style=flat-square&labelColor=17191c&color=6E1FE0)](https://github.com/gumballchief/slovey/commits)
+[![top language](https://img.shields.io/github/languages/top/gumballchief/slovey?style=flat-square&labelColor=17191c&color=2E9BF5)](https://github.com/gumballchief/slovey)
+[![repo size](https://img.shields.io/github/repo-size/gumballchief/slovey?style=flat-square&labelColor=17191c&color=8b90a6)](https://github.com/gumballchief/slovey)
+[![stars](https://img.shields.io/github/stars/gumballchief/slovey?style=flat-square&labelColor=17191c&color=f6b03a)](https://github.com/gumballchief/slovey/stargazers)
+
+**[🌐 slovey.dev](https://slovey.dev)** &nbsp;·&nbsp; [Quickstart](./docs/quickstart.md) &nbsp;·&nbsp; [Architecture](#-architecture) &nbsp;·&nbsp; [Roadmap](./docs/roadmap.md)
+
+</div>
 
 ---
 
-> This repo is the full monorepo behind the product at **[slovey.dev](https://slovey.dev)**.
-> (Package identifiers are still prefixed `@company-brain/*`, the project's original codename.)
+## The problem
 
-## Layout
+Every team relitigates settled decisions. Someone swaps the auth model, reintroduces
+a library the team already rejected, or breaks an invariant nobody wrote down — and it
+sails through review because the *why* lived in a Slack thread from eight months ago.
+AI coding agents make it worse: they have zero memory of your team's past calls.
+
+**Slovey is the memory.** It reads your GitHub history, distills the durable decisions,
+and checks every new change against them — so settled calls stay settled.
+
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/landing.svg" alt="Landing" /></td>
+    <td width="50%"><img src="docs/screenshots/ask.svg" alt="Ask Slovey" /></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/graph.svg" alt="Decision graph" /></td>
+    <td width="50%"><img src="docs/screenshots/preflight.svg" alt="Preflight gate" /></td>
+  </tr>
+</table>
+
+<sub>Preview frames — swap in live captures anytime (see [`docs/screenshots`](./docs/screenshots)).</sub>
+
+## What it does
+
+| | Surface | What it does |
+|---|---|---|
+| 🧠 | **Decision graph** | Learns durable decisions from PRs &amp; commit history, embeds them into `pgvector`, and links each to the PR it came from. |
+| 🛡️ | **Preflight gate** | A pre-commit / pre-PR check that scans the change against the **whole repo's** decisions and blocks anything that contradicts one — with a citation. |
+| 💬 | **Ask Slovey** | "Why is it done this way?" — answered from the graph, streamed token-by-token, every claim cited to a decision + PR. |
+| 🤖 | **GitHub App · MCP · agent** | The App comments on PRs automatically; the MCP server exposes the memory to any MCP-compatible agent; the worker's agent can open corrective PRs. |
+
+## 🏗 Architecture
+
+A pnpm monorepo. GitHub events flow through a durable queue into the decision graph;
+every surface (dashboard, Preflight, MCP) reads from that one source of truth.
+
+```mermaid
+flowchart TD
+    GH["GitHub<br/>PRs · commits · history"] -->|webhook| WH["Webhook route<br/>(apps/web)"]
+    WH -->|enqueue| Q[("pg-boss queue")]
+    Q --> EX["Extract + embed<br/>(apps/worker)"]
+    EX --> DG[("Decision graph<br/>Postgres + pgvector")]
+
+    GH -->|new PR| CK["Check pipeline<br/>(packages/core)"]
+    DG --> CK
+    CK -->|cites conflicting decision| CMT["PR comment / status"]
+
+    DG --> DASH["Dashboard + Ask Slovey<br/>(apps/web · Gemini, streamed)"]
+    DG --> PF["Preflight gate<br/>(CLI)"]
+    DG --> MCP["MCP server<br/>(apps/mcp)"]
+
+    subgraph Platform
+      AUTH["Supabase Auth<br/>(Google + GitHub)"]
+      PAY["Stripe billing"]
+    end
+    DASH --- AUTH
+    DASH --- PAY
+```
+
+### Monorepo layout
 
 ```
 apps/
-  web/      # Next.js dashboard (the marketing site + app UI)
-  worker/   # pg-boss consumer (extract & check jobs) + seed + eval scripts
+  web/      # Next.js 16 dashboard + marketing site + API routes + webhook
+  worker/   # pg-boss consumer (extract & check jobs), Preflight, repo indexer, eval, auto-PR agent
+  mcp/      # MCP server — exposes the decision graph to any MCP-compatible agent
 packages/
+  core/     # product logic: ai/ embeddings/ github/ pipelines/ guardrails/ reasoning/ queue/ services/
+  db/       # Drizzle schema + generated migrations + client (Postgres + pgvector)
   config/   # zod env validation + shared types
-  db/       # Drizzle schema, generated migrations, client (Postgres + pgvector)
-  core/     # product logic: ai/ embeddings/ github/ pipelines/ guardrails/ queue/ services/
 ```
 
-## Prerequisites
+## 🛠 Tech stack
 
-- Node 20+ and **pnpm** (`npm i -g pnpm`)
-- **Postgres with pgvector**. Easiest: `docker compose up -d` (uses `pgvector/pgvector:pg16`).
-- Anthropic + Voyage API keys; a registered GitHub App (for live runs).
+- **Frontend** — Next.js 16 (App Router, Turbopack), React 19, Tailwind CSS v4, SSE streaming.
+- **Backend** — TypeScript everywhere, `packages/core` domain logic, pg-boss durable jobs.
+- **Data** — Postgres + **pgvector** for embeddings, **Drizzle ORM** (schema-first, generated migrations).
+- **AI** — pluggable LLM provider (**Gemini** default; Anthropic / OpenAI adapters) + pluggable embeddings (Voyage / OpenAI / Gemini).
+- **Auth &amp; billing** — Supabase Auth (Google + GitHub OAuth, identity linking), Stripe.
+- **Integrations** — GitHub App (webhooks + checks), MCP server.
 
-## Setup
+## 🔒 Engineering highlights
+
+Things I cared about building this, not just the happy path:
+
+- **Multi-tenancy, enforced in code** — every install maps to an organization;
+  `assertRepoAccess` / `assertRepoWrite` authorize by immutable GitHub account id
+  (not a recyclable login) with role-gated writes. No org can touch another's repo.
+- **Citation-or-silence** — the bot never speaks without citing a specific decision;
+  a confidence floor + dedupe stop low-signal or double comments.
+- **Durable, idempotent jobs** — webhooks return `202` in &lt;2s and hand off to pg-boss
+  (retry with backoff, expiry); the heavy lifting is async in the worker.
+- **Immutable audit log** — org-scoped rows for installs, checks, decision edits, and rebuilds.
+- **Session hardening** — `@supabase/ssr` with a Next 16 `proxy` for token refresh, so
+  Server Components stay authenticated across reloads.
+- **Secrets stay out of git** — all credentials are env-injected; `.env` is git-ignored
+  and `.env.example` ships only placeholders.
+
+## 🚀 Quickstart
+
+Full guide: **[docs/quickstart.md](./docs/quickstart.md)** — install the GitHub App (no
+local setup) or wire the Preflight gate into your coding agent. To run the stack locally:
 
 ```bash
 pnpm install
-cp .env.example .env          # then fill in secrets
+cp .env.example .env          # fill in secrets (never committed)
 
-# Database (with Docker)
-docker compose up -d
-pnpm db:generate              # generate SQL from the schema (already committed)
-pnpm db:migrate               # enables pgvector + applies migrations
+docker compose up -d          # Postgres + pgvector
+pnpm db:migrate               # enable pgvector + apply migrations
+pnpm seed                     # load prototype decisions (needs an embeddings key)
 
-# Seed the proven prototype memory for the test repo (needs an embeddings key)
-pnpm seed
-
-# Run
 pnpm dev:web                  # dashboard on :3000
 pnpm dev:worker               # job consumer
 ```
 
-### Local webhooks
-
-Expose the webhook endpoint with smee or ngrok and point the GitHub App's webhook
-URL at it:
-
-```bash
-npx smee-client --url https://smee.io/<your-channel> --target http://localhost:3000/api/github/webhooks
-```
-
-The webhook route verifies the signature, enqueues a job via pg-boss, and returns
-202 in <2s. The worker does the heavy lifting.
-
-## Scripts
+<details>
+<summary><b>Useful scripts</b></summary>
 
 | Command | What |
 |---|---|
 | `pnpm typecheck` | Type-check every package |
 | `pnpm test` | Unit tests (citation guardrail, confidence floor, dedupe, webhook parsing) |
-| `pnpm db:generate` / `db:migrate` / `db:studio` | Drizzle migrations / studio |
-| `pnpm seed` | Load the prototype's `brain.json` decisions for `gumballchief/pr-bot-test` |
-| `pnpm eval` | Run the eval harness (precision/recall/FP-rate per threshold) |
 | `pnpm check` | Preflight: DB + pgvector + AI chat + embeddings connectivity |
-| `pnpm --filter @company-brain/worker sync` | Sync installations/orgs/repos from GitHub |
+| `pnpm db:generate` / `db:migrate` / `db:studio` | Drizzle migrations / studio |
+| `pnpm seed` | Load the prototype's decisions for the test repo |
+| `pnpm eval` | Eval harness (precision / recall / FP-rate per threshold) |
+| `pnpm --filter @company-brain/worker sync` | Sync installations / orgs / repos from GitHub |
 | `pnpm --filter @company-brain/worker index-repo` | Index a repo's architecture into `repo_knowledge` |
-| `pnpm --filter @company-brain/worker check-pr <n>` | Manually run the check pipeline on a PR |
 
-## Operations & hardening
+</details>
 
-- **Health**: `GET /api/health` pings the DB (used for liveness/readiness probes).
-- **Logging**: structured JSON via `packages/core/src/logger.ts` (`logger.child({ component })`), level set by `LOG_LEVEL`, secret fields auto-redacted.
-- **Job durability**: pg-boss jobs retry (3×, backoff) and expire — see `enqueue()` defaults in `packages/core/src/queue`.
-- **Rate limiting**: in-memory limiter (`apps/web/lib/server/ratelimit.ts`) on the webhook (flood) and AI-costly routes (rebuild, search). Swap the store for Postgres/Redis for multi-instance.
-- **AuthZ / multi-tenancy**: every installation maps to an `organization`; `assertRepoAccess`/`assertRepoWrite` authorize via owner-match or org membership (role-gated writes). Memberships populate from GitHub on OAuth login.
-- **Audit log**: `logAudit()` writes immutable, org-scoped rows for installs, checks, decision edits, settings, rebuilds, and feedback.
-- **CI / Docker**: `.github/workflows/ci.yml` (typecheck + test + migration-drift check); `Dockerfile.web` + `Dockerfile.worker`.
+## 📚 Docs
 
-## Integration seams (where real systems plug in)
+[Quickstart](./docs/quickstart.md) · [Backend &amp; architecture](./BACKEND.md) · [Preflight](./docs/preflight.md) · [Auto-PR agent](./docs/agent-auto-pr.md) · [Billing setup](./docs/billing-setup.md) · [Roadmap](./docs/roadmap.md)
 
-- **`packages/core/ai`** — swap the model/provider (Anthropic default; router picks cheap vs premium).
-- **`packages/core/embeddings`** — Voyage (default) or OpenAI, behind one interface.
-- **`packages/db/schema.ts`** — the single source of truth; `repo_knowledge` is the Phase-4 graph seam.
-- **Layer 3/4 connectors** — stubbed; no real Linear/Jira/Notion/Slack OAuth yet.
+---
 
-## Safety rails (enforced in code)
-
-Citation-or-silence, confidence floor, no-double-comment dedupe, per-repo isolation,
-and an `ALLOWLIST_REPOS` env that prevents the bot from commenting anywhere except the
-test repo during development. See `packages/core/src/guardrails` and `pipelines/check.ts`.
+<div align="center">
+<sub>Built by <a href="https://github.com/gumballchief">@gumballchief</a> · live at <a href="https://slovey.dev">slovey.dev</a></sub><br/>
+<sub><i>Package identifiers are prefixed <code>@company-brain/*</code> — the project's original codename.</i></sub>
+</div>

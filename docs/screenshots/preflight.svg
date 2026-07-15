@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 750" width="1200" height="750" font-family="Consolas, Menlo, Monaco, monospace">
+  <defs>
+    <linearGradient id="s4" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7C3AED"/>
+      <stop offset="1" stop-color="#2E9BF5"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="750" rx="18" fill="#080a0e"/>
+  <rect x="0.5" y="0.5" width="1199" height="749" rx="18" fill="none" stroke="#232733"/>
+  <!-- terminal chrome -->
+  <rect x="0" y="0" width="1200" height="58" rx="18" fill="#101319"/>
+  <rect x="0" y="40" width="1200" height="18" fill="#101319"/>
+  <circle cx="34" cy="29" r="7" fill="#f2545b"/><circle cx="60" cy="29" r="7" fill="#f6b03a"/><circle cx="86" cy="29" r="7" fill="#34d399"/>
+  <text x="600" y="34" fill="#6a6f80" font-size="14" text-anchor="middle" font-family="Segoe UI, sans-serif">preflight — company-brain</text>
+  <!-- lines -->
+  <text x="40" y="118" fill="#6a6f80" font-size="17">$ slovey preflight</text>
+  <text x="40" y="156" fill="#9aa0b0" font-size="17">→ analyzing staged changes across the whole repo…</text>
+  <text x="40" y="194" fill="#9aa0b0" font-size="17">→ 3 files · 214 lines · matched against 128 decisions</text>
+  <text x="40" y="248" fill="#34d399" font-size="17">✓ packages/db/schema.ts        no conflicts</text>
+  <text x="40" y="282" fill="#34d399" font-size="17">✓ apps/web/lib/server/auth.ts  no conflicts</text>
+  <!-- conflict block -->
+  <rect x="30" y="308" width="1140" height="230" rx="10" fill="#160c0e" stroke="#5e2226"/>
+  <text x="52" y="352" fill="#f2545b" font-size="18" font-weight="700">✕ packages/core/src/ai/openai.ts — CONFLICT</text>
+  <text x="52" y="392" fill="#e8b7ba" font-size="16">This change reintroduces the OpenAI provider, which</text>
+  <text x="52" y="418" fill="#e8b7ba" font-size="16">contradicts a recorded decision:</text>
+  <rect x="52" y="438" width="900" height="72" rx="8" fill="#0c1420" stroke="#1c3a5e"/>
+  <text x="72" y="468" fill="#8ec5ff" font-size="15" font-weight="600">Decision #37 · "Adopt Gemini as the LLM provider"</text>
+  <text x="72" y="492" fill="#7b8093" font-size="14">cited from PR #41 — rejected OpenAI on per-token cost · confidence 0.92</text>
+  <!-- outcome -->
+  <text x="40" y="576" fill="#f2545b" font-size="17">✗ preflight failed — 1 conflict must be resolved or acknowledged</text>
+  <text x="40" y="610" fill="#6a6f80" font-size="17">  run `slovey why 37` for the full rationale, or --ack to override</text>
+  <rect x="40" y="636" width="16" height="26" fill="url(#s4)"/>
+  <text x="1160" y="700" fill="#5a5f70" font-size="13" text-anchor="end" font-family="Segoe UI, sans-serif">preview</text>
+</svg>
