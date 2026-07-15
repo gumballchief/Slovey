@@ -1,13 +1,27 @@
-# Company Brain — Monorepo
+# Slovey
 
-Engineering memory that learns a team's decisions from GitHub history and warns on
-pull requests that conflict with them — always citing the specific decision and PR.
+**Engineering memory for teams and AI agents.** Slovey learns a team's decisions
+from GitHub history and warns on pull requests that conflict with them — always
+citing the specific decision and the PR it came from.
 
-**Using Company Brain?** Start with **[docs/quickstart.md](./docs/quickstart.md)** —
-install the GitHub App (no local setup) or wire the Preflight gate into your
-coding agent.
+### 🌐 [slovey.dev](https://slovey.dev)
 
-See **[BACKEND.md](./BACKEND.md)** for the architecture decisions and roadmap.
+- **GitHub App** — install it and PRs get checked automatically, no local setup.
+- **Preflight gate** — a pre-commit / pre-PR check that blocks changes which
+  contradict a recorded decision, so your coding agent can't relitigate settled calls.
+- **Ask Slovey** — ask "why is it done this way?" and get an answer grounded in the
+  actual decision graph, with citations.
+- **MCP server** — expose the memory to any MCP-compatible agent.
+
+**Getting started as a user?** See **[docs/quickstart.md](./docs/quickstart.md)** —
+install the GitHub App or wire the Preflight gate into your coding agent.
+
+Building on it? **[BACKEND.md](./BACKEND.md)** has the architecture decisions and roadmap.
+
+---
+
+> This repo is the full monorepo behind the product at **[slovey.dev](https://slovey.dev)**.
+> (Package identifiers are still prefixed `@company-brain/*`, the project's original codename.)
 
 ## Layout
 
