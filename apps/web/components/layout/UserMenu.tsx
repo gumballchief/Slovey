@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { LogIn, LogOut } from "lucide-react";
+import { CreditCard, LogIn, LogOut, Settings, User as UserIcon } from "lucide-react";
 import type { AuthChangeEvent, Session, User } from "@supabase/supabase-js";
 import { createSupabaseBrowser } from "@/lib/supabase-browser";
 
@@ -62,8 +62,8 @@ export function UserMenu() {
     );
   }
 
-  const meta = (user.user_metadata ?? {}) as { user_name?: string; avatar_url?: string };
-  const label = meta.user_name || user.email || "you";
+  const meta = (user.user_metadata ?? {}) as { display_name?: string; user_name?: string; avatar_url?: string };
+  const label = meta.display_name || meta.user_name || user.email || "you";
   const image = meta.avatar_url;
   const initial = (label[0] ?? "?").toUpperCase();
 
@@ -91,9 +91,21 @@ export function UserMenu() {
               <p className="text-xs text-[var(--text-muted)] truncate">{user.email}</p>
             )}
           </div>
+          <a href="/app/profile" className="flex items-center gap-2 w-full px-3 py-2.5 text-left text-sm text-[var(--cb-text)] hover:bg-[var(--bg-subtle)] transition-colors">
+            <UserIcon size={14} className="text-[var(--text-muted)]" />
+            Profile
+          </a>
+          <a href="/app/settings" className="flex items-center gap-2 w-full px-3 py-2.5 text-left text-sm text-[var(--cb-text)] hover:bg-[var(--bg-subtle)] transition-colors">
+            <Settings size={14} className="text-[var(--text-muted)]" />
+            Settings
+          </a>
+          <a href="/app/billing" className="flex items-center gap-2 w-full px-3 py-2.5 text-left text-sm text-[var(--cb-text)] hover:bg-[var(--bg-subtle)] transition-colors">
+            <CreditCard size={14} className="text-[var(--text-muted)]" />
+            Billing
+          </a>
           <button
             onClick={signOut}
-            className="flex items-center gap-2 w-full px-3 py-2.5 text-left text-sm text-[var(--cb-text)] hover:bg-[var(--bg-subtle)] transition-colors cursor-pointer"
+            className="flex items-center gap-2 w-full px-3 py-2.5 text-left text-sm text-[var(--cb-text)] hover:bg-[var(--bg-subtle)] transition-colors cursor-pointer border-t border-[var(--border)]"
           >
             <LogOut size={14} className="text-[var(--text-muted)]" />
             Sign out

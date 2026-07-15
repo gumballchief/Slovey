@@ -60,6 +60,16 @@ export default function AskPage() {
     const q = text.trim();
     if (!q) return;
     const id = nextId++;
+    // Ask/Can-I/Plan all answer from a repo's decision graph. With no repo yet,
+    // the request would hit /api/repos//… (404) — guide the user to connect one.
+    if (!activeRepoId) {
+      setTurns((t) => [
+        ...t,
+        { id, mode, q, loading: false, error: "Connect a repository first — Slovey answers from your repo's decisions. Go to Overview → Connect a repository, then ask again." } as Turn,
+      ]);
+      setInput("");
+      return;
+    }
     const base = { id, mode, q, loading: true } as Turn;
     setTurns((t) => [...t, base]);
     setInput("");

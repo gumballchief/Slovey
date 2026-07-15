@@ -70,7 +70,7 @@ function Meter({ label, used, limit }: { label: string; used: number; limit: num
 }
 
 export default function BillingPage() {
-  const { activeRepoId } = useRepo();
+  const { activeRepoId, loading: repoLoading } = useRepo();
   const [data, setData] = useState<Billing | null>(null);
   const [busy, setBusy] = useState<OrgPlan | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -136,6 +136,15 @@ export default function BillingPage() {
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       {notice && (
         <div className="rounded-xl border border-[var(--primary)]/40 bg-[var(--primary-soft)] px-4 py-3 text-sm text-[var(--cb-text)]">{notice}</div>
+      )}
+      {!activeRepoId && !repoLoading && (
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-subtle)] px-4 py-3 text-sm text-[var(--text-muted)]">
+          Billing is tied to your organization, which is created when you connect your first repository.{" "}
+          <a href="https://github.com/apps/slovey-dev/installations/new" target="_blank" rel="noreferrer" className="text-[var(--primary)] hover:underline">
+            Connect a repository
+          </a>{" "}
+          to set up billing.
+        </div>
       )}
       {/* Current usage */}
       <section className="card p-5 space-y-4">
