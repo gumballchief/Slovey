@@ -8,11 +8,16 @@ dist/
 out/
 *.tsbuildinfo
 
-# env / secrets
+# env / secrets — ignore every .env variant except the committed template
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 *.pem
+*.key
+*.p12
+*.pfx
+# build-output copies of env (Next standalone) — belt & suspenders
+**/.next/**/.env
 
 # logs
 *.log
