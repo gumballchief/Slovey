@@ -32,7 +32,7 @@ const PinnedUseCases = dynamic(() => import("./PinnedUseCases").then((m) => m.Pi
  * remaining sections are the design's markup (already reveal-animated via
  * LandingEffects) and are being converted to components incrementally.
  */
-export function Landing() {
+export function Landing({ isAuthed = false }: { isAuthed?: boolean }) {
   const reduce = useReducedMotion();
   const [introDone, setIntroDone] = useState(false);
 
@@ -42,7 +42,7 @@ export function Landing() {
       <div id="cb-landing" style={{ position: "relative", zIndex: 1 }}>
         {/* Inside #cb-landing so its fixed overlay inherits the theme vars. */}
         <IntroLoader onDone={() => setIntroDone(true)} />
-        <Nav />
+        <Nav isAuthed={isAuthed} />
         <Hero introDone={introDone || !!reduce} />
         <PinnedCodeMock />
         <SocialProof />
