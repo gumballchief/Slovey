@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { getViewer } from "@/lib/server/auth";
 import { Landing } from "@/components/landing/Landing";
 import "@/components/landing/landing.css";
 
@@ -23,5 +24,11 @@ export default async function LandingPage({
     const next = typeof params.next === "string" ? params.next : "/app";
     redirect(`/auth/callback?code=${encodeURIComponent(code)}&next=${encodeURIComponent(next)}`);
   }
+
+  // Already signed in? Skip the marketing page and go straight to the app.
+  // (Dev viewer — Supabase not configured locally — still sees the landing.)
+  const viewer = await getViewer();
+  if (viewer && !viewer.isDev) redirect("/app");
+
   return <Landing />;
 }
