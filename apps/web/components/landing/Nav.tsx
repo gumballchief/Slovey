@@ -38,7 +38,7 @@ const MENUS: Record<MenuKey, { label: string; items: { t: string; d: string; hre
   },
 };
 
-export function Nav() {
+export function Nav({ isAuthed = false }: { isAuthed?: boolean }) {
   const reduce = useReducedMotion();
   const [frost, setFrost] = useState(false);
   const [open, setOpen] = useState<MenuKey | null>(null);
@@ -124,12 +124,22 @@ export function Nav() {
               </svg>
             )}
           </button>
-          <a href="/login" style={{ fontSize: 14.5, color: "var(--l-body)", textDecoration: "none" }}>Sign in</a>
-          <Magnetic>
-            <a href="/login" className="cb-cta" style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 14, fontWeight: 500, color: "var(--l-btn-text)", textDecoration: "none", padding: "9px 18px", borderRadius: 10, background: "var(--l-btn)", transition: "background .2s ease, filter .2s ease" }}>
-              Start free <span className="cb-cta-arrow" aria-hidden>→</span>
-            </a>
-          </Magnetic>
+          {isAuthed ? (
+            <Magnetic>
+              <a href="/app" className="cb-cta" style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 14, fontWeight: 500, color: "var(--l-btn-text)", textDecoration: "none", padding: "9px 18px", borderRadius: 10, background: "var(--l-btn)", transition: "background .2s ease, filter .2s ease" }}>
+                Open app <span className="cb-cta-arrow" aria-hidden>→</span>
+              </a>
+            </Magnetic>
+          ) : (
+            <>
+              <a href="/login" style={{ fontSize: 14.5, color: "var(--l-body)", textDecoration: "none" }}>Sign in</a>
+              <Magnetic>
+                <a href="/login" className="cb-cta" style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 14, fontWeight: 500, color: "var(--l-btn-text)", textDecoration: "none", padding: "9px 18px", borderRadius: 10, background: "var(--l-btn)", transition: "background .2s ease, filter .2s ease" }}>
+                  Start free <span className="cb-cta-arrow" aria-hidden>→</span>
+                </a>
+              </Magnetic>
+            </>
+          )}
         </div>
       </nav>
 

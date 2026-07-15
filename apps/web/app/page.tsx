@@ -25,10 +25,11 @@ export default async function LandingPage({
     redirect(`/auth/callback?code=${encodeURIComponent(code)}&next=${encodeURIComponent(next)}`);
   }
 
-  // Already signed in? Skip the marketing page and go straight to the app.
-  // (Dev viewer — Supabase not configured locally — still sees the landing.)
+  // The marketing page is always reachable — like any normal site. We do NOT
+  // eject signed-in visitors to /app (that made the landing impossible to view).
+  // Instead the nav swaps "Sign in / Start free" for "Open app →" when authed.
   const viewer = await getViewer();
-  if (viewer && !viewer.isDev) redirect("/app");
+  const isAuthed = !!viewer && !viewer.isDev;
 
-  return <Landing />;
+  return <Landing isAuthed={isAuthed} />;
 }

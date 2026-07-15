@@ -7,15 +7,20 @@ import { createSupabaseBrowser } from "@/lib/supabase-browser";
 /**
  * Connect / reconnect GitHub.
  *
- * Repo access is tied to a GitHub identity (the callback populates memberships
- * from the GitHub OAuth token). Two cases:
- *  - No GitHub linked yet (e.g. signed in with Google) → `linkIdentity` attaches
- *    a GitHub account to this user, so their installations can be found.
- *  - GitHub already linked, but repos/memberships are stale (installed the App
- *    after signing in) → re-run the OAuth flow to refresh the provider token.
+ * Slovey derives repo access from a GitHub identity: the OAuth callback lists the
+ * user's App installations (needs a GitHub *provider token*) and maps them to org
+ * memberships (`linkUserMemberships`). So a user must have authenticated through
+ * GitHub — a Google/email-only session can never see repos.
  *
- * Note: linking requires "Manual linking" to be enabled in the Supabase project
- * (Authentication → settings). Reconnect works regardless.
+ * We use a full GitHub OAuth sign-in (`signInWithOAuth`), NOT `linkIdentity`:
+ * `linkIdentity` silently requires the project's "Manual linking" setting to be
+ * enabled and dead-ends (spinner, no redirect) when it isn't — which stranded
+ * Google-first users on "Connect GitHub does nothing". `signInWithOAuth` always
+ * runs the redirect and returns a provider token; with Supabase's same-email
+ * auto-linking it attaches GitHub to the current account. Two states:
+ *  - No GitHub identity yet (e.g. signed in with Google) → "Connect GitHub".
+ *  - GitHub present but repos are stale (installed the App after signing in) →
+ *    "Reconnect GitHub" to refresh the token and re-sync installations.
  */
 export function ReconnectGitHubButton({ className = "" }: { className?: string }) {
   const supabase = createSupabaseBrowser();
@@ -34,16 +39,14 @@ export function ReconnectGitHubButton({ className = "" }: { className?: string }
   function go() {
     setBusy(true);
     setError(null);
-    const run =
-      hasGithub === false
-        ? supabase.auth.linkIdentity({ provider: "github", options: { redirectTo } })
-        : supabase.auth.signInWithOAuth({ provider: "github", options: { redirectTo } });
-    run.then((res) => {
-      if (res.error) {
-        setBusy(false);
-        setError(res.error.message);
-      }
-    });
+    supabase.auth
+      .signInWithOAuth({ provider: "github", options: { redirectTo } })
+      .then((res) => {
+        if (res.error) {
+          setBusy(false);
+          setError(res.error.message);
+        }
+      });
   }
 
   const connect = hasGithub === false;

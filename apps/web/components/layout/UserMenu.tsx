@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CreditCard, LogIn, LogOut, Settings, User as UserIcon } from "lucide-react";
+import { CreditCard, Globe, LogIn, LogOut, Settings, User as UserIcon } from "lucide-react";
 import type { AuthChangeEvent, Session, User } from "@supabase/supabase-js";
 import { createSupabaseBrowser } from "@/lib/supabase-browser";
 
@@ -102,6 +102,10 @@ export function UserMenu() {
           <a href="/app/billing" className="flex items-center gap-2 w-full px-3 py-2.5 text-left text-sm text-[var(--cb-text)] hover:bg-[var(--bg-subtle)] transition-colors">
             <CreditCard size={14} className="text-[var(--text-muted)]" />
             Billing
+          </a>
+          <a href="/" className="flex items-center gap-2 w-full px-3 py-2.5 text-left text-sm text-[var(--cb-text)] hover:bg-[var(--bg-subtle)] transition-colors border-t border-[var(--border)]">
+            <Globe size={14} className="text-[var(--text-muted)]" />
+            Website
           </a>
           <button
             onClick={signOut}
