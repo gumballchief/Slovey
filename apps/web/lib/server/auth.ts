@@ -38,9 +38,17 @@ export async function getViewer(): Promise<Viewer | null> {
     const user = data.user;
     if (user) {
       const meta = (user.user_metadata ?? {}) as GhMeta;
+      // Prefer the GitHub identity from `identities` so repo access works whether
+      // GitHub is the primary login OR was linked onto a Google (etc.) account.
+      const identities = (user.identities ?? []) as Array<{ provider: string; identity_data?: GhMeta }>;
+      const ghData = (identities.find((i) => i.provider === "github")?.identity_data ?? {}) as GhMeta;
       const login =
-        meta.user_name || meta.preferred_username || user.email?.split("@")[0] || "user";
-      const githubId = meta.provider_id ? Number(meta.provider_id) : undefined;
+        ghData.user_name || ghData.preferred_username || meta.user_name || meta.preferred_username || user.email?.split("@")[0] || "user";
+      const githubId = ghData.provider_id
+        ? Number(ghData.provider_id)
+        : meta.provider_id
+          ? Number(meta.provider_id)
+          : undefined;
       let userId = githubId ? ((await getUserIdByGithubId(githubId)) ?? undefined) : undefined;
       // Lazily ensure a DB user exists (callback usually does this on first login).
       if (githubId && !userId) {
@@ -48,7 +56,7 @@ export async function getViewer(): Promise<Viewer | null> {
           githubId,
           login,
           email: user.email ?? null,
-          avatarUrl: meta.avatar_url ?? null,
+          avatarUrl: ghData.avatar_url ?? meta.avatar_url ?? null,
         });
         userId = row?.id;
       }
