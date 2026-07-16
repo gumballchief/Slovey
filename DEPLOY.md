@@ -42,6 +42,20 @@ gitignored — they are never pushed.
 | `GITHUB_WEBHOOK_SECRET` | the App's webhook secret |
 | `TOKEN_ENCRYPTION_KEY` | `openssl rand -base64 32` (32 bytes) |
 
+> **⚠️ Gotcha — the GitHub App's Webhook URL must be exactly `https://slovey.dev/api/github/webhooks`.**
+> It was once typo'd to `slovey.**com**` (a domain we don't own). Nothing surfaced this: GitHub
+> reported every install as successful, while each delivery silently died with
+> `remote error: tls: handshake failure` (500). With no `installation` event ever
+> arriving, the `installations` table stayed empty, `linkUserMemberships()` had no
+> installation id to match, and **every** user's repos were invisible — which looks
+> exactly like a login/identity bug and will send you chasing auth for hours.
+> Verify with the App's own credentials, not the UI:
+> `GET /app/hook/config` (the live URL) and `GET /app/hook/deliveries` (status per event —
+> `202` good, `401` = webhook-secret mismatch, `500`/tls = URL wrong/unreachable).
+> Replay a missed install with `POST /app/hook/deliveries/{id}/attempts` — never replay an
+> `installation.deleted`. Note: delivery ids exceed `Number.MAX_SAFE_INTEGER`, so `JSON.parse`
+> rounds them and the replay 404s; quote them (`"id":\s*(\d{16,})` → string) before parsing.
+
 Non-secrets (provider, models, cron) are baked into `render.yaml`. The
 `NEXT_PUBLIC_*` values are inlined into the client bundle at build time —
 `Dockerfile.web` declares them as build args so Render passes them through.
