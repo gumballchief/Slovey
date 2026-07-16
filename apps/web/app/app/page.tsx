@@ -41,7 +41,7 @@ export default function OverviewPage() {
         <EmptyState
           icon={<LogoGlyph size={22} />}
           title="No repository connected yet"
-          description="Two things bring a repo in: (1) install the Slovey GitHub App on it, and (2) make sure you signed in with GitHub — repo access is tied to your GitHub account. Already did both but don't see it? Reconnect GitHub to refresh."
+          description="Install the Slovey GitHub App on a repository and it shows up here within a minute. Just installed it? Hit Reconnect to re-sync right away."
           action={
             <div className="flex flex-col items-center gap-2.5 sm:flex-row">
               <ConnectRepoButton />
