@@ -13,7 +13,30 @@ export interface Viewer {
   login: string;
   githubId?: number;
   userId?: string;
+  email?: string;
   isDev: boolean;
+}
+
+/**
+ * Super admins can change any org's plan (incl. enterprise) from /app/admin.
+ * Matched on the verified Supabase Auth email — override the default with a
+ * comma-separated SUPERADMIN_EMAILS env var. Dev viewer counts as admin
+ * locally, same as it counts as owner everywhere else.
+ */
+const SUPERADMIN_EMAILS = (process.env.SUPERADMIN_EMAILS ?? "gumballchief@gmail.com")
+  .split(",")
+  .map((e) => e.trim().toLowerCase())
+  .filter(Boolean);
+
+export function isSuperAdmin(viewer: Viewer): boolean {
+  if (viewer.isDev) return true;
+  return !!viewer.email && SUPERADMIN_EMAILS.includes(viewer.email.toLowerCase());
+}
+
+export async function requireSuperAdmin(): Promise<Viewer> {
+  const viewer = await requireViewer();
+  if (!isSuperAdmin(viewer)) throw new HttpError(403, "Forbidden");
+  return viewer;
 }
 
 /** GitHub identity carried in a Supabase user's metadata (provider = github). */
@@ -60,7 +83,7 @@ export async function getViewer(): Promise<Viewer | null> {
         });
         userId = row?.id;
       }
-      return { login, githubId, userId, isDev: false };
+      return { login, githubId, userId, email: user.email ?? undefined, isDev: false };
     }
     if (process.env.NODE_ENV === "production") return null;
   }
