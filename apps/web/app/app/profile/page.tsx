@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createSupabaseBrowser } from "@/lib/supabase-browser";
 import { fetchMe, type Me } from "@/lib/api-client";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { formatRelativeTime } from "@/lib/utils";
-import { Building2, LogOut, Mail, User } from "lucide-react";
+import { Building2, ImagePlus, LogOut, Mail, User } from "lucide-react";
 
 const ROLE_VARIANT: Record<string, "primary" | "approved" | "default" | "suggested"> = {
   owner: "primary",
@@ -22,6 +22,35 @@ export default function ProfilePage() {
   const [avatarUrl, setAvatarUrl] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  async function uploadAvatar(file: File) {
+    setSaved(null);
+    if (!file.type.startsWith("image/")) {
+      setSaved("That file isn't an image — use a PNG or JPG.");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setSaved("Image is too large — 2 MB max.");
+      return;
+    }
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/me/avatar", { method: "POST", body: form });
+      const body = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+      if (!res.ok || !body.url) throw new Error(body.error || "Upload failed");
+      setAvatarUrl(body.url); // already saved server-side; state just updates the preview
+      setSaved("Profile picture updated.");
+    } catch (e) {
+      setSaved(e instanceof Error ? e.message : "Upload failed — try again.");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -99,16 +128,48 @@ export default function ProfilePage() {
             className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg-subtle)] px-3 py-2 text-sm text-[var(--cb-text)] focus:outline-none focus:border-[var(--primary)]"
           />
         </label>
-        <label className="block">
-          <span className="text-xs text-[var(--text-muted)]">Profile picture URL</span>
+        <div>
+          <span className="text-xs text-[var(--text-muted)]">Profile picture</span>
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => fileInput.current?.click()}
+            onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && fileInput.current?.click()}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOver(true);
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOver(false);
+              const file = e.dataTransfer.files?.[0];
+              if (file) uploadAvatar(file);
+            }}
+            className={`mt-1 flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed px-4 py-6 text-center transition-colors ${
+              dragOver
+                ? "border-[var(--primary)] bg-[var(--primary-soft)]"
+                : "border-[var(--border)] bg-[var(--bg-subtle)] hover:border-[var(--primary)]"
+            }`}
+          >
+            <ImagePlus size={20} className="text-[var(--text-muted)]" />
+            <span className="text-sm text-[var(--cb-text)]">
+              {uploading ? "Uploading…" : "Drop an image here, or click to choose a file"}
+            </span>
+            <span className="text-[11px] text-[var(--text-muted)]">PNG, JPG, WebP, or GIF — up to 2 MB</span>
+          </div>
           <input
-            value={avatarUrl}
-            onChange={(e) => setAvatarUrl(e.target.value)}
-            placeholder="https://…/avatar.png"
-            className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg-subtle)] px-3 py-2 text-sm text-[var(--cb-text)] focus:outline-none focus:border-[var(--primary)]"
+            ref={fileInput}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) uploadAvatar(file);
+              e.target.value = "";
+            }}
           />
-          <span className="mt-1 block text-[11px] text-[var(--text-muted)]">Paste a link to an image. Direct file upload is coming soon.</span>
-        </label>
+        </div>
         <div className="flex items-center gap-3">
           <Button size="sm" onClick={saveProfile} disabled={saving}>
             {saving ? "Saving…" : "Save changes"}
