@@ -515,6 +515,52 @@ export async function setOrgPlan(orgId: string, plan: OrgPlan): Promise<void> {
   await db.update(organizations).set({ plan }).where(eq(organizations.id, orgId));
 }
 
+// ── super-admin console (internal; the /app/admin page) ──
+
+export interface AdminOrg {
+  id: string;
+  name: string;
+  slug: string;
+  plan: OrgPlan;
+  createdAt: string;
+  repos: number;
+  members: Array<{ login: string; email: string | null; role: string }>;
+}
+
+/** Every org with its members — powers the internal admin console. */
+export async function adminListOrgs(): Promise<AdminOrg[]> {
+  const db = getDb();
+  const [orgRows, memberRows, repoRows] = await Promise.all([
+    db.select().from(organizations).orderBy(desc(organizations.createdAt)),
+    db
+      .select({
+        orgId: memberships.orgId,
+        role: memberships.role,
+        login: users.login,
+        email: users.email,
+      })
+      .from(memberships)
+      .innerJoin(users, eq(users.id, memberships.userId)),
+    db
+      .select({ orgId: installations.orgId, n: sql<number>`count(*)::int` })
+      .from(repos)
+      .innerJoin(installations, eq(repos.installationId, installations.id))
+      .groupBy(installations.orgId),
+  ]);
+  const repoCount = new Map(repoRows.map((r) => [r.orgId, r.n]));
+  return orgRows.map((o) => ({
+    id: o.id,
+    name: o.name,
+    slug: o.slug,
+    plan: o.plan as OrgPlan,
+    createdAt: o.createdAt.toISOString(),
+    repos: repoCount.get(o.id) ?? 0,
+    members: memberRows
+      .filter((m) => m.orgId === o.id)
+      .map(({ login, email, role }) => ({ login, email, role })),
+  }));
+}
+
 // ── Stripe linkage (plan changes themselves flow through the webhook) ──
 
 export async function getOrgStripe(

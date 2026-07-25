@@ -296,6 +296,26 @@ export function changePlan(repoId: string, plan: OrgPlan) {
   return send<Omit<Billing, "org">>(`/api/repos/${repoId}/billing`, "PATCH", { plan });
 }
 
+// ── super-admin console ──
+export interface AdminOrg {
+  id: string;
+  name: string;
+  slug: string;
+  plan: OrgPlan;
+  createdAt: string;
+  repos: number;
+  members: Array<{ login: string; email: string | null; role: string }>;
+}
+/** Throws (instead of the usual empty fallback) so the page can show a 403. */
+export async function fetchAdminOrgs(): Promise<AdminOrg[]> {
+  const res = await fetch("/api/admin/orgs", { headers: { accept: "application/json" }, cache: "no-store" });
+  if (!res.ok) throw new Error(String(res.status));
+  return ((await res.json()) as { orgs: AdminOrg[] }).orgs;
+}
+export function adminSetPlan(orgId: string, plan: OrgPlan) {
+  return send<{ id: string; plan: OrgPlan }>(`/api/admin/orgs/${orgId}`, "PATCH", { plan });
+}
+
 export interface Me {
   login: string;
   email: string | null;
