@@ -35,7 +35,9 @@ export function CtaSection() {
             </a>
           </Magnetic>
           <a href="/demo" style={{ display: "inline-flex", alignItems: "center", padding: "13px 24px", borderRadius: 12, fontWeight: 500, fontSize: 15, color: "var(--l-ink)", textDecoration: "none", background: "transparent", border: "1px solid var(--l-border)", transition: "border-color .2s ease, color .2s ease" }}>
-            Book a demo
+            {/* /demo is a live, zero-setup walkthrough — not a sales call. The old
+                "Book a demo" label read as one and buried the best proof we have. */}
+            See it catch something
           </a>
         </div>
       </div>

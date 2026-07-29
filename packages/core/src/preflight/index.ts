@@ -1,5 +1,5 @@
 export * from "./types";
-export { runPreflight, evaluateLoop, detectUnrelatedChanges, detectRegression, listChecks } from "./engine";
+export { runPreflight, evaluateLoop, detectUnrelatedChanges, detectRegression, listChecks, resolveStatus, unverifiedChecks } from "./engine";
 export { rejectedKeywordHit, distinctiveTerms, toEvidenceRefs, fetchRejectedDecisions } from "./decisions";
 export { checkGeneratedFile } from "./generated";
 export type { GeneratedGateVerdict } from "./generated";

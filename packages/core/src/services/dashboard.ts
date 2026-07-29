@@ -453,7 +453,10 @@ export interface ApiBilling {
 
 export const PLAN_LIMITS: Record<OrgPlan, { repos: number; decisions: number }> = {
   free: { repos: 1, decisions: 200 },
-  pro: { repos: 10, decisions: 5000 },
+  // Team advertises "Unlimited repositories" on the pricing page, so `pro` grants
+  // it for real (-1). The decision cap stays finite and is surfaced in the UI —
+  // an unadvertised silent cap is what this used to get wrong.
+  pro: { repos: -1, decisions: 5000 },
   enterprise: { repos: -1, decisions: -1 },
 };
 

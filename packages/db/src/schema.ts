@@ -46,6 +46,7 @@ export const decisionSource = pgEnum("decision_source", [
   "jira",
   "confluence",
   "discord",
+  "pagerduty",
 ]);
 // Decision lifecycle. Legacy values (approved/suggested/removed) kept for back-compat;
 // the platform uses the full lifecycle going forward.
@@ -471,7 +472,7 @@ export const agentRuns = pgTable("agent_runs", {
 });
 
 // ─────────────────────────── preflight ───────────────────────────
-export const preflightStatus = pgEnum("preflight_status", ["pass", "fail", "partial", "error"]);
+export const preflightStatus = pgEnum("preflight_status", ["pass", "fail", "partial", "unverified", "error"]);
 export const preflightCheckStatus = pgEnum("preflight_check_status", ["pass", "fail", "skipped", "error"]);
 
 /** One preflight invocation (one agent call / one gate run). */

@@ -8,8 +8,11 @@ const EASE = [0.16, 1, 0.3, 1] as const;
 
 type Step = { no: string; title: string; body: string; term: string; ok: boolean };
 const STEPS: Step[] = [
-  { no: "01", title: "Checks build errors", body: "Typecheck and compile run first — broken code never reaches review.", term: "$ tsc --noEmit → 0 errors", ok: true },
-  { no: "02", title: "Runs the tests", body: "The full suite executes in the background; green before anything merges.", term: "$ vitest run → 142 passed", ok: true },
+  // 01/02 are command checks: they run in the CLI on the developer's machine and in
+  // CI — never on our servers. Slovey does not execute customer build/test commands
+  // hosted, so the copy says where they run rather than implying we do it for you.
+  { no: "01", title: "Checks build errors", body: "Typecheck and compile run first, on your machine or in CI — broken code never reaches review.", term: "$ tsc --noEmit → 0 errors", ok: true },
+  { no: "02", title: "Runs the tests", body: "Your suite runs where your code lives; green before anything merges.", term: "$ vitest run → 158 passed", ok: true },
   { no: "03", title: "Detects architecture violations", body: "Layering, boundaries, forbidden imports — flagged with the rule that made them.", term: "✗ import 'db' from ui/ — layer violation", ok: false },
   { no: "04", title: "Verifies company rules", body: "Every convention you've encoded is enforced on the diff, automatically.", term: "✓ 6 conventions checked", ok: true },
   { no: "05", title: "Checks prior decisions", body: "The change is matched against your decision graph — nothing rejected is reintroduced.", term: "✗ reintroduces retry path (DEC-17)", ok: false },

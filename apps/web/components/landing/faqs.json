@@ -5,7 +5,7 @@
  },
  {
   "q": "How does it learn my company?",
-  "a": "It continuously ingests your GitHub repos, pull requests, ADRs, docs, code reviews, incidents, and human corrections — turning them into a structured Engineering Decision Graph that both people and AI can query."
+  "a": "It continuously ingests your GitHub repos, pull requests, ADRs, docs, code reviews, resolved PagerDuty incidents with their postmortem notes, and human corrections — turning them into a structured Engineering Decision Graph that both people and AI can query."
  },
  {
   "q": "Where does my code and data live?",

@@ -6,6 +6,7 @@ import { toFixInstructions } from "./parse";
 import { persistRun } from "./persist";
 import { scanForSecrets } from "./redact";
 import { securityReviewCheck } from "./security";
+import { resolveStatus } from "./engine";
 import type { CheckResult, FixInstruction, PreflightResult } from "./types";
 
 export interface RemotePreflightPayload {
@@ -87,7 +88,9 @@ export async function runRemotePreflight(repoId: string, payload: RemotePrefligh
   );
   const blocked = checks.some((c) => c.blocking && c.status === "fail") || blockingViolations.length > 0;
   const anyFailure = checks.some((c) => c.status === "fail") || violations.length > 0;
-  const status: PreflightResult["status"] = blocked ? "fail" : anyFailure ? "partial" : "pass";
+  // Shared resolver — see engine.resolveStatus. The hosted path skips command checks, so
+  // `blocked` here always implies a real failure and this stays "fail" as before.
+  const status = resolveStatus({ checks, blocked, anyFailure, blockingViolations: blockingViolations.length });
 
   const result: PreflightResult = {
     status,

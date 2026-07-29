@@ -18,6 +18,7 @@ export type Decision = {
     | "jira"
     | "confluence"
     | "discord"
+    | "pagerduty"
     | "repo_analysis"
     | "manual";
   status?: "approved" | "suggested";

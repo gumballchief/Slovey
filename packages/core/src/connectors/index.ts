@@ -3,6 +3,7 @@ import { DiscordConnector } from "./discord";
 import { JiraConnector } from "./jira";
 import { LinearConnector } from "./linear";
 import { NotionConnector } from "./notion";
+import { PagerDutyConnector } from "./pagerduty";
 import { SlackConnector } from "./slack";
 import type { ConnectorClient, ConnectorType } from "./types";
 
@@ -13,6 +14,7 @@ export { SlackConnector } from "./slack";
 export { JiraConnector } from "./jira";
 export { ConfluenceConnector } from "./confluence";
 export { DiscordConnector } from "./discord";
+export { PagerDutyConnector } from "./pagerduty";
 
 /** Build the client for a connector type with its decrypted token. */
 export function getConnectorClient(type: ConnectorType, token: string): ConnectorClient {
@@ -29,5 +31,7 @@ export function getConnectorClient(type: ConnectorType, token: string): Connecto
       return new ConfluenceConnector(token);
     case "discord":
       return new DiscordConnector(token);
+    case "pagerduty":
+      return new PagerDutyConnector(token);
   }
 }

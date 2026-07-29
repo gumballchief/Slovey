@@ -78,7 +78,7 @@ export interface PreflightRunRow {
   branch: string | null;
   commitSha: string | null;
   mode: string;
-  status: "pass" | "fail" | "partial" | "error";
+  status: "pass" | "fail" | "partial" | "unverified" | "error";
   safeToCommit: boolean;
   safeToPush: boolean;
   summary: string;
