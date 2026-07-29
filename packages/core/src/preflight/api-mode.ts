@@ -1,9 +1,10 @@
 import { readChanged } from "./checks";
 import { getBranch, getChangedFiles, getCommitSha, getDiff } from "./detect";
+import { resolveStatus } from "./engine";
 import type { CheckResult, PreflightResult } from "./types";
 
-/** Default hosted API (the live Render service). Override with COMPANY_BRAIN_API_URL. */
-const DEFAULT_API_URL = "https://company-brain-web-u04w.onrender.com";
+/** Default hosted API. Override with SLOVEY_API_URL (or legacy COMPANY_BRAIN_API_URL). */
+const DEFAULT_API_URL = "https://slovey.dev";
 
 export interface ChangePayload {
   diff: string;
@@ -31,14 +32,18 @@ export interface ApiModeConfig {
 }
 
 /**
- * API-mode config from env: present only when COMPANY_BRAIN_TOKEN is set. This is
- * how an external user (no DB, no AI keys) runs the gate — local checks locally,
- * knowledge checks against the hosted API.
+ * API-mode config from env: present only when SLOVEY_TOKEN (or the legacy
+ * COMPANY_BRAIN_TOKEN) is set. This is how an external user (no DB, no AI keys)
+ * runs the gate — local checks locally, knowledge checks against the hosted API.
+ *
+ * SLOVEY_* wins when both are set; COMPANY_BRAIN_* stays accepted so existing
+ * setups and CI configs keep working after the rebrand.
  */
 export function apiModeFromEnv(): ApiModeConfig | null {
-  const token = process.env.COMPANY_BRAIN_TOKEN?.trim();
+  const token = process.env.SLOVEY_TOKEN?.trim() || process.env.COMPANY_BRAIN_TOKEN?.trim();
   if (!token) return null;
-  const apiUrl = (process.env.COMPANY_BRAIN_API_URL?.trim() || DEFAULT_API_URL).replace(/\/+$/, "");
+  const url = process.env.SLOVEY_API_URL?.trim() || process.env.COMPANY_BRAIN_API_URL?.trim();
+  const apiUrl = (url || DEFAULT_API_URL).replace(/\/+$/, "");
   return { apiUrl, token };
 }
 
@@ -118,7 +123,9 @@ export function mergeRemote(local: PreflightResult, remote: PreflightResult): Pr
 
   const blocked = checks.some((c) => c.blocking && c.status === "fail") || decisionViolations.length > 0;
   const anyFailure = checks.some((c) => c.status === "fail") || decisionViolations.length > 0;
-  const status: PreflightResult["status"] = blocked ? "fail" : anyFailure ? "partial" : "pass";
+  // Same resolver as the local engine so the two can't drift. Gate behaviour is unchanged:
+  // `blocked` here already requires a real failure, so this yields "fail", never "unverified".
+  const status = resolveStatus({ checks, blocked, anyFailure, blockingViolations: decisionViolations.length });
 
   return {
     ...local,
@@ -129,7 +136,7 @@ export function mergeRemote(local: PreflightResult, remote: PreflightResult): Pr
     decisionViolations,
     warnings,
     fixInstructions,
-    summary: `${status.toUpperCase()} — local checks + hosted decision-graph / security / architecture checks.`,
+    summary: "local checks + hosted decision-graph / security / architecture checks.",
     agentInstruction: blocked
       ? "Agent, do not commit. Fix the reported failures — including any Company Brain decision-graph violations — then run preflight again."
       : local.agentInstruction,

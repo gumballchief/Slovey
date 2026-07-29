@@ -4,7 +4,8 @@ export type ConnectorType =
   | "slack"
   | "jira"
   | "confluence"
-  | "discord";
+  | "discord"
+  | "pagerduty";
 
 export const CONNECTOR_TYPES: ConnectorType[] = [
   "linear",
@@ -13,6 +14,7 @@ export const CONNECTOR_TYPES: ConnectorType[] = [
   "jira",
   "confluence",
   "discord",
+  "pagerduty",
 ];
 
 export function isConnectorType(s: string): s is ConnectorType {
@@ -27,6 +29,10 @@ export interface ConnectorConfig {
   baseUrl?: string;
   /** Jira/Confluence: the account email paired with the API token (basic auth). */
   email?: string;
+  /** PagerDuty: restrict to these service IDs. Omit to read every service the key can see. */
+  serviceIds?: string[];
+  /** PagerDuty: ISO-8601 lower bound on incident creation (maps to the API's `since`). */
+  since?: string;
   /** Cap on documents fetched per sync (default per-connector). */
   limit?: number;
 }

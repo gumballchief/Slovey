@@ -8,29 +8,31 @@ import { closeDb } from "@company-brain/db";
 
 type PreflightResult = preflight.PreflightResult;
 
-const HELP = `companybrain preflight — run the agent-gating checks on this repo.
+const HELP = `slovey preflight — run the agent-gating checks on this repo.
 
 Usage:
-  companybrain preflight                    human-readable report (mode: full)
-  companybrain preflight --json             machine-readable JSON (for agents/CI)
-  companybrain preflight --fix-agent        agent-directed fix instructions only
-  companybrain preflight --mode <m>         full | quick | commit | push | changed-files | planning
-  companybrain preflight --check-only       skip the decision-graph check
-  companybrain preflight --changed-files    scope file checks to git-changed files (default behavior, explicit)
-  companybrain preflight --max-attempts 5
-  companybrain preflight init               write a starter companybrain.preflight.json
-  companybrain preflight status             show the latest run without re-running
-  companybrain preflight explain <errorId>  explain one stored error (id from fixInstructions)
-  companybrain preflight override <decisionId> --reason "<why>" [--hours 168] [--branch <b>]
-                                            HUMAN-ONLY: approve a change a decision blocks
-                                            (attributed + time-boxed; agents must not run this)
-  companybrain preflight --install-hooks    install pre-commit (mode: commit) + pre-push (full) git hooks
-  companybrain preflight --uninstall-hooks  remove Company Brain git hooks
-  companybrain doctor                       check your setup (git, repo, AI, config, connection)
+  slovey preflight                    human-readable report (mode: full)
+  slovey preflight --json             machine-readable JSON (for agents/CI)
+  slovey preflight --fix-agent        agent-directed fix instructions only
+  slovey preflight --mode <m>         full | quick | commit | push | changed-files | planning
+  slovey preflight --check-only       skip the decision-graph check
+  slovey preflight --changed-files    scope file checks to git-changed files (default behavior, explicit)
+  slovey preflight --max-attempts 5
+  slovey preflight init               write a starter companybrain.preflight.json
+  slovey preflight status             show the latest run without re-running
+  slovey preflight explain <errorId>  explain one stored error (id from fixInstructions)
+  slovey preflight override <decisionId> --reason "<why>" [--hours 168] [--branch <b>]
+                                      HUMAN-ONLY: approve a change a decision blocks
+                                      (attributed + time-boxed; agents must not run this)
+  slovey preflight --install-hooks    install pre-commit (mode: commit) + pre-push (full) git hooks
+  slovey preflight --uninstall-hooks  remove Slovey git hooks
+  slovey doctor                       check your setup (git, repo, AI, config, connection)
 
 Exit code: 0 if safe to commit, 1 otherwise.`;
 
-const HOOK_MARKER = "# Company Brain Preflight";
+const HOOK_MARKER = "# Slovey Preflight";
+/** Pre-rebrand marker — still recognized so `--uninstall-hooks` can remove old hooks. */
+const LEGACY_HOOK_MARKER = "# Company Brain Preflight";
 
 function parseSlug(gitUrl: string): string | null {
   const m = gitUrl.match(/[:/]([^/:]+)\/([^/]+?)(?:\.git)?\/?$/);
@@ -39,7 +41,7 @@ function parseSlug(gitUrl: string): string | null {
 
 async function resolveRepoId(cwd: string): Promise<string | null> {
   try {
-    let slug = process.env.COMPANY_BRAIN_REPO ?? null;
+    let slug = process.env.SLOVEY_REPO ?? process.env.COMPANY_BRAIN_REPO ?? null;
     if (!slug) {
       const url = execFileSync("git", ["remote", "get-url", "origin"], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
       slug = parseSlug(url);
@@ -65,12 +67,12 @@ function hooksDir(cwd: string): string {
 function installHooks(cwd: string): void {
   const dir = hooksDir(cwd);
   const hook = (args: string) => `#!/bin/sh
-${HOOK_MARKER} — installed by 'companybrain preflight --install-hooks'
-if command -v companybrain >/dev/null 2>&1; then
-  companybrain preflight ${args}
+${HOOK_MARKER} — installed by 'slovey preflight --install-hooks'
+if command -v slovey >/dev/null 2>&1; then
+  slovey preflight ${args}
   exit $?
 fi
-echo "[company-brain] 'companybrain' CLI not on PATH — Preflight skipped."
+echo "[slovey] 'slovey' CLI not on PATH — Preflight skipped."
 exit 0
 `;
   for (const [name, args] of [["pre-commit", "--mode commit"], ["pre-push", "--mode push"]] as const) {
@@ -84,7 +86,7 @@ exit 0
     console.log(`installed ${name} hook → ${p}`);
   }
   console.log("\nDone. Commits run the fast gate (mode: commit); pushes run the full gate.");
-  console.log("If 'companybrain' isn't on your PATH, the hooks skip gracefully — install/link the CLI to enforce.");
+  console.log("If 'slovey' isn't on your PATH, the hooks skip gracefully — install/link the CLI to enforce.");
 }
 
 function uninstallHooks(cwd: string): void {
@@ -93,11 +95,11 @@ function uninstallHooks(cwd: string): void {
     const p = resolve(dir, name);
     if (!existsSync(p)) continue;
     const content = readFileSync(p, "utf8");
-    if (content.includes(HOOK_MARKER)) {
+    if (content.includes(HOOK_MARKER) || content.includes(LEGACY_HOOK_MARKER)) {
       rmSync(p);
       console.log(`removed ${name} hook`);
     } else {
-      console.log(`skipped ${name}: not installed by Company Brain`);
+      console.log(`skipped ${name}: not installed by Slovey`);
     }
   }
 }
@@ -113,8 +115,16 @@ function initConfig(cwd: string): void {
   console.log("Edit requiredChecks/commands/architectureChecks.rules to fit this repo.");
 }
 
+const STATUS_MARK: Record<string, string> = {
+  pass: "PASS ✓",
+  partial: "PARTIAL ◐",
+  unverified: "UNVERIFIED ⚠",
+  fail: "FAIL ✗",
+};
+
 function printHuman(r: PreflightResult): void {
-  const mark = r.status === "pass" ? "PASS ✓" : r.status === "partial" ? "PARTIAL ◐" : "FAIL ✗";
+  // buildSummary no longer embeds the status — the mark below is the only place it renders.
+  const mark = STATUS_MARK[r.status] ?? "FAIL ✗";
   console.log(`\nPreflight: ${mark} — ${r.summary}  (mode: ${r.mode})`);
   console.log(
     `safe to commit: ${r.safeToCommit ? "YES" : "NO"} · safe to push: ${r.safeToPush ? "YES" : "NO"} · attempt ${r.attempt.attemptNumber}/${r.attempt.maxAttempts}${r.humanReviewRequired ? " · HUMAN REVIEW REQUIRED" : ""}\n`,
@@ -141,10 +151,27 @@ function printHuman(r: PreflightResult): void {
     for (const f of r.fixInstructions.slice(0, 20)) console.log(`  • [${f.priority}] ${f.file || "(general)"}: ${f.problem}  (id: ${f.id})`);
   }
   for (const w of r.warnings) console.log(`\n⚠ ${w}`);
+
+  // An unverified run is the common first-run outcome in a repo with no lint/typecheck
+  // script. Say plainly that nothing is wrong with the code and how to make it runnable —
+  // otherwise it reads as "this tool is broken".
+  if (r.status === "unverified") {
+    const skipped = r.checks.filter((c) => c.blocking && c.status === "skipped");
+    console.log("\nNothing failed — but these required checks could not run, so this change is unverified:");
+    for (const c of skipped) console.log(`  ⚠ ${c.name.padEnd(19)} ${c.skippedReason ?? "no reason recorded"}`);
+    console.log("\nTo fix, pick one:");
+    console.log("  • add the missing script(s) to package.json");
+    console.log("  • run 'slovey preflight init' and set config.commands explicitly");
+    console.log("  • set allowSkippedChecks: true in the config to run without them on purpose");
+  }
+
   // Surface the human's override fast-lane in the human-readable output too.
   const overrideStep = r.nextSteps.find((s) => s.includes("preflight override"));
   if (overrideStep) console.log(`\n→ ${overrideStep}`);
-  console.log(`\n${r.agentInstruction}\n`);
+  // agentInstruction is addressed to an agent; a human reading an unverified run already
+  // got the plain-English version above.
+  if (r.status !== "unverified") console.log(`\n${r.agentInstruction}\n`);
+  else console.log("");
 }
 
 function printAgent(r: PreflightResult): void {
@@ -170,12 +197,12 @@ function printAgent(r: PreflightResult): void {
 async function showStatus(cwd: string): Promise<void> {
   const repoId = await resolveRepoId(cwd);
   if (!repoId) {
-    console.log("No connected repo — status is only stored for repos connected to Company Brain.");
+    console.log("No connected repo — status is only stored for repos connected to Slovey.");
     return;
   }
   const run = await preflight.getLatestRun(repoId, preflight.getBranch(cwd));
   if (!run) {
-    console.log("No Preflight runs recorded yet. Run: companybrain preflight");
+    console.log("No Preflight runs recorded yet. Run: slovey preflight");
     return;
   }
   console.log(`latest run: ${run.status.toUpperCase()} (mode: ${run.mode}) · ${run.summary}`);
@@ -193,13 +220,13 @@ async function recordOverride(cwd: string, args: string[]): Promise<void> {
   };
   const reason = flag("--reason");
   if (!decisionId || decisionId.startsWith("--") || !reason) {
-    console.error('Usage: companybrain preflight override <decisionId> --reason "<why>" [--hours 168] [--branch <b>]');
+    console.error('Usage: slovey preflight override <decisionId> --reason "<why>" [--hours 168] [--branch <b>]');
     process.exitCode = 1;
     return;
   }
   const repoId = await resolveRepoId(cwd);
   if (!repoId) {
-    console.error("No connected repo — overrides require a repo connected to Company Brain.");
+    console.error("No connected repo — overrides require a repo connected to Slovey.");
     process.exitCode = 1;
     return;
   }
@@ -249,7 +276,7 @@ async function explainError(cwd: string, errorId: string): Promise<void> {
 }
 
 /**
- * `companybrain doctor` — one command that tells a new user whether their setup
+ * `slovey doctor` — one command that tells a new user whether their setup
  * is ready, and exactly what to fix if not. Only "not a git repo" is a hard
  * failure; everything else degrades gracefully (that's the design), so the rest
  * are warnings with actionable guidance rather than blockers.
@@ -269,8 +296,8 @@ async function doctor(cwd: string): Promise<void> {
   );
 
   // 2. Repository identity (needed to look up the decision graph).
-  let slug = process.env.COMPANY_BRAIN_REPO ?? null;
-  let slugSource = "COMPANY_BRAIN_REPO";
+  let slug = process.env.SLOVEY_REPO ?? process.env.COMPANY_BRAIN_REPO ?? null;
+  let slugSource = process.env.SLOVEY_REPO ? "SLOVEY_REPO" : "COMPANY_BRAIN_REPO";
   if (!slug && isGit) {
     try {
       slug = parseSlug(execFileSync("git", ["remote", "get-url", "origin"], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim());
@@ -282,7 +309,7 @@ async function doctor(cwd: string): Promise<void> {
   lines.push(
     slug
       ? { level: "pass", label: "Repository identity", detail: `${slug} (from ${slugSource})` }
-      : { level: "warn", label: "Repository identity", detail: 'set COMPANY_BRAIN_REPO="owner/name" in .env or your .mcp.json env' },
+      : { level: "warn", label: "Repository identity", detail: 'set SLOVEY_REPO="owner/name" in .env or your .mcp.json env' },
   );
 
   // API mode (external, self-serve): token set → knowledge checks run on the
@@ -307,12 +334,12 @@ async function doctor(cwd: string): Promise<void> {
   lines.push(
     source === "file"
       ? { level: "pass", label: "Preflight config", detail: `companybrain.preflight.json (${config.requiredChecks.length} required, ${config.optionalChecks.length} optional)` }
-      : { level: "warn", label: "Preflight config", detail: "using built-in defaults — run 'companybrain preflight init' to customize" },
+      : { level: "warn", label: "Preflight config", detail: "using built-in defaults — run 'slovey preflight init' to customize" },
   );
 
-  // 5. Connection to Company Brain's decision store.
+  // 5. Connection to Slovey's decision store.
   if (api) {
-    lines.push({ level: "pass", label: "Hosted token", detail: "COMPANY_BRAIN_TOKEN set — knowledge checks run on the API" });
+    lines.push({ level: "pass", label: "Hosted token", detail: "SLOVEY_TOKEN set — knowledge checks run on the API" });
   } else if (slug) {
     try {
       const r = await resolveRepo(slug);
@@ -328,29 +355,29 @@ async function doctor(cwd: string): Promise<void> {
   }
 
   const icon = (l: Line["level"]) => (l === "pass" ? "✓" : l === "fail" ? "✗" : "–");
-  console.log("Company Brain — setup check\n");
+  console.log("Slovey — setup check\n");
   for (const l of lines) console.log(`  ${icon(l.level)} ${l.label.padEnd(28)} ${l.detail}`);
   const fails = lines.filter((l) => l.level === "fail").length;
   const warns = lines.filter((l) => l.level === "warn").length;
   console.log("");
   if (fails) {
-    console.log(`${fails} blocking issue(s) — fix the ✗ above, then run 'companybrain doctor' again.`);
+    console.log(`${fails} blocking issue(s) — fix the ✗ above, then run 'slovey doctor' again.`);
     process.exitCode = 1;
   } else if (warns) {
-    console.log(`Ready to run 'companybrain preflight'. ${warns} optional item(s) marked – would unlock decision checks / customization.`);
+    console.log(`Ready to run 'slovey preflight'. ${warns} optional item(s) marked – would unlock decision checks / customization.`);
   } else {
-    console.log("All set — run 'companybrain preflight'.");
+    console.log("All set — run 'slovey preflight'.");
   }
   await closeDb();
 }
 
 async function main() {
-  const argv = process.argv.slice(2).filter((a) => a !== "preflight"); // allow "companybrain preflight ..."
+  const argv = process.argv.slice(2).filter((a) => a !== "preflight"); // allow "slovey preflight ..."
   if (argv.includes("--help") || argv.includes("-h")) {
     console.log(HELP);
     return;
   }
-  const cwd = process.env.COMPANY_BRAIN_REPO_PATH || process.cwd();
+  const cwd = process.env.SLOVEY_REPO_PATH || process.env.COMPANY_BRAIN_REPO_PATH || process.cwd();
 
   if (argv[0] === "doctor") {
     await doctor(cwd);
@@ -376,7 +403,7 @@ async function main() {
   if (argv[0] === "explain") {
     const id = argv[1];
     if (!id) {
-      console.error("Usage: companybrain preflight explain <errorId>");
+      console.error("Usage: slovey preflight explain <errorId>");
       process.exitCode = 1;
       return;
     }
@@ -431,8 +458,8 @@ async function main() {
           checks,
           safeToCommit: !blocked,
           safeToPush: !blocked,
-          status: blocked ? "fail" : anyFail ? "partial" : "pass",
-          warnings: [...local.warnings, `Company Brain hosted checks unavailable (${msg.slice(0, 90)}) — ran local checks only; the decision graph was NOT verified (it will be re-checked on your PR).`],
+          status: preflight.resolveStatus({ checks, blocked, anyFailure: anyFail, blockingViolations: 0 }),
+          warnings: [...local.warnings, `Slovey hosted checks unavailable (${msg.slice(0, 90)}) — ran local checks only; the decision graph was NOT verified (it will be re-checked on your PR).`],
         };
       }
     } else {

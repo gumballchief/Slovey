@@ -121,8 +121,16 @@ export interface PlanningContext {
 
 /** The structured result returned to the AI agent (and persisted). */
 export interface PreflightResult {
-  /** pass = clean · fail = blocking failures · partial = only optional checks failed · error = engine fault */
-  status: "pass" | "fail" | "partial" | "error";
+  /**
+   * pass = clean · fail = something actually failed · partial = only optional checks failed
+   * · unverified = nothing failed, but a required check could not run (e.g. the repo has no
+   *   typecheck script), so the gate can't vouch for the change · error = engine fault
+   *
+   * `unverified` is still blocking — it is NOT a softer pass. It exists because reporting
+   * "FAIL — 0 failed" to someone on their first run reads as a broken tool, not as
+   * "I couldn't check this".
+   */
+  status: "pass" | "fail" | "partial" | "unverified" | "error";
   safeToCommit: boolean;
   safeToPush: boolean;
   humanReviewRequired: boolean;

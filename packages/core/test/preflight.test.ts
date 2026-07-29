@@ -24,6 +24,7 @@ import {
   parseErrors,
   redact,
   rejectedKeywordHit,
+  resolveStatus,
   rulesFromRejectedDecisions,
   runCommand,
   runPreflight,
@@ -140,14 +141,64 @@ describe("test + build output parsing", () => {
 });
 
 describe("skipped missing script", () => {
-  it("marks a required command with no script as skipped and fails the gate", async () => {
+  it("marks a required command with no script as skipped and blocks the gate as UNVERIFIED", async () => {
     const dir = tmp({ "package.json": JSON.stringify({ name: "x", scripts: { build: "echo hi" } }) });
     const r = await runPreflight({ cwd: dir, repoId: null, configOverride: { requiredChecks: ["typecheck"], optionalChecks: [] } });
     const tc = r.checks.find((c) => c.name === "typecheck");
     expect(tc?.status).toBe("skipped");
     expect(tc?.blocking).toBe(true);
-    expect(r.status).toBe("fail"); // required + skipped + allowSkippedChecks:false
+    // Nothing FAILED — the check couldn't run. Reporting "fail" here is what made a first
+    // run in a fresh repo look like a broken tool. Still blocking, just honestly labelled.
+    expect(r.status).toBe("unverified");
     expect(r.safeToCommit).toBe(false);
+    expect(r.safeToPush).toBe(false);
+    expect(r.summary).toMatch(/could not verify/i);
+    expect(r.summary).toContain("typecheck");
+    // The summary must not carry a status prefix — the CLI renders the status itself,
+    // and embedding it produced "FAIL ✗ — FAIL — 6 passed…".
+    expect(r.summary).not.toMatch(/^(PASS|FAIL|PARTIAL|UNVERIFIED)/i);
+    expect(r.nextSteps.join(" ")).toMatch(/package\.json|preflight init|allowSkippedChecks/);
+  });
+
+  it("still reports a real failure as fail, not unverified", async () => {
+    const dir = tmp({
+      "package.json": JSON.stringify({ name: "x", scripts: { typecheck: "node -e \"process.exit(1)\"" } }),
+    });
+    const r = await runPreflight({ cwd: dir, repoId: null, configOverride: { requiredChecks: ["typecheck"], optionalChecks: [] } });
+    expect(r.checks.find((c) => c.name === "typecheck")?.status).toBe("fail");
+    expect(r.status).toBe("fail");
+    expect(r.safeToCommit).toBe(false);
+  });
+
+  it("passes cleanly when the required check can actually run", async () => {
+    const dir = tmp({
+      "package.json": JSON.stringify({ name: "x", scripts: { typecheck: "node -e \"process.exit(0)\"" } }),
+    });
+    const r = await runPreflight({ cwd: dir, repoId: null, configOverride: { requiredChecks: ["typecheck"], optionalChecks: [] } });
+    expect(r.status).toBe("pass");
+    expect(r.safeToCommit).toBe(true);
+  });
+});
+
+describe("resolveStatus", () => {
+  const chk = (status: "pass" | "fail" | "skipped", blocking: boolean) =>
+    ({ name: "c", status, blocking, command: "", durationMs: 0, errors: [] }) as never;
+
+  it("returns unverified only when blocked with no real failure", () => {
+    expect(resolveStatus({ checks: [chk("skipped", true)], blocked: true, anyFailure: false, blockingViolations: 0 })).toBe("unverified");
+  });
+
+  it("returns fail when a check actually failed", () => {
+    expect(resolveStatus({ checks: [chk("fail", true)], blocked: true, anyFailure: true, blockingViolations: 0 })).toBe("fail");
+  });
+
+  it("returns fail when a decision violation blocks, even with no failing check", () => {
+    expect(resolveStatus({ checks: [chk("pass", true)], blocked: true, anyFailure: false, blockingViolations: 1 })).toBe("fail");
+  });
+
+  it("is unaffected when not blocked", () => {
+    expect(resolveStatus({ checks: [chk("pass", true)], blocked: false, anyFailure: false, blockingViolations: 0 })).toBe("pass");
+    expect(resolveStatus({ checks: [chk("fail", false)], blocked: false, anyFailure: true, blockingViolations: 0 })).toBe("partial");
   });
 });
 
@@ -464,6 +515,41 @@ describe("API-mode merge (local + hosted knowledge)", () => {
     expect(apiModeFromEnv()?.token).toBe("cb_test");
     if (saved === undefined) delete process.env.COMPANY_BRAIN_TOKEN;
     else process.env.COMPANY_BRAIN_TOKEN = saved;
+  });
+
+  // The rebrand must not strand anyone's existing CI config: SLOVEY_* is canonical,
+  // COMPANY_BRAIN_* still works, and SLOVEY_* wins when both are set.
+  it("apiModeFromEnv prefers SLOVEY_* but still accepts the legacy COMPANY_BRAIN_* names", () => {
+    const saved = {
+      token: process.env.SLOVEY_TOKEN,
+      legacyToken: process.env.COMPANY_BRAIN_TOKEN,
+      url: process.env.SLOVEY_API_URL,
+      legacyUrl: process.env.COMPANY_BRAIN_API_URL,
+    };
+    for (const k of ["SLOVEY_TOKEN", "COMPANY_BRAIN_TOKEN", "SLOVEY_API_URL", "COMPANY_BRAIN_API_URL"]) delete process.env[k];
+
+    process.env.SLOVEY_TOKEN = "cb_new";
+    expect(apiModeFromEnv()?.token).toBe("cb_new");
+    expect(apiModeFromEnv()?.apiUrl).toBe("https://slovey.dev"); // built-in default
+
+    // Legacy names alone still work.
+    delete process.env.SLOVEY_TOKEN;
+    process.env.COMPANY_BRAIN_TOKEN = "cb_old";
+    process.env.COMPANY_BRAIN_API_URL = "https://legacy.example.com/";
+    expect(apiModeFromEnv()?.token).toBe("cb_old");
+    expect(apiModeFromEnv()?.apiUrl).toBe("https://legacy.example.com"); // trailing slash trimmed
+
+    // Both set → the new names win.
+    process.env.SLOVEY_TOKEN = "cb_new";
+    process.env.SLOVEY_API_URL = "https://new.example.com";
+    expect(apiModeFromEnv()?.token).toBe("cb_new");
+    expect(apiModeFromEnv()?.apiUrl).toBe("https://new.example.com");
+
+    for (const k of ["SLOVEY_TOKEN", "COMPANY_BRAIN_TOKEN", "SLOVEY_API_URL", "COMPANY_BRAIN_API_URL"]) delete process.env[k];
+    if (saved.token !== undefined) process.env.SLOVEY_TOKEN = saved.token;
+    if (saved.legacyToken !== undefined) process.env.COMPANY_BRAIN_TOKEN = saved.legacyToken;
+    if (saved.url !== undefined) process.env.SLOVEY_API_URL = saved.url;
+    if (saved.legacyUrl !== undefined) process.env.COMPANY_BRAIN_API_URL = saved.legacyUrl;
   });
 });
 

@@ -40,6 +40,7 @@ const SOURCE_LABELS: Record<string, string> = {
   jira: "Jira",
   confluence: "Confluence",
   discord: "Discord",
+  pagerduty: "PagerDuty",
   repo_analysis: "Repo Analysis",
   manual: "Manual",
 };
@@ -53,6 +54,7 @@ const SOURCE_COLORS: Record<string, "default" | "primary" | "approved" | "sugges
   jira: "default",
   confluence: "default",
   discord: "default",
+  pagerduty: "default",
   repo_analysis: "suggested",
   manual: "primary",
 };

@@ -48,28 +48,32 @@ infrastructure.
 
 ### Self-serve (API mode) — recommended for external teams
 
-1. Create a repo-scoped CLI token (owner/admin): `POST /api/repos/{id}/tokens`
-   returns a `cb_…` token — shown once. (A "Create CLI token" button in the
-   dashboard is the last UX step; until then, the endpoint is live.)
-2. Install the CLI and point it at the hosted API:
+1. Install the CLI:
 
 ```bash
-npm i -g companybrain            # once published; until then: pnpm --filter @company-brain/mcp pack:cli
-export COMPANY_BRAIN_TOKEN=cb_…  # your repo-scoped token
-export COMPANY_BRAIN_API_URL=https://company-brain-web-u04w.onrender.com  # optional; this is the default
-companybrain doctor              # confirm setup
-companybrain preflight --mode commit
+npm install -g slovey     # or run any command below with: npx slovey@latest …
 ```
+
+2. Mint a repo-scoped token in the dashboard: **Preflight → CLI Tokens → New
+   token**. The `cb_…` plaintext is shown once, with a ready-to-paste snippet.
+3. Point the CLI at it and confirm your setup:
+
+```bash
+export SLOVEY_TOKEN=cb_…   # your repo-scoped token
+slovey doctor              # confirm setup
+slovey preflight --mode commit
+```
+
+`SLOVEY_API_URL` defaults to `https://slovey.dev` — set it only if you self-host.
+The legacy `COMPANY_BRAIN_TOKEN` / `COMPANY_BRAIN_API_URL` names are still
+accepted, so existing CI configs keep working.
 
 In API mode the CLI runs build/typecheck/tests/secret-scan **locally** and fetches
 the decision-graph / security / architecture checks from the hosted API — no DB,
-no AI keys. If the hosted service is unreachable it **fails open** with a warning
-(your PR is re-checked server-side anyway), so our uptime never blocks your commit.
-
-> **Status:** the CLI bundles to a standalone package (`pnpm --filter
-> @company-brain/mcp build` → `apps/mcp/dist`) and installs+runs with no monorepo.
-> Publishing to npm as `companybrain` is a one-command step (`npm publish`) done
-> with the maintainer's npm credentials.
+no AI keys. Command checks stay local by design: Slovey never executes your build
+or test commands on our servers. If the hosted service is unreachable it **fails
+open** with a warning (your PR is re-checked server-side anyway), so our uptime
+never blocks your commit.
 
 ### Self-hosted — run everything yourself
 

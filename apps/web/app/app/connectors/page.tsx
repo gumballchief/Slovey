@@ -81,8 +81,8 @@ const LAYER_LABELS: Record<number, string> = {
 const LAYER_DESCRIPTIONS: Record<number, string> = {
   1: "Your code and PR history. Ingested automatically.",
   2: "ADRs, README, CONTRIBUTING, and /docs. Connected by default.",
-  3: "Linear, Notion, Slack. Connect to deepen the memory.",
-  4: "Jira, Confluence, Discord, meeting notes. On the roadmap.",
+  3: "Linear, Notion, Slack, Jira, Confluence, Discord, PagerDuty. Connect to deepen the memory.",
+  4: "Meeting notes and transcripts. On the roadmap.",
 };
 
 function ConnectorCard({

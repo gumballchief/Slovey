@@ -242,7 +242,7 @@ async function runPreflightInner(opts: RunPreflightOptions): Promise<PreflightRe
   }
   const anyFailure = checks.some((c) => c.status === "fail") || decisionViolations.length > 0;
   const blocked = failingRequired.length > 0 || blockingViolations.length > 0;
-  const status: PreflightResult["status"] = blocked ? "fail" : anyFailure ? "partial" : "pass";
+  const status = resolveStatus({ checks, blocked, anyFailure, blockingViolations: blockingViolations.length });
 
   // ── loop safety ──
   const [priorRun, priorAttempt] = repoId
@@ -351,7 +351,7 @@ async function buildPlanningContext(repoId: string | null, config: PreflightConf
  * attempts = repeated; hitting maxAttempts while still failing = human review.
  */
 export function evaluateLoop(input: {
-  priorRunStatus: "pass" | "fail" | "partial" | "error" | null;
+  priorRunStatus: "pass" | "fail" | "partial" | "unverified" | "error" | null;
   priorAttempt: number;
   priorSignature: string | null;
   currentStatus: "pass" | "fail";
@@ -443,6 +443,31 @@ function resolveCommand(name: string, config: PreflightConfig, project: ProjectI
   return null;
 }
 
+/**
+ * Resolve the run status. Shared by the local engine, api-mode, remote and the CLI so
+ * all four can never drift apart.
+ *
+ * The `unverified` case: the run is blocked, but nothing actually failed — every blocking
+ * check was SKIPPED (no lint script, no typecheck script, no connected repo). Calling that
+ * "FAIL — 0 failed" is what makes a first run look broken. It stays blocking either way.
+ */
+export function resolveStatus(args: {
+  checks: CheckResult[];
+  blocked: boolean;
+  anyFailure: boolean;
+  blockingViolations: number;
+}): PreflightResult["status"] {
+  const { checks, blocked, anyFailure, blockingViolations } = args;
+  if (!blocked) return anyFailure ? "partial" : "pass";
+  const realFailure = checks.some((c) => c.status === "fail") || blockingViolations > 0;
+  return realFailure ? "fail" : "unverified";
+}
+
+/** The blocking checks that couldn't run — the actionable part of an `unverified` result. */
+export function unverifiedChecks(checks: CheckResult[]): CheckResult[] {
+  return checks.filter((c) => c.blocking && c.status === "skipped");
+}
+
 function buildSignature(fixes: FixInstruction[], violations: DecisionViolation[]): string {
   const parts = [
     ...fixes.map((f) => f.id ?? fingerprint({ file: f.file, message: f.problem })),
@@ -451,12 +476,23 @@ function buildSignature(fixes: FixInstruction[], violations: DecisionViolation[]
   return parts.join("\n").slice(0, 4000);
 }
 
+/**
+ * Counts only — no status prefix. Callers that show a status render it themselves;
+ * embedding it here produced "Preflight: FAIL ✗ — FAIL — 6 passed…" in the CLI.
+ */
 function buildSummary(checks: CheckResult[], violations: DecisionViolation[], status: string): string {
   const pass = checks.filter((c) => c.status === "pass").length;
   const fail = checks.filter((c) => c.status === "fail").length;
   const skipped = checks.filter((c) => c.status === "skipped").length;
-  return `${status.toUpperCase()} — ${pass} passed, ${fail} failed, ${skipped} skipped` +
-    (violations.length ? `, ${violations.length} decision violation(s)` : "") + ".";
+  const counts =
+    `${pass} passed, ${fail} failed, ${skipped} skipped` +
+    (violations.length ? `, ${violations.length} decision violation(s)` : "");
+  // An unverified run's headline is WHY it couldn't check, not the tally.
+  if (status === "unverified") {
+    const names = unverifiedChecks(checks).map((c) => c.name);
+    return `Could not verify this change — ${names.length ? names.join(", ") : "a required check"} did not run (${counts}).`;
+  }
+  return `${counts}.`;
 }
 
 function buildInstruction(x: {
@@ -473,6 +509,13 @@ function buildInstruction(x: {
   if (x.status === "partial") {
     return "All BLOCKING checks pass — safe to commit. Some optional checks failed; consider addressing fixInstructions before finishing.";
   }
+  if (x.status === "unverified") {
+    return (
+      "Nothing failed, but a required check could not run, so this change is UNVERIFIED — do not treat that as a pass. " +
+      "Tell the human which checks were skipped and why (see checks[].skippedReason). " +
+      "The usual cause is a missing package.json script; `slovey preflight init` writes a config where the commands can be set explicitly."
+    );
+  }
   if (x.humanReviewRequired) {
     return "Stop. Human review is required. The same blocking issue remains after the maximum number of attempts — do not commit, and do not keep guessing at fixes.";
   }
@@ -488,6 +531,13 @@ function buildInstruction(x: {
 
 function buildNextSteps(x: { status: string; safeToCommit: boolean; humanReviewRequired: boolean }): string[] {
   if (x.humanReviewRequired) return ["Stop and ask a human to review the remaining failures."];
+  if (x.status === "unverified") {
+    return [
+      "Add the missing script(s) to package.json, or run `slovey preflight init` and set config.commands explicitly.",
+      "To run without them on purpose, set allowSkippedChecks: true in the config.",
+      "Run preflight again — nothing failed, so this should pass once the checks can run.",
+    ];
+  }
   if (x.safeToCommit) return ["Commit your changes.", "Run preflight_run with mode:\"push\" before pushing."];
   return ["Apply every fixInstructions item.", "Run preflight_run again.", "Only commit once safeToCommit is true."];
 }

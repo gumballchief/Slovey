@@ -13,7 +13,7 @@ export function CliTokens({ repoId }: { repoId: string | null }) {
   const [tokens, setTokens] = useState<CliToken[]>([]);
   const [creating, setCreating] = useState(false);
   const [minted, setMinted] = useState<string | null>(null); // plaintext, shown once
-  const [copied, setCopied] = useState<"token" | "snippet" | null>(null);
+  const [copied, setCopied] = useState<"token" | "snippet" | "install" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -46,15 +46,15 @@ export function CliTokens({ repoId }: { repoId: string | null }) {
     setTokens(await fetchTokens(repoId));
   }
 
-  function copy(text: string, which: "token" | "snippet") {
+  function copy(text: string, which: "token" | "snippet" | "install") {
     void navigator.clipboard?.writeText(text);
     setCopied(which);
     setTimeout(() => setCopied(null), 2000);
   }
 
-  const snippet = minted
-    ? `export COMPANY_BRAIN_TOKEN=${minted}\nexport COMPANY_BRAIN_API_URL=https://company-brain-web-u04w.onrender.com\nslovey doctor`
-    : "";
+  // The API URL is omitted on purpose — slovey.dev is the CLI's built-in default,
+  // so the snippet stays two lines instead of three.
+  const snippet = minted ? `export SLOVEY_TOKEN=${minted}\nslovey doctor` : "";
 
   return (
     <section className="card p-5 space-y-4">
@@ -81,6 +81,29 @@ export function CliTokens({ repoId }: { repoId: string | null }) {
 
       {error && <p className="text-xs text-[#FF6B8A]">{error}</p>}
 
+      {/* Step 1 — install. Sits ABOVE the token because that's the order a new
+          user does it in; without it the minted token has nothing to run. */}
+      <div className="space-y-1.5">
+        <p className="text-[11px] uppercase tracking-wide text-[var(--text-muted)]">
+          1 · Install the CLI
+        </p>
+        <div className="flex items-center gap-2">
+          <code className="min-w-0 flex-1 truncate rounded-lg bg-[var(--bg)] px-3 py-2 font-mono text-xs text-[var(--cb-text)]">
+            npm install -g slovey
+          </code>
+          <button
+            onClick={() => copy("npm install -g slovey", "install")}
+            aria-label="Copy install command"
+            className="inline-flex items-center gap-1 rounded-lg border border-[var(--border)] px-2.5 py-2 text-xs text-[var(--cb-text)] hover:bg-[var(--bg-subtle)]"
+          >
+            {copied === "install" ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
+          </button>
+        </div>
+        <p className="text-[11px] text-[var(--text-muted)]">
+          Prefer not to install? Every command works with <code className="rounded bg-[var(--bg-subtle)] px-1">npx slovey@latest</code>.
+        </p>
+      </div>
+
       {/* Just-minted token — shown once. */}
       {minted && (
         <div className="rounded-xl border border-[var(--primary)]/30 bg-[var(--primary-soft)] p-4 space-y-3">
@@ -96,7 +119,7 @@ export function CliTokens({ repoId }: { repoId: string | null }) {
             </button>
           </div>
           <div className="space-y-1.5">
-            <p className="text-[11px] uppercase tracking-wide text-[var(--text-muted)]">Then run</p>
+            <p className="text-[11px] uppercase tracking-wide text-[var(--text-muted)]">2 · Then run</p>
             <div className="flex items-start gap-2">
               <pre className="min-w-0 flex-1 overflow-x-auto rounded-lg bg-[var(--bg)] px-3 py-2 font-mono text-[11px] leading-relaxed text-[var(--cb-text)]">{snippet}</pre>
               <button onClick={() => copy(snippet, "snippet")} className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-[var(--border)] px-2.5 py-2 text-xs text-[var(--cb-text)] hover:bg-[var(--bg-subtle)]">

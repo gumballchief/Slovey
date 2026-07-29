@@ -1,0 +1,1 @@
+ALTER TYPE "public"."preflight_status" ADD VALUE 'unverified' BEFORE 'error';

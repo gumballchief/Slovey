@@ -16,6 +16,7 @@ const CONNECTORS = [
   { id: "jira", name: "Jira", layer: 3, status: "available", description: "Tickets, epics, and decision comments.", deepens: "Architecture decisions buried in Jira surface automatically.", icon: "trello" },
   { id: "confluence", name: "Confluence", layer: 3, status: "available", description: "Enterprise knowledge base and decision logs.", deepens: "Years of institutional knowledge become active PR context.", icon: "database" },
   { id: "discord", name: "Discord", layer: 3, status: "available", description: "Community and team channel decisions.", deepens: "OSS project decisions from Discord feed the memory.", icon: "hash" },
+  { id: "pagerduty", name: "PagerDuty", layer: 3, status: "available", description: "Resolved incidents and their postmortem notes.", deepens: "A block can cite the outage that made the rule.", icon: "siren" },
   { id: "meetings", name: "Meeting Notes", layer: 4, status: "coming_soon", description: "Transcripts from Zoom, Google Meet, Loom.", deepens: "Verbal decisions get captured before they're forgotten.", icon: "video" },
 ] as const;
 
