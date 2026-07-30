@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
+import { getRepoRoot } from "./detect";
 import { parseErrors } from "./parse";
 import { scanForSecrets } from "./redact";
 import { runCommand } from "./runner";
@@ -116,12 +117,26 @@ export function routeCheck(cwd: string, changed: string[]): RawCheck {
   return { name: "route-check", command: "", durationMs: Date.now() - start, status: errors.length ? "fail" : "pass", errors };
 }
 
-/** dependency check: a lockfile exists and package.json parses. */
+const LOCKFILES = ["pnpm-lock.yaml", "package-lock.json", "yarn.lock", "bun.lockb", "bun.lock"];
+
+/** dependency check: a lockfile exists and package.json parses.
+ *  Lockfiles live at the workspace root, not necessarily the cwd — a run from
+ *  a monorepo subfolder must not fail on a lockfile that exists at the top. */
 export function depsCheck(cwd: string): RawCheck {
   const start = Date.now();
   const errors: PreflightError[] = [];
-  const hasLock = ["pnpm-lock.yaml", "package-lock.json", "yarn.lock", "bun.lockb"].some((f) => existsSync(resolve(cwd, f)));
-  if (!hasLock) errors.push({ file: "", code: "deps", category: "deps", message: "No lockfile found — dependency versions are unpinned." });
+  const dirs = [cwd];
+  const root = getRepoRoot(cwd);
+  if (root && resolve(root) !== resolve(cwd)) dirs.push(root);
+  const hasLock = dirs.some((d) => LOCKFILES.some((f) => existsSync(resolve(d, f))));
+  if (!hasLock)
+    errors.push({
+      file: "",
+      code: "deps",
+      category: "deps",
+      message:
+        "No lockfile found — dependency versions are unpinned. Run your package manager's install (npm/pnpm/yarn/bun install) to create one.",
+    });
   try {
     JSON.parse(readFileSync(resolve(cwd, "package.json"), "utf8"));
   } catch {

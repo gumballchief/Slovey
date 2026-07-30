@@ -45,7 +45,7 @@ export function detectPackageManager(cwd: string, declared?: string): PackageMan
   if (declared?.startsWith("npm")) return "npm";
   if (existsSync(resolve(cwd, "pnpm-lock.yaml"))) return "pnpm";
   if (existsSync(resolve(cwd, "yarn.lock"))) return "yarn";
-  if (existsSync(resolve(cwd, "bun.lockb"))) return "bun";
+  if (existsSync(resolve(cwd, "bun.lockb")) || existsSync(resolve(cwd, "bun.lock"))) return "bun";
   return "npm";
 }
 
@@ -64,6 +64,11 @@ function git(cwd: string, args: string[]): string {
 
 export function getBranch(cwd: string): string | null {
   return git(cwd, ["rev-parse", "--abbrev-ref", "HEAD"]) || null;
+}
+
+/** Absolute path of the git worktree root, or null outside a repo. */
+export function getRepoRoot(cwd: string): string | null {
+  return git(cwd, ["rev-parse", "--show-toplevel"]) || null;
 }
 
 export function getCommitSha(cwd: string): string | null {
