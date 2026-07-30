@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -35,6 +36,10 @@ import {
 
 function tmp(files: Record<string, string> = {}): string {
   const dir = mkdtempSync(join(tmpdir(), "preflight-"));
+  // Make each fixture its own repo root: depsCheck walks up to the git root
+  // for lockfiles, and the OS tmpdir may sit inside an unrelated repo (a home
+  // directory under version control) whose stray lockfile would leak in.
+  execFileSync("git", ["init", "-q"], { cwd: dir, stdio: "ignore" });
   for (const [name, content] of Object.entries(files)) writeFileSync(join(dir, name), content);
   return dir;
 }

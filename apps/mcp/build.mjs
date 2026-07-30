@@ -34,7 +34,7 @@ await build({ ...common, entryPoints: ["src/index.ts"], outfile: "dist/index.mjs
 // already owned by an unrelated publisher on npm (same squatter trap as the GitHub App slug).
 const pkg = {
   name: "slovey",
-  version: "0.1.2",
+  version: "0.1.3",
   description: "Slovey — the decision memory your AI coding agent doesn't have. Blocks commits that contradict what your team already decided.",
   type: "module",
   // No `companybrain` bin: an unrelated package of that name exists on npm, and a
