@@ -71,6 +71,15 @@ export function getCommitSha(cwd: string): string | null {
 }
 
 /**
+ * Vendored/generated dirs are never the user's change. `--exclude-standard`
+ * only honors .gitignore — a fresh repo without one reports all of
+ * node_modules as untracked, and secret-scan then flags example keys inside
+ * dependency READMEs as critical findings. Excluded unconditionally.
+ */
+const VENDORED_PATH =
+  /(^|\/)(node_modules|\.git|dist|build|out|coverage|\.next|\.nuxt|\.turbo|\.cache|vendor|\.venv|__pycache__)(\/|$)/;
+
+/**
  * Files changed vs HEAD: staged + unstaged + untracked (deduped). This is the
  * set a pre-commit gate cares about. Empty when not a git repo.
  */
@@ -79,7 +88,7 @@ export function getChangedFiles(cwd: string): string[] {
   for (const spec of [["diff", "--name-only", "HEAD"], ["diff", "--cached", "--name-only"], ["ls-files", "--others", "--exclude-standard"]]) {
     for (const f of git(cwd, spec).split("\n")) if (f.trim()) out.add(f.trim());
   }
-  return [...out];
+  return [...out].filter((f) => !VENDORED_PATH.test(f));
 }
 
 /** Unified diff for a set of files, capped, for feeding the decision check.
