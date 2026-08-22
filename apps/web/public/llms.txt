@@ -1,0 +1,69 @@
+# Slovey
+
+> Slovey is an engineering-decision memory and a pre-commit gate for AI coding
+> agents. It records why a team made each technical decision, then checks every
+> AI-generated change against that record before the change is committed —
+> blocking work that contradicts a decision the team already made.
+
+Slovey sits between the coding agent (Claude Code, Cursor, Codex, Gemini CLI)
+and the repository. Agents keep writing code as they do today; Slovey reviews
+what they produce.
+
+The problem it addresses: rule files such as CLAUDE.md or Cursor rules are
+prose. They drift as the codebase changes, and nothing enforces them — the
+agent decides whether to comply. So agents re-make decisions that were already
+rejected: reintroducing a retry path removed after an incident, or contradicting
+an architecture decision made months earlier.
+
+## How it works
+
+- **Engineering Decision Graph**: decisions are stored as structured records
+  ("we use X, we rejected Y, because Z") rather than prose, so they can be
+  queried and enforced instead of merely read.
+- **Pre-commit preflight**: every change runs build, then tests, then checks
+  against recorded decisions, team conventions, and deprecated patterns.
+- **Blocking with citation**: a violating change is blocked and the specific
+  decision that made the rule is cited back to the agent.
+- **Agent access**: agents connect over an MCP server or a REST API, so the
+  decision graph is queryable mid-session, before code is written.
+
+## What it is not
+
+- Not a replacement for Claude Code, Cursor, or any coding agent — it reviews
+  their output rather than generating code itself.
+- Not a general-purpose agent memory API (mem0, Zep). Those provide recall for
+  developers building agents; Slovey is enforcement for coding agents — a gate
+  that inspects the change itself.
+
+## Status
+
+Independent, solo-built, and open source under the MIT license. Publicly
+launched in 2026 with no paying customers yet; the blocked-change examples shown
+on the site come from Slovey gating its own repository and its author's other
+projects.
+
+## Install
+
+Free tier covers one repository and requires no payment card:
+
+```
+npm i -g slovey
+```
+
+## Pricing
+
+- Starter — $0/forever: 1 repository, pre-commit review, basic decision graph.
+- Team — $19/user/month billed annually: unlimited repositories, full decision
+  graph, rule enforcement, MCP server and API access.
+- Enterprise — custom: self-hosted/VPC, SSO, SCIM, audit logs.
+
+## Links
+
+- [Homepage](https://slovey.dev/): what Slovey is and a live example of a blocked change.
+- [Documentation](https://slovey.dev/docs): setup, recording decisions, configuring the gate.
+- [MCP server](https://slovey.dev/mcp): connecting Claude Code, Cursor, and other agents.
+- [API reference](https://slovey.dev/api-reference): REST endpoints for the decision graph.
+- [Integrations](https://slovey.dev/integrations): GitHub, Slack, Notion, Jira, Linear, Confluence.
+- [Security](https://slovey.dev/security): where code and decision data are processed and stored.
+- [Changelog](https://slovey.dev/changelog): release history.
+- [Source code](https://github.com/gumballchief/slovey): MIT-licensed repository.

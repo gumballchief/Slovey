@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { PageShell, InfoCard } from "@/components/layout/PageShell";
 
 export const metadata: Metadata = {
+  alternates: { canonical: "/mcp" },
   title: "MCP Server — Slovey",
   description: "Connect Claude, Cursor, Codex, and any MCP-capable agent to your engineering memory through the Slovey MCP server.",
 };

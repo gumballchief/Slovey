@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { PageShell, InfoCard } from "@/components/layout/PageShell";
 
 export const metadata: Metadata = {
+  alternates: { canonical: "/docs" },
   title: "Documentation — Slovey",
   description: "Get started with Slovey: connect a repository, install the GitHub App, and run the pre-commit gate locally or in CI.",
 };

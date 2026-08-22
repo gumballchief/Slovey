@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { PageShell, ComingSoon } from "@/components/layout/PageShell";
 
 export const metadata: Metadata = {
+  alternates: { canonical: "/changelog" },
   title: "Changelog — Slovey",
   description: "What's new in Slovey — product updates, new checks, and integrations.",
 };

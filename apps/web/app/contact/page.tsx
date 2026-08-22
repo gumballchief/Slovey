@@ -3,6 +3,7 @@ import { PageShell } from "@/components/layout/PageShell";
 import { ContactForm } from "@/components/layout/ContactForm";
 
 export const metadata: Metadata = {
+  alternates: { canonical: "/contact" },
   title: "Contact — Slovey",
   description: "Talk to the Slovey team — questions, sales, or feedback. We read every message.",
 };
