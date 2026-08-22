@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { Bricolage_Grotesque, Fraunces, Hanken_Grotesk, Inter_Tight, JetBrains_Mono } from "next/font/google";
 import { cookies } from "next/headers";
 import Script from "next/script";
+import { JsonLd } from "@/components/seo/json-ld";
+import { organizationSchema, webSiteSchema } from "@/lib/schema";
+import { SITE_URL } from "@/lib/site";
 import "./globals.css";
 
 // Display — Bricolage Grotesque: a characterful, editorial grotesque. The face
@@ -51,7 +54,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://company-brain-web-u04w.onrender.com"),
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "Slovey — Engineering Memory for Your Team",
     template: "%s",
@@ -92,6 +95,7 @@ export default async function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full bg-[var(--bg)] text-[var(--cb-text)] font-body antialiased">
+        <JsonLd schema={[organizationSchema, webSiteSchema]} />
         {/* Swallow noise from browser extensions (e.g. MetaMask's inpage.js)
             so it never reaches the dev error overlay. Scoped strictly to
             chrome-extension:// sources — never suppresses app errors. Loaded via

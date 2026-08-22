@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { PageShell } from "@/components/layout/PageShell";
 
 export const metadata: Metadata = {
+  alternates: { canonical: "/about" },
   title: "About — Slovey",
   description: "Why engineering memory matters: Slovey keeps the reasoning behind your code so knowledge is never lost, re-explained, or repeated as a mistake.",
 };

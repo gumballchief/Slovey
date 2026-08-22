@@ -2,9 +2,12 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getViewer } from "@/lib/server/auth";
 import { Landing } from "@/components/landing/Landing";
+import { JsonLd } from "@/components/seo/json-ld";
+import { faqSchema, softwareApplicationSchema } from "@/lib/schema";
 import "@/components/landing/landing.css";
 
 export const metadata: Metadata = {
+  alternates: { canonical: "/" },
   title: "Slovey — The intelligence layer beneath your AI coding agents",
   description:
     "AI writes great code — it just doesn't know your company. Slovey gives it your context: your codebase, decisions, and history, so mistakes are caught before code is ever committed.",
@@ -31,5 +34,10 @@ export default async function LandingPage({
   const viewer = await getViewer();
   const isAuthed = !!viewer && !viewer.isDev;
 
-  return <Landing isAuthed={isAuthed} />;
+  return (
+    <>
+      <JsonLd schema={[softwareApplicationSchema, faqSchema]} />
+      <Landing isAuthed={isAuthed} />
+    </>
+  );
 }

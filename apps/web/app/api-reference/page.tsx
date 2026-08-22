@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { PageShell } from "@/components/layout/PageShell";
 
 export const metadata: Metadata = {
+  alternates: { canonical: "/api-reference" },
   title: "API Reference — Slovey",
   description: "The Slovey REST API: query the decision graph, run preflight checks, and manage repositories with a token-authenticated endpoint.",
 };

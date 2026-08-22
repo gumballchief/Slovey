@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { LegalShell } from "@/components/legal/LegalShell";
 
 export const metadata: Metadata = {
+  alternates: { canonical: "/security" },
   title: "Security — Slovey",
   description: "What Slovey stores from your repositories, what it never stores, and how it's protected.",
 };

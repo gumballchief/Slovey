@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { PageShell } from "@/components/layout/PageShell";
 
 export const metadata: Metadata = {
+  alternates: { canonical: "/integrations" },
   title: "Integrations — Slovey",
   description: "Slovey connects to the tools your team already uses — GitHub, Slack, Notion, Jira, and the AI coding agents your engineers run.",
 };
