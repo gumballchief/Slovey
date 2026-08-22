@@ -38,6 +38,41 @@ const nextConfig: NextConfig = {
     staticGenerationMaxConcurrency: 1,
     staticGenerationRetryCount: 3,
   },
+  /**
+   * Security headers.
+   *
+   * Scoped deliberately: these are the headers that cannot break a working page.
+   * `frame-ancestors 'none'` (plus the legacy X-Frame-Options) is the actual fix
+   * for the clickjacking hole — without it /login can be framed invisibly under
+   * decoy UI and a signed-in user clicks through to the real app.
+   *
+   * NOT included: a full content CSP (script-src/style-src). This app loads
+   * Google Fonts, inline styles and next/script, so a strict policy needs real
+   * testing against every page before it can be enforced — shipping a broken one
+   * would white-screen the site. Track that separately.
+   */
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          // Clickjacking: modern directive + legacy header for older browsers.
+          { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+          { key: "X-Frame-Options", value: "DENY" },
+          // Stop browsers guessing a different content type than we declared
+          // (an uploaded file sniffed as HTML becomes stored XSS).
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          // Don't leak full URLs (which carry repo ids) to third-party sites.
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          // Nothing here needs these; deny them rather than leave them open.
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), interest-cohort=()" },
+          // Force HTTPS for a year. No `preload` — that is effectively
+          // irreversible and wants a deliberate decision, not a security sweep.
+          { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;
