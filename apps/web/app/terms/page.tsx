@@ -104,7 +104,7 @@ export default function TermsPage() {
 
       <h2>13. Governing law</h2>
       <p>
-        These Terms are governed by the laws of <strong>[your jurisdiction]</strong>, without regard
+        These Terms are governed by the laws of <strong>the State of Texas, United States</strong>, without regard
         to conflict-of-laws rules. Disputes will be resolved in the courts located there, unless
         applicable law provides otherwise.
       </p>
@@ -118,7 +118,7 @@ export default function TermsPage() {
       <h2>15. Contact</h2>
       <p>
         Questions about these Terms? Contact us at{" "}
-        <a href="mailto:legal@your-domain.example">legal@your-domain.example</a>.
+        <a href="mailto:legal@slovey.dev">legal@slovey.dev</a>.
       </p>
     </LegalShell>
   );

@@ -2,7 +2,7 @@ import { getDb, installations, repos, repoSettings } from "@company-brain/db";
 import { eq, isNull } from "drizzle-orm";
 import { getApp, getInstallationOctokit } from "../github/app";
 import { logAudit } from "./audit";
-import { ensureOrg } from "./orgs";
+import { ensureOrg, ensureOwnerMembership, getUserIdByGithubId } from "./orgs";
 
 /**
  * Upsert an installation and all repos it can access, with default settings.
@@ -16,7 +16,7 @@ export async function syncInstallation(installationId: number) {
     installation_id: installationId,
   });
   const account = meta.data.account as
-    | { login?: string; slug?: string; type?: string }
+    | { id?: number; login?: string; slug?: string; type?: string }
     | null;
   const accountLogin = account?.login ?? account?.slug ?? "unknown";
   const accountType = (account?.type === "User" ? "User" : "Organization") as
@@ -25,6 +25,18 @@ export async function syncInstallation(installationId: number) {
 
   // Every installation belongs to an organization (the account it's installed on).
   const orgId = await ensureOrg(accountLogin);
+
+  // A personal-account installation has exactly one member — the account owner —
+  // so link them as owner now, rather than waiting for their next GitHub sign-in
+  // to sync it. Without this, someone who installs the App and then signs in with
+  // Google (or installs it after already signing in) has no membership row and
+  // gets a 403 on their own repositories' API — the exact first-run path the
+  // launch sends people down. Organization installs stay login-driven: their
+  // members come from GitHub org membership, synced in linkUserMemberships.
+  if (accountType === "User" && account?.id) {
+    const ownerUserId = await getUserIdByGithubId(account.id);
+    if (ownerUserId) await ensureOwnerMembership(orgId, ownerUserId);
+  }
 
   const [inst] = await db
     .insert(installations)
