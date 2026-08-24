@@ -15,6 +15,24 @@ export async function ensureOrg(accountLogin: string): Promise<string> {
   return org.id;
 }
 
+/**
+ * Link a user to an org as owner, idempotently. Used when the user→org link is
+ * already known from a trusted source — principally a personal-account App
+ * installation, where the account owner is unambiguously the org owner — so we
+ * do not have to wait for the user's next GitHub sign-in to create the row.
+ *
+ * onConflictDoNothing: an existing membership (any role) is left untouched. The
+ * bug this addresses is a MISSING row, never a wrong one, so a webhook must not
+ * silently rewrite a role someone already has.
+ */
+export async function ensureOwnerMembership(orgId: string, userId: string): Promise<void> {
+  const db = getDb();
+  await db
+    .insert(memberships)
+    .values({ orgId, userId, role: "owner" })
+    .onConflictDoNothing({ target: [memberships.orgId, memberships.userId] });
+}
+
 export async function getUserIdByGithubId(githubId: number): Promise<string | null> {
   const db = getDb();
   const [u] = await db
@@ -23,6 +41,18 @@ export async function getUserIdByGithubId(githubId: number): Promise<string | nu
     .where(eq(users.githubId, githubId))
     .limit(1);
   return u?.id ?? null;
+}
+
+/** The GitHub numeric id for one of our users, or null. The reverse of
+ * getUserIdByGithubId — used to authorize a token holder as a repo owner. */
+export async function getUserGithubId(userId: string): Promise<number | null> {
+  const db = getDb();
+  const [u] = await db
+    .select({ githubId: users.githubId })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  return u?.githubId ?? null;
 }
 
 /** The viewer's role in an org, or null if they're not a member. */

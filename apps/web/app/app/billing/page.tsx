@@ -26,7 +26,7 @@ const PLANS: Array<{
     name: "Pro",
     price: "$19",
     blurb: "For teams that ship fast and want fewer regressions.",
-    features: ["10 repositories", "5,000 decisions", "Scheduled rescans", "Connectors (Linear/Notion/Slack)", "Email support"],
+    features: ["Unlimited repositories", "Unlimited decisions", "Scheduled rescans", "Connectors (Linear/Notion/Slack)", "Email support"],
   },
   {
     id: "enterprise",

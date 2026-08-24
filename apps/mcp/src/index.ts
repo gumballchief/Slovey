@@ -50,11 +50,11 @@ async function hostedRead(op: string, args: Record<string, unknown>): Promise<un
       body: JSON.stringify({ op, args }),
       signal: ctrl.signal,
     });
-    const body = (await res.json().catch(() => ({}))) as { data?: { result?: unknown }; error?: string; message?: string };
+    const body = (await res.json().catch(() => ({}))) as { result?: unknown; error?: string; message?: string };
     if (!res.ok) {
       throw new Error(body.error || body.message || `Slovey API returned ${res.status}`);
     }
-    return body.data?.result ?? null;
+    return body.result ?? null;
   } finally {
     clearTimeout(timer);
   }

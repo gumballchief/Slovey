@@ -1,4 +1,4 @@
-import { dashboard, preflight, resolveRepoById, verifyApiToken } from "@company-brain/core";
+import { dashboard, preflight, resolveRepoById, verifyApiToken, getUserGithubId } from "@company-brain/core";
 import { HttpError, handle, ok } from "@/lib/server/respond";
 import { clientIp, rateLimit } from "@/lib/server/ratelimit";
 
@@ -25,7 +25,7 @@ export async function POST(req: Request): Promise<Response> {
     const token = auth.toLowerCase().startsWith("bearer ") ? auth.slice(7).trim() : null;
     const verified = await verifyApiToken(token);
     if (!verified) {
-      throw new HttpError(401, "Invalid or missing API token. Create one in the dashboard and set COMPANY_BRAIN_TOKEN.");
+      throw new HttpError(401, "Invalid or missing API token. Create one in the dashboard and set SLOVEY_TOKEN (or COMPANY_BRAIN_TOKEN).");
     }
 
     // The token is repo-scoped; confirm the repo still exists (guards against a
@@ -33,11 +33,19 @@ export async function POST(req: Request): Promise<Response> {
     const repo = await resolveRepoById(verified.repoId);
     if (!repo) throw new HttpError(404, "The repository this token was issued for no longer exists.");
 
-    // Re-verify the token's user STILL has access to the repo's org. Membership is
-    // refreshed + pruned at login (linkUserMemberships), so a teammate removed
-    // from the org loses access on their next sign-in and this token stops
-    // working — the token itself is not auto-revoked on removal.
-    if (repo.orgId) {
+    // Authorize owner-first, mirroring how the token was minted (resolveAccess in
+    // lib/server/auth.ts): a personal-account owner is authorized by matching
+    // GitHub id, even with no membership row. Without this the routes diverged
+    // from minting — an owner could mint a token that then 403'd as falsely
+    // "revoked" whenever their membership row was missing (Google-only sign-in,
+    // install-before-signup, or a pruned membership). Non-owners still go through
+    // org membership, which is refreshed + pruned at each GitHub sign-in.
+    const callerGithubId = await getUserGithubId(verified.userId);
+    const isOwner =
+      repo.ownerGithubId != null &&
+      callerGithubId != null &&
+      repo.ownerGithubId === callerGithubId;
+    if (!isOwner && repo.orgId) {
       const orgIds = await dashboard.listUserOrgIds(verified.userId);
       if (!orgIds.includes(repo.orgId)) {
         throw new HttpError(403, "Your access to this repository has been revoked.");

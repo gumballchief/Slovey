@@ -1,4 +1,4 @@
-import { dashboard, decisionApi, resolveRepoById, verifyApiToken } from "@company-brain/core";
+import { dashboard, decisionApi, resolveRepoById, verifyApiToken, getUserGithubId } from "@company-brain/core";
 import { HttpError, handle, ok } from "@/lib/server/respond";
 import { clientIp, rateLimit } from "@/lib/server/ratelimit";
 
@@ -85,9 +85,19 @@ export async function POST(req_: Request): Promise<Response> {
     const repo = await resolveRepoById(verified.repoId);
     if (!repo) throw new HttpError(404, "The repository this token was issued for no longer exists.");
 
-    // Same revocation check as the preflight route: org membership is refreshed at
-    // login, so a teammate removed from the org loses access on their next sign-in.
-    if (repo.orgId) {
+    // Authorize owner-first, mirroring how the token was minted (resolveAccess in
+    // lib/server/auth.ts): a personal-account owner is authorized by matching
+    // GitHub id, even with no membership row. Without this the routes diverged
+    // from minting — an owner could mint a token that then 403'd as falsely
+    // "revoked" whenever their membership row was missing (Google-only sign-in,
+    // install-before-signup, or a pruned membership). Non-owners still go through
+    // org membership, which is refreshed + pruned at each GitHub sign-in.
+    const callerGithubId = await getUserGithubId(verified.userId);
+    const isOwner =
+      repo.ownerGithubId != null &&
+      callerGithubId != null &&
+      repo.ownerGithubId === callerGithubId;
+    if (!isOwner && repo.orgId) {
       const orgIds = await dashboard.listUserOrgIds(verified.userId);
       if (!orgIds.includes(repo.orgId)) {
         throw new HttpError(403, "Your access to this repository has been revoked.");
