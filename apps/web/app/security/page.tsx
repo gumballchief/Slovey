@@ -41,8 +41,12 @@ export default function SecurityPage() {
       <h2>2. What we never store</h2>
       <ul>
         <li>
-          <strong>Your codebase.</strong> Diffs are read transiently during a check or extraction
-          and are not persisted. There is no copy of your repository in our database.
+          <strong>Your codebase.</strong> In hosted mode a check sends the diff plus the full
+          text of the files that change touched, along with the branch and commit SHA. Files your
+          <code>.gitignore</code> excludes are never collected, so secrets kept in ignored files
+          never leave your machine. All of it is read transiently for the check and is not
+          persisted — there is no copy of your repository in our database. Running in local mode
+          sends nothing at all.
         </li>
         <li>
           <strong>Secrets.</strong> The Preflight CLI redacts anything key-shaped from command

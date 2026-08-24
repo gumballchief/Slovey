@@ -9,7 +9,7 @@
  },
  {
   "q": "Where does my code and data live?",
-  "a": "On Team, data is encrypted and isolated per organization. Enterprise supports self-hosted and VPC deployments with SSO, SCIM, and full audit logging — your code never leaves your boundary."
+  "a": "On Team, data is encrypted and isolated per organization. Enterprise covers self-hosted and VPC deployments with full audit logging, and SSO and SCIM on request — your code never leaves your boundary."
  },
  {
   "q": "Which tools does it integrate with?",

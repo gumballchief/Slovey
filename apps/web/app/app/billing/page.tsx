@@ -33,7 +33,7 @@ const PLANS: Array<{
     name: "Enterprise",
     price: "Custom",
     blurb: "For orgs with strict isolation and audit needs.",
-    features: ["Unlimited repos & decisions", "SAML/SSO", "Audit log export", "RBAC + SLA", "Dedicated support"],
+    features: ["Unlimited repos & decisions", "Audit log export", "RBAC + SLA", "Dedicated support", "SAML/SSO on request"],
   },
 ];
 

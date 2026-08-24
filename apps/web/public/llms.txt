@@ -55,7 +55,7 @@ npm i -g slovey
 - Starter — $0/forever: 1 repository, pre-commit review, basic decision graph.
 - Team — $19/user/month billed annually: unlimited repositories, full decision
   graph, rule enforcement, MCP server and API access.
-- Enterprise — custom: self-hosted/VPC, SSO, SCIM, audit logs.
+- Enterprise — custom: self-hosted/VPC, audit logs; SSO and SCIM on request.
 
 ## Links
 
