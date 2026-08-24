@@ -50,7 +50,7 @@ const PLANS: Plan[] = [
     priceMonthly: "Custom",
     suffix: null,
     note: null,
-    features: ["Self-hosted / VPC", "SSO, SCIM, audit logs", "Custom integrations", "Dedicated engineer"],
+    features: ["Self-hosted / VPC", "Audit logs", "SSO, SCIM on request", "Custom integrations", "Dedicated engineer"],
     cta: { label: "Talk to sales", href: "mailto:support@slovey.dev?subject=Slovey%20Enterprise", kind: "outline" },
     popular: false,
   },

@@ -94,7 +94,7 @@ export default function PrivacyPage() {
         Depending on your location (e.g. EEA/UK under GDPR, California under CCPA/CPRA), you may have
         the right to access, correct, delete, or port your data, and to object to or restrict
         certain processing. To exercise these rights, contact us at{" "}
-        <a href="mailto:privacy@your-domain.example">privacy@your-domain.example</a>.
+        <a href="mailto:privacy@slovey.dev">privacy@slovey.dev</a>.
       </p>
 
       <h2>8. International transfers</h2>
@@ -115,7 +115,7 @@ export default function PrivacyPage() {
       <h2>11. Contact</h2>
       <p>
         Questions? Contact us at{" "}
-        <a href="mailto:privacy@your-domain.example">privacy@your-domain.example</a>.
+        <a href="mailto:privacy@slovey.dev">privacy@slovey.dev</a>.
       </p>
     </LegalShell>
   );

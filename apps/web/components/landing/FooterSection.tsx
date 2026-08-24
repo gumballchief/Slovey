@@ -22,6 +22,8 @@ const COLS: Col[] = [
       ["API reference", "/api-reference"],
       ["MCP server", "/mcp"],
       ["Integrations", "/integrations"],
+      ["GitHub", "https://github.com/gumballchief/slovey"],
+      ["License (MIT)", "https://github.com/gumballchief/slovey/blob/main/LICENSE"],
     ],
   },
   {

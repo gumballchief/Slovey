@@ -104,6 +104,8 @@ export function Nav({ isAuthed = false }: { isAuthed?: boolean }) {
             </div>
           ))}
           <a href="#pricing" style={{ padding: "9px 13px", color: "inherit", textDecoration: "none", transition: "color .2s" }} onMouseEnter={(e) => (e.currentTarget.style.color = "var(--l-ink)")} onMouseLeave={(e) => (e.currentTarget.style.color = "inherit")}>Pricing</a>
+          {/* The source is the strongest trust signal here, so it gets a top-level link. */}
+          <a href="https://github.com/gumballchief/slovey" target="_blank" rel="noreferrer" style={{ padding: "9px 13px", color: "inherit", textDecoration: "none", transition: "color .2s" }} onMouseEnter={(e) => (e.currentTarget.style.color = "var(--l-ink)")} onMouseLeave={(e) => (e.currentTarget.style.color = "inherit")}>GitHub</a>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>

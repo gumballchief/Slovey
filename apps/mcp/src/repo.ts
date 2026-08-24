@@ -18,7 +18,9 @@ export function parseRepoSlug(input: string | undefined): RepoSlug {
   const raw = (input ?? "").trim();
   if (!raw) {
     throw new ConfigError(
-      "COMPANY_BRAIN_REPO is not set. Set it to the repository whose engineering decisions this server should serve, e.g. COMPANY_BRAIN_REPO=your-org/your-repo",
+      "No repository configured. On a hosted Slovey account set SLOVEY_TOKEN instead and the scope comes from the token " +
+        "(create one at https://slovey.dev/app). Self-hosting? Set SLOVEY_REPO to the repository this server should serve, " +
+        "e.g. SLOVEY_REPO=your-org/your-repo",
     );
   }
   // Accept a full GitHub URL or "owner/name"; reject anything ambiguous.

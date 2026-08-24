@@ -16,7 +16,7 @@ import { ConfigError, parseRepoSlug } from "./repo";
  * go to stderr.
  */
 
-const VERSION = "0.1.0";
+const VERSION = "0.1.4";
 
 const text = (s: string) => ({ content: [{ type: "text" as const, text: s }] });
 const json = (v: unknown) => text(JSON.stringify(v, null, 2));
@@ -27,6 +27,76 @@ let REPO_ID = "";
 let REPO_SLUG = "";
 /** Local repo dir Preflight runs its checks in (Claude Code launches us here). */
 let REPO_PATH = "";
+
+/**
+ * Hosted mode. Set when SLOVEY_TOKEN is present: the server then reads the
+ * decision graph over the hosted API instead of a direct Postgres connection.
+ *
+ * This exists because the published `slovey` package has no database. Before it,
+ * the server called loadEnv() and resolveRepo() at startup and exited with
+ * "DATABASE_URL is not set" for anyone who had not self-hosted — which was every
+ * customer. Self-hosted deployments set DATABASE_URL and keep the direct path.
+ */
+let HOSTED: { apiUrl: string; token: string } | null = null;
+
+/** One read against /api/cli/knowledge. The token is repo-scoped, so no repo id is sent. */
+async function hostedRead(op: string, args: Record<string, unknown>): Promise<unknown> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 60_000);
+  try {
+    const res = await fetch(`${HOSTED!.apiUrl}/api/cli/knowledge`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${HOSTED!.token}` },
+      body: JSON.stringify({ op, args }),
+      signal: ctrl.signal,
+    });
+    const body = (await res.json().catch(() => ({}))) as { data?: { result?: unknown }; error?: string; message?: string };
+    if (!res.ok) {
+      throw new Error(body.error || body.message || `Slovey API returned ${res.status}`);
+    }
+    return body.data?.result ?? null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * The decision-graph reads the tools use, resolved against whichever mode is
+ * active. Keeping the call sites identical means a tool handler never has to
+ * know how it is connected.
+ */
+const graph = {
+  whatAppliesHere: (scope: Parameters<typeof decisionApi.whatAppliesHere>[1]) =>
+    HOSTED
+      ? (hostedRead("what_applies_here", scope as Record<string, unknown>) as ReturnType<typeof decisionApi.whatAppliesHere>)
+      : decisionApi.whatAppliesHere(REPO_ID, scope),
+  plan: (request: string) =>
+    HOSTED
+      ? (hostedRead("plan", { request }) as ReturnType<typeof decisionApi.plan>)
+      : decisionApi.plan(REPO_ID, request),
+  canI: (intent: string) =>
+    HOSTED
+      ? (hostedRead("can_i", { intent }) as ReturnType<typeof decisionApi.canI>)
+      : decisionApi.canI(REPO_ID, intent),
+  ask: (question: string) =>
+    HOSTED
+      ? (hostedRead("ask", { question }) as ReturnType<typeof decisionApi.ask>)
+      : decisionApi.ask(REPO_ID, question),
+  getRejectedKnowledge: (query?: string) =>
+    HOSTED
+      ? (hostedRead("rejected", { query }) as ReturnType<typeof decisionApi.getRejectedKnowledge>)
+      : decisionApi.getRejectedKnowledge(REPO_ID, query),
+};
+
+/** Run history lives in the database; hosted accounts read it in the dashboard. */
+function requireDirectMode(what: string): void {
+  if (HOSTED) {
+    throw new Error(
+      `${what} needs a direct database connection, which hosted accounts do not have. ` +
+        `Run the gate with "slovey preflight" and see run history at https://slovey.dev/app.`,
+    );
+  }
+}
 
 /**
  * Wrap a tool handler so a runtime failure (DB down, transient error) becomes a
@@ -61,7 +131,7 @@ function registerTools(server: McpServer) {
       },
     },
     safe("what_applies_here", async (scope) => {
-      const ctx = await decisionApi.whatAppliesHere(REPO_ID, scope);
+      const ctx = await graph.whatAppliesHere(scope);
       return text(ctx.constraints.length ? ctx.promptBlock : "No recorded decisions govern this area yet.");
     }),
   );
@@ -77,7 +147,7 @@ function registerTools(server: McpServer) {
       inputSchema: { request: z.string() },
     },
     safe("plan", async ({ request }: { request: string }) => {
-      const p = await decisionApi.plan(REPO_ID, request);
+      const p = await graph.plan(request);
       const steps = p.steps.map((s, i) => `  ${i + 1}. ${s.title} — ${s.detail}`).join("\n");
       const constraints = p.constraints.map((c) => `  - ${c.decision}`).join("\n");
       const conflicts = p.conflicts.map((c) => `  ! ${c}`).join("\n");
@@ -100,7 +170,7 @@ function registerTools(server: McpServer) {
       inputSchema: { intent: z.string() },
     },
     safe("can_i", async ({ intent }: { intent: string }) => {
-      const r = await decisionApi.canI(REPO_ID, intent);
+      const r = await graph.canI(intent);
       const cites = r.citations.map((c) => `  - ${c.decision} [${c.evidence.join(", ")}]`).join("\n");
       const rej = r.rejectedPrecedent
         .map((p) => `  - REJECTED: ${p.decision}${p.rejectionReason ? ` (${p.rejectionReason})` : ""}`)
@@ -123,7 +193,7 @@ function registerTools(server: McpServer) {
       inputSchema: { question: z.string() },
     },
     safe("ask", async ({ question }: { question: string }) => {
-      const a = await decisionApi.ask(REPO_ID, question);
+      const a = await graph.ask(question);
       const cites = a.citations.map((c) => `  - ${c.decision} [${c.evidence.join(", ")}]`).join("\n");
       return text(`${a.answer}\n(confidence: ${a.confidence})` + (cites ? `\n\nsources:\n${cites}` : ""));
     }),
@@ -139,7 +209,7 @@ function registerTools(server: McpServer) {
       inputSchema: { query: z.string().optional() },
     },
     safe("get_rejected", async ({ query }: { query?: string }) => {
-      const rows = await decisionApi.getRejectedKnowledge(REPO_ID, query);
+      const rows = await graph.getRejectedKnowledge(query);
       if (rows.length === 0) return text("No rejected approaches recorded for this query.");
       return text(
         rows
@@ -194,6 +264,7 @@ function registerTools(server: McpServer) {
       inputSchema: {},
     },
     safe("preflight_status", async () => {
+      requireDirectMode("Preflight run history");
       const run = await preflight.getLatestRun(REPO_ID, preflight.getBranch(REPO_PATH));
       if (!run) return text('No Preflight run yet. Call "preflight_run" first.');
       return json({
@@ -222,6 +293,7 @@ function registerTools(server: McpServer) {
       inputSchema: {},
     },
     safe("preflight_fix_instructions", async () => {
+      requireDirectMode("Preflight run history");
       const run = await preflight.getLatestRun(REPO_ID, preflight.getBranch(REPO_PATH));
       if (!run) return text('No Preflight run yet. Call "preflight_run" first.');
       const detail = await preflight.getRunDetail(run.id);
@@ -329,6 +401,7 @@ function registerTools(server: McpServer) {
     },
     safe("preflight_explain_failure", async ({ check, errorId }: { check?: string; errorId?: string }) => {
       if (errorId) {
+        requireDirectMode("Error lookup");
         const found = await preflight.findErrorByFingerprint(REPO_ID, errorId);
         if (!found) return text(`No stored error with id "${errorId}". Ids come from fixInstructions[].id.`);
         const e = found.error;
@@ -340,6 +413,7 @@ function registerTools(server: McpServer) {
             `\n${e.instructionForAgent ?? "Fix the problem above, then run preflight_run again."}`,
         );
       }
+      requireDirectMode("Preflight run history");
       const run = await preflight.getLatestRun(REPO_ID, preflight.getBranch(REPO_PATH));
       if (!run) return text('No Preflight run yet. Call "preflight_run" first.');
       if (run.status === "pass") return text("The last Preflight run passed — safe to commit.");
@@ -370,47 +444,63 @@ function fatal(message: string): never {
 }
 
 async function main() {
-  // 1. Environment (DATABASE_URL etc.) — loadEnv throws a readable list.
-  try {
-    loadEnv();
-  } catch (e) {
-    fatal(e instanceof Error ? e.message : String(e));
-  }
+  // 1. Pick the mode BEFORE touching the database. A hosted user has a token and
+  //    no DATABASE_URL; loading env first meant they never got this far.
+  HOSTED = preflight.apiModeFromEnv();
+  REPO_PATH = process.env.SLOVEY_REPO_PATH || process.env.COMPANY_BRAIN_REPO_PATH || process.cwd();
 
-  // 2. Scope — required, validated, no silent default.
-  let slug: ReturnType<typeof parseRepoSlug>;
-  try {
-    slug = parseRepoSlug(process.env.COMPANY_BRAIN_REPO);
-  } catch (e) {
-    if (e instanceof ConfigError) fatal(e.message);
-    throw e;
-  }
-  REPO_SLUG = slug.slug;
+  if (HOSTED) {
+    // The token is repo-scoped, so the server's scope comes from the token
+    // itself — nothing to resolve, and no way to point it at another repo.
+    REPO_SLUG = "(from token)";
+  } else {
+    // Self-hosted: environment (DATABASE_URL etc.) — loadEnv throws a readable list.
+    try {
+      loadEnv();
+    } catch (e) {
+      fatal(
+        `${e instanceof Error ? e.message : String(e)}
+` +
+          `If you meant to use a hosted Slovey account, set SLOVEY_TOKEN instead — ` +
+          `create one at https://slovey.dev/app and no database is needed.`,
+      );
+    }
 
-  // 3. Resolve the repo NOW so misconfiguration fails at startup, not mid-tool.
-  let resolved: Awaited<ReturnType<typeof resolveRepo>>;
-  try {
-    resolved = await resolveRepo(slug.slug);
-  } catch (e) {
-    fatal(`Could not reach the database to resolve "${slug.slug}": ${e instanceof Error ? e.message : String(e)}`);
+    // Scope — required, validated, no silent default.
+    let slug: ReturnType<typeof parseRepoSlug>;
+    try {
+      slug = parseRepoSlug(process.env.SLOVEY_REPO || process.env.COMPANY_BRAIN_REPO);
+    } catch (e) {
+      if (e instanceof ConfigError) fatal(e.message);
+      throw e;
+    }
+    REPO_SLUG = slug.slug;
+
+    // Resolve the repo NOW so misconfiguration fails at startup, not mid-tool.
+    let resolved: Awaited<ReturnType<typeof resolveRepo>>;
+    try {
+      resolved = await resolveRepo(slug.slug);
+    } catch (e) {
+      fatal(`Could not reach the database to resolve "${slug.slug}": ${e instanceof Error ? e.message : String(e)}`);
+    }
+    if (!resolved) {
+      fatal(
+        `Repository "${slug.slug}" is not connected to Slovey. Install the GitHub App on it (or check SLOVEY_REPO).`,
+      );
+    }
+    REPO_ID = resolved.repoId;
   }
-  if (!resolved) {
-    fatal(
-      `Repository "${slug.slug}" is not connected to Company Brain. Install the GitHub App on it (or check COMPANY_BRAIN_REPO).`,
-    );
-  }
-  REPO_ID = resolved.repoId;
-  REPO_PATH = process.env.COMPANY_BRAIN_REPO_PATH || process.cwd();
 
   // 4. Register tools + connect over stdio.
   const server = new McpServer({ name: "company-brain", version: VERSION });
   registerTools(server);
   await server.connect(new StdioServerTransport());
   // Stderr only — stdout is the JSON-RPC channel.
-  process.stderr.write(`[company-brain mcp] ready · repo ${REPO_SLUG} · v${VERSION}\n`);
+  process.stderr.write(`[slovey mcp] ready · ${HOSTED ? `hosted ${HOSTED.apiUrl}` : `repo ${REPO_SLUG}`} · v${VERSION}
+`);
 }
 
 main().catch((e) => {
-  process.stderr.write(`[company-brain mcp] fatal: ${e instanceof Error ? e.stack ?? e.message : String(e)}\n`);
+  process.stderr.write(`[slovey mcp] fatal: ${e instanceof Error ? e.stack ?? e.message : String(e)}\n`);
   process.exit(1);
 });
