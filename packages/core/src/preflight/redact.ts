@@ -66,9 +66,9 @@ export function scanForSecrets(files: { path: string; content: string }[]): Pref
   const errors: PreflightError[] = [];
   for (const { path, content } of files) {
     const base = path.split(/[\\/]/).pop() ?? path;
-    // Templates deliberately document placeholder secrets — never a leak.
-    if (ENV_TEMPLATE_FILES.has(base) || TEMPLATE_FILE.test(base)) continue;
-    const softFile = TEST_FILE.test(path) || PROSE_FILE.test(path);
+    if (ENV_TEMPLATE_FILES.has(base)) continue;
+    const isTemplate = TEMPLATE_FILE.test(base);
+    const softFile = TEST_FILE.test(path) || PROSE_FILE.test(path) || isTemplate;
     const lines = content.split("\n");
     for (const { label, re, heuristic, valueGroup } of SECRET_PATTERNS) {
       // Shape-based patterns are noisy in fixtures/docs; the real provider-key
@@ -79,7 +79,7 @@ export function scanForSecrets(files: { path: string; content: string }[]): Pref
         let m: RegExpExecArray | null;
         while ((m = re.exec(lines[i]!)) !== null) {
           const value = valueGroup ? (m[valueGroup] ?? m[0]) : m[0];
-          if (heuristic && looksLikePlaceholder(value)) {
+          if ((heuristic || isTemplate) && looksLikePlaceholder(value)) {
             if (m.index === re.lastIndex) re.lastIndex++; // avoid zero-width loop
             continue;
           }

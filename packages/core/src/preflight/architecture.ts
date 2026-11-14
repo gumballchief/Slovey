@@ -54,6 +54,15 @@ export function architectureCheckContents(
       // keyword rules matching prose (notes, tweets.json, docs) is pure noise.
       // An explicit `in` glob overrides this and scopes exactly as written.
       const lines = content.split("\n");
+      // Cap per-line length so even a merely-expensive (non-evil) pattern
+      // cannot backtrack over an unbounded attacker-controlled line.
+      const scanned = lines.map((l) => l.slice(0, 10_000)).join("\n");
+      // Precomputed line-start offsets: binary-search m.index instead of
+      // slicing + splitting per match (which is O(matches x fileSize)).
+      const lineStarts: number[] = [0];
+      for (let i = 0; i < scanned.length; i++) {
+        if (scanned[i] === "\n") lineStarts.push(i + 1);
+      }
       for (const rule of contentRules) {
         if (rule.in && !globToRegex(rule.in).test(path)) continue;
         if (!rule.in && !CODE_FILE.test(path)) continue;
@@ -64,12 +73,12 @@ export function architectureCheckContents(
         if (!re) continue;
         const flags = re.flags.includes("g") ? re.flags : `${re.flags}g`;
         const greedy = new RegExp(re.source, flags);
-        // Cap per-line length so even a merely-expensive (non-evil) pattern
-        // cannot backtrack over an unbounded attacker-controlled line.
-        const scanned = lines.map((l) => l.slice(0, 10_000)).join("\n");
+        let seen = 0;
         for (const m of scanned.matchAll(greedy)) {
+          if (seen >= MAX_CONTENT_MATCHES_PER_RULE_FILE) break;
+          seen++;
           if (!m[0]) continue;
-          const line = scanned.slice(0, m.index ?? 0).split("\n").length;
+          const line = lineNumberAt(lineStarts, m.index ?? 0);
           errors.push({
             file: path, line, category: "architecture",
             code: rule.type === "forbidden-import" ? "arch-import" : "arch-content",
@@ -153,8 +162,12 @@ function hasEvilQuantifier(pattern: string): boolean {
       const frame = stack.pop();
       const next = pattern[i + 1];
       const quantified = next === "+" || next === "*" || (next === "{" && /^\{\d+(,\d*)?\}/.test(pattern.slice(i + 1)));
+      if (frame && stack.length) {
+        const parent = stack[stack.length - 1]!;
+        parent.innerQuantifier ||= frame.innerQuantifier || quantified;
+        parent.alternation ||= frame.alternation;
+      }
       if (frame && quantified && (frame.innerQuantifier || frame.alternation)) return true;
-      if (quantified && stack.length) stack[stack.length - 1]!.innerQuantifier = true;
       continue;
     }
     if (ch === "+" || ch === "*") { if (stack.length) stack[stack.length - 1]!.innerQuantifier = true; continue; }
@@ -177,4 +190,19 @@ export function globToRegex(glob: string): RegExp {
 
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Max reported matches per content rule per file — bounds per-request CPU and errors. */
+const MAX_CONTENT_MATCHES_PER_RULE_FILE = 100;
+
+/** 1-based line number for an offset via binary search over line-start offsets. */
+function lineNumberAt(lineStarts: number[], index: number): number {
+  let lo = 0;
+  let hi = lineStarts.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (lineStarts[mid]! <= index) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo + 1;
 }

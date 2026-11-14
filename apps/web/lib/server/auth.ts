@@ -96,7 +96,7 @@ export async function getViewer(): Promise<Viewer | null> {
       const email = user.email_confirmed_at && vouched ? (user.email ?? undefined) : undefined;
       return { login, githubId, userId, email, isDev: false };
     }
-    if (process.env.NODE_ENV === "production") return null;
+    return null;
   }
   if (process.env.NODE_ENV !== "production") {
     return { login: "dev", isDev: true };

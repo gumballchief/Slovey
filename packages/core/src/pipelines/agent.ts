@@ -58,7 +58,7 @@ const MAX_FILES = 3;
 const MAX_REVISE_ROUNDS = 2;
 
 // Never let the agent touch CI, secrets, deps, or migrations.
-export const PROTECTED_PATH = /(^|\/)(\.github\/(workflows|actions)[^\/]*|node_modules|migrations?)(\/|$)|(^|\/)\.env[^\s\/]*($|\/)|(^|\/)(package\.json|yarn\.lock)$|package-lock|pnpm-lock/i;
+export const PROTECTED_PATH = /(^|\/)(\.github\/(workflows|actions)[^\/]*|node_modules|migrations?|Jenkinsfile[^\/]*|\.gitlab-ci[^\/]*|\.circleci|\.buildkite|azure-pipelines[^\/]*|\.travis[^\/]*|bitbucket-pipelines[^\/]*|appveyor[^\/]*|\.?drone\.yml|\.cirrus\.yml)(\/|$)|(^|\/)\.env[^\s\/]*($|\/)|(^|\/)(package\.json|yarn\.lock)$|package-lock|pnpm-lock/i;
 
 function stripFence(s: string): string {
   const t = s.trim();
@@ -290,6 +290,9 @@ Output the COMPLETE new contents of ${target.path} and NOTHING else — no prose
       for (let i = 0; i < files.length; i++) {
         const target = plan.find((f) => f.path === files[i]!.path)!;
         files[i] = { path: files[i]!.path, content: await generate(target, files, feedback) };
+      }
+      for (const f of files) {
+        if (PROTECTED_PATH.test(f.path)) throw new Error(`agent: refusing to edit protected path: ${f.path}`);
       }
       const stillBlocked = await gateAll(files);
       if (stillBlocked.size > 0) break; // don't push a revision that fails the knowledge gate

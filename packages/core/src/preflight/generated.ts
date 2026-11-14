@@ -51,7 +51,7 @@ export async function checkGeneratedFile(
   // 3. Decision graph on a pseudo-diff of the new file.
   let decisionViolations: DecisionViolation[] = [];
   if (config.decisionChecks.enabled) {
-    const diff = `+++ b/${path} (new file)\n${redact(content).split("\n").map((l) => `+${l}`).join("\n")}`.slice(0, 12_000);
+    const diff = `+++ b/${path} (new file)\n${redact(content).split("\n").map((l) => `+${l}`).join("\n")}`;
     const { violations } = await runDecisionCheck(repoId, diff, [path]);
     decisionViolations = violations;
     for (const v of violations) {

@@ -162,11 +162,40 @@ export async function updateDecision(
   // Increment version atomically in SQL, not current.version+1 computed in JS
   // between the SELECT above and this UPDATE — two concurrent writers would
   // otherwise both write the same version and duplicate the history snapshot.
+  // Allowlist updatable fields: never copy extra runtime keys (repoId, review,
+  // approvedAt, embedding, version, ...) from the patch into the UPDATE.
+  const allowedKeys: (keyof CreateDecisionInput)[] = [
+    "decision",
+    "title",
+    "summary",
+    "why",
+    "examples",
+    "evidence",
+    "source",
+    "category",
+    "status",
+    "ownerUser",
+    "owningTeam",
+    "importance",
+    "priority",
+    "confidence",
+    "domains",
+    "services",
+    "affectedRepos",
+    "directories",
+    "languages",
+    "frameworks",
+    "rejectionReason",
+    "alternatives",
+  ];
   const set: Record<string, unknown> = {
-    ...patch,
     updatedAt: new Date(),
     version: sql`${decisions.version} + 1`,
   };
+  for (const key of allowedKeys) {
+    const value = patch[key];
+    if (value !== undefined) set[key] = value;
+  }
   if (textChanged) {
     set.embedding = await getEmbeddings().embedOne(
       embedText({

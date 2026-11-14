@@ -61,8 +61,16 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       // Per-org/repo flood control: applies to all plans (incl. unlimited).
       rateLimit(`agent-tasks:org:${org.id}`, 20, 60_000);
       rateLimit(`agent-tasks:repo:${id}`, 10, 60_000);
-      const recent = await listAgentRuns(id, 10);
-      const pending = recent.filter((r) => r.status === "queued" || r.status === "running").length;
+      // Count pending over all runs, not just the newest page: completed runs
+      // would otherwise push still-running tasks out of the 10-item window.
+      let pending = 0;
+      let capLimit = 50;
+      for (;;) {
+        const page = await listAgentRuns(id, capLimit);
+        pending = page.filter((r) => r.status === "queued" || r.status === "running").length;
+        if (page.length < capLimit) break;
+        capLimit *= 2;
+      }
       if (pending >= 5) {
         throw new HttpError(429, "Too many pending agent tasks for this repo. Wait for existing runs to finish.");
       }

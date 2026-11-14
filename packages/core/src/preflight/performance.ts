@@ -1,5 +1,5 @@
 import { readChanged, type RawCheck } from "./checks";
-import { fingerprint } from "./parse";
+import { fingerprint, redactSecrets } from "./parse";
 import type { PreflightError } from "./types";
 
 /**
@@ -68,7 +68,7 @@ export function perfCheck(cwd: string, changed: string[]): RawCheck {
         if (rule.unlessRe?.test(`${lines[i - 1] ?? ""}\n${line}`)) continue;
         if (/^\s*(\/\/|\*|\/\*)/.test(line)) continue; // comments don't run
         const e = { file: path, line: i + 1, code: rule.code, message: rule.message };
-        errors.push({ ...e, id: fingerprint(e), category: "performance", raw: line.trim().slice(0, 200) });
+        errors.push({ ...e, id: fingerprint(e), category: "performance", raw: redactSecrets(line.trim().slice(0, 200)) });
       }
     }
   }

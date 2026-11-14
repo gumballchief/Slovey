@@ -51,8 +51,11 @@ const KEYWORD_STOPWORDS = new Set([
 /** Distinctive alphanumeric terms from untrusted PR text for keyword backstop. */
 export function extractQueryKeywords(pr: JudgePrInput, maxTerms = 10): string[] {
   // Reuse the capped retrieval query so multi-megabyte bodies/diffs cannot
-  // force a full lowercased copy + huge token array here.
-  const text = buildRetrievalQueryText(pr).toLowerCase();
+  // force a full lowercased copy + huge token array here. The diff tail is
+  // sampled too (bounded), so padding in front cannot hide the real change.
+  const diff = pr.diffSummary ?? "";
+  const tail = diff.length > 4000 ? diff.slice(-4000) : "";
+  const text = `${tail}\n${buildRetrievalQueryText(pr)}`.toLowerCase();
   const tokens = text
     .split(/[^a-z0-9]+/)
     .filter((t) => t.length >= 4 && !KEYWORD_STOPWORDS.has(t));
@@ -88,7 +91,8 @@ export function buildRetrievalQueryText(pr: JudgePrInput): string {
   const body = (pr.body ?? "").slice(0, 2000);
   const files = (pr.changedFiles ?? []).join(" ").slice(0, 2000);
   const diff = (pr.diffSummary ?? "").slice(0, 4000);
-  return [title, body, files, diff].filter(Boolean).join("\n").slice(0, RETRIEVAL_QUERY_MAX_CHARS);
+  // Diff first: title/body/file padding cannot push it out of the budget.
+  return [diff, title, body, files].filter(Boolean).join("\n").slice(0, RETRIEVAL_QUERY_MAX_CHARS);
 }
 
 /**

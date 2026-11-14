@@ -68,7 +68,7 @@ export async function runIngestConnector(params: {
         continue;
       }
       for (const d of res) {
-        if (!d.decision) continue;
+        if (!d || typeof d !== "object" || typeof d.decision !== "string" || !d.decision) continue;
         items.push({
           d: { ...d, evidence: [doc.url || doc.title] },
           source: type as DecisionSource,

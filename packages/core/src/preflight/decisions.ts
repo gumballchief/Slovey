@@ -5,11 +5,13 @@ import { retrieveDecisions } from "../pipelines/retrieve";
 import type { DecisionViolation, EvidenceRef } from "./types";
 
 export const JUDGE_DIFF_LIMIT = 20000;
+/** Max AI judge calls per check, so a huge diff cannot multiply our AI bill. */
+export const MAX_JUDGE_CHUNKS = 3;
 
-/** Warning when the diff was capped for the AI judge; the keyword scan still covers the full diff. */
+/** Warning when the diff was too big to judge whole; the keyword scan still covers the full diff. */
 export function truncationNoteForDiff(diff: string): string | undefined {
-  if (diff.length <= JUDGE_DIFF_LIMIT) return undefined;
-  return `Diff truncated for AI judge (${diff.length} chars, first ${JUDGE_DIFF_LIMIT} shown); keyword scan covered the full diff.`;
+  if (diff.length <= JUDGE_DIFF_LIMIT * MAX_JUDGE_CHUNKS) return undefined;
+  return `Diff truncated for AI judge (${diff.length} chars; first ${JUDGE_DIFF_LIMIT * (MAX_JUDGE_CHUNKS - 1)} and last ${JUDGE_DIFF_LIMIT} judged); keyword scan covered the full diff.`;
 }
 
 function combineNotes(...notes: (string | undefined)[]): string | undefined {
@@ -53,6 +55,17 @@ export async function fetchRejectedDecisions(repoId: string): Promise<{ id: stri
     .catch(() => [] as { id: string; decision: string }[]);
 }
 
+/** Split a large diff into judge-sized chunks so tail content is not skipped.
+ *  Bounded: past MAX_JUDGE_CHUNKS, judge the head plus the tail (padding
+ *  usually sits in front of the real change). */
+export function chunkDiffForJudge(diff: string): string[] {
+  if (diff.length <= JUDGE_DIFF_LIMIT) return [diff];
+  const chunks: string[] = [];
+  for (let i = 0; i < diff.length; i += JUDGE_DIFF_LIMIT) chunks.push(diff.slice(i, i + JUDGE_DIFF_LIMIT));
+  if (chunks.length <= MAX_JUDGE_CHUNKS) return chunks;
+  return [...chunks.slice(0, MAX_JUDGE_CHUNKS - 1), diff.slice(-JUDGE_DIFF_LIMIT)];
+}
+
 /**
  * Check the working-tree diff against the Engineering Decision Graph: active
  * constraints, rejected approaches, deprecated/removed patterns, architecture
@@ -67,15 +80,23 @@ export async function runDecisionCheck(
   if (!diff.trim() && changedFiles.length === 0) {
     return { violations: [], note: "No changes to check against the decision graph." };
   }
-  const cappedDiff = diff.slice(0, JUDGE_DIFF_LIMIT);
+  const diffChunks = chunkDiffForJudge(diff);
   const truncationNote = truncationNoteForDiff(diff);
   const db = getDb();
   const [relevant, rejected] = await Promise.all([
-    retrieveDecisions(
-      repoId,
-      { title: "preflight change", body: cappedDiff || changedFiles.join("\n"), changedFiles },
-      { topK: 10 },
-    ).catch(() => []),
+    Promise.all(
+      diffChunks.map((chunk) =>
+        retrieveDecisions(
+          repoId,
+          { title: "preflight change", body: chunk || changedFiles.join("\n"), changedFiles },
+          { topK: 10 },
+        ).catch(() => []),
+      ),
+    ).then((pools) => {
+      const byId = new Map<string, (typeof pools)[number][number]>();
+      for (const pool of pools) for (const d of pool) if (!byId.has(d.id)) byId.set(d.id, d);
+      return [...byId.values()];
+    }),
     db
       .select({
         id: decisionsTable.id,
@@ -105,25 +126,31 @@ export async function runDecisionCheck(
   if (catalog.size === 0) return { violations: [], note: "No governing decisions found for the changed files." };
 
   const list = [...catalog.values()];
-  let raw: { violations?: RawViolation[] } | null = null;
-  try {
-    raw = await getAI().completeJSON<{ violations: RawViolation[] }>(buildPrompt(list, cappedDiff, changedFiles), { tier: "premium", maxTokens: 900 });
-  } catch {
-    raw = null;
+  const rawViolations: RawViolation[] = [];
+  let judgeFailed = false;
+  for (const chunk of diffChunks) {
+    let raw: { violations?: RawViolation[] } | null = null;
+    try {
+      raw = await getAI().completeJSON<{ violations: RawViolation[] }>(buildPrompt(list, chunk, changedFiles), { tier: "premium", maxTokens: 900 });
+    } catch {
+      raw = null;
+    }
+    if (
+      !raw ||
+      !Array.isArray(raw.violations) ||
+      raw.violations.some((v) => !v || typeof v !== "object" || typeof v.decisionId !== "string")
+    ) {
+      judgeFailed = true;
+      break;
+    }
+    rawViolations.push(...raw.violations);
   }
 
-  if (!raw) return { violations: keywordFallback(list, diff, changedFiles), note: combineNotes("Decision check ran in keyword-only mode (AI unavailable).", truncationNote) };
-
-  if (
-    !Array.isArray(raw.violations) ||
-    raw.violations.some((v) => !v || typeof v !== "object" || typeof v.decisionId !== "string")
-  ) {
-    return { violations: keywordFallback(list, diff, changedFiles), note: combineNotes("Decision check ran in keyword-only mode (AI unavailable).", truncationNote) };
-  }
+  if (judgeFailed) return { violations: keywordFallback(list, diff, changedFiles), note: combineNotes("Decision check ran in keyword-only mode (AI unavailable).", truncationNote) };
 
   const violations: DecisionViolation[] = [];
   const seen = new Set<string>();
-  for (const v of raw.violations) {
+  for (const v of rawViolations) {
     const d = catalog.get(v.decisionId);
     if (!d) continue;
     // One violation per decision: the AI's report (whatever its confidence)

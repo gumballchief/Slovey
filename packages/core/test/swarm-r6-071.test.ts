@@ -6,7 +6,7 @@ describe("R6-071 tail truncation", () => {
     expect(JUDGE_DIFF_LIMIT).toBe(20000);
     const token = "zxqvforbiddenpackage";
     const decision = `Do not use ${token}, it was rejected for security reasons`;
-    const head = "a ".repeat(15000);
+    const head = "a ".repeat(35000);
     const fullDiff = `${head}\nimport ${token}\n`;
     expect(fullDiff.length).toBeGreaterThan(JUDGE_DIFF_LIMIT);
     // Tail violation is invisible in the capped head window.
