@@ -9,7 +9,7 @@ export async function getDismissedNotes(repoId: string): Promise<string[]> {
     .select({ decision: decisions.decision })
     .from(feedback)
     .innerJoin(decisions, eq(feedback.decisionId, decisions.id))
-    .where(and(eq(feedback.repoId, repoId), eq(feedback.action, "dismiss")))
+    .where(and(eq(feedback.repoId, repoId), eq(feedback.action, "dismiss"), eq(decisions.repoId, repoId)))
     .limit(20);
   return [...new Set(rows.map((r) => r.decision))];
 }
@@ -44,6 +44,24 @@ export async function recordFeedback(params: RecordFeedbackParams) {
       prCheckId = c.id;
       if (!decisionId) decisionId = c.matched ?? null;
     }
+  }
+
+  if (decisionId) {
+    const [d] = await db
+      .select({ id: decisions.id })
+      .from(decisions)
+      .where(and(eq(decisions.id, decisionId), eq(decisions.repoId, params.repoId)))
+      .limit(1);
+    if (!d) throw new Error("decision does not belong to repo");
+  }
+
+  if (prCheckId) {
+    const [c2] = await db
+      .select({ id: prChecks.id })
+      .from(prChecks)
+      .where(and(eq(prChecks.id, prCheckId), eq(prChecks.repoId, params.repoId)))
+      .limit(1);
+    if (!c2) throw new Error("pr check does not belong to repo");
   }
 
   const [row] = await db

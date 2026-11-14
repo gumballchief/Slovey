@@ -27,7 +27,44 @@ export async function POST(req: Request): Promise<Response> {
     const user = data.user;
     if (!user) throw new HttpError(401, "Unauthorized");
 
-    const form = await req.formData().catch(() => null);
+    // Bound multipart buffering: check declared size, then cap actual bytes
+    // before parsing (Content-Length can lie or be absent).
+    const MAX_BODY = MAX_BYTES + 64 * 1024;
+    const declared = Number(req.headers.get("content-length") ?? 0);
+    if (declared > MAX_BODY) throw new HttpError(413, "Image is too large \u2014 2 MB max");
+    let formReq: Request = req;
+    if (req.body) {
+      const reader = req.body.getReader();
+      const chunks: Uint8Array[] = [];
+      let seen = 0;
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (!value) break;
+          seen += value.byteLength;
+          if (seen > MAX_BODY) {
+            await reader.cancel();
+            throw new HttpError(413, "Image is too large \u2014 2 MB max");
+          }
+          chunks.push(value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+      const body = new Uint8Array(seen);
+      let off = 0;
+      for (const c of chunks) {
+        body.set(c, off);
+        off += c.byteLength;
+      }
+      formReq = new Request(req.url, {
+        method: "POST",
+        headers: { "content-type": req.headers.get("content-type") ?? "" },
+        body,
+      });
+    }
+    const form = await formReq.formData().catch(() => null);
     const file = form?.get("file");
     if (!(file instanceof File)) throw new HttpError(400, "No file uploaded");
     const ext = ALLOWED[file.type];
@@ -46,7 +83,7 @@ export async function POST(req: Request): Promise<Response> {
     const path = `${user.id}.${ext}`;
     const { error: uploadError } = await admin.storage
       .from(BUCKET)
-      .upload(path, Buffer.from(await file.arrayBuffer()), {
+      .upload(path, file, {
         contentType: file.type,
         upsert: true,
       });

@@ -12,7 +12,7 @@ import type { PreflightError } from "./types";
  * holding the sensitive value (for placeholder checks).
  */
 const SECRET_PATTERNS: { label: string; re: RegExp; heuristic?: boolean; valueGroup?: number }[] = [
-  { label: "private key block", re: /-----BEGIN (?:RSA |EC |OPENSSH |DSA |PGP |ENCRYPTED )?PRIVATE KEY-----(?:[\s\S]*?-----END (?:RSA |EC |OPENSSH |DSA |PGP |ENCRYPTED )?PRIVATE KEY-----|(?:(?:[ \t]*\r?\n[ \t]*|[ \t]+)?[A-Za-z0-9+/=_-]{4,}[A-Za-z0-9+/=_.-]*(?=\r?\n|$))+)?/g },
+  { label: "private key block", re: /-----BEGIN (?:RSA |EC |OPENSSH |DSA |PGP |ENCRYPTED )?PRIVATE KEY(?: BLOCK)?-----(?:[\s\S]*?-----END (?:RSA |EC |OPENSSH |DSA |PGP |ENCRYPTED )?PRIVATE KEY(?: BLOCK)?-----|(?:(?:[ \t]*\r?\n[ \t]*|[ \t]+)?(?:[A-Za-z-]+:[^\r\n]*|[A-Za-z0-9+/=_-]{4,}[A-Za-z0-9+/=_.-]*)(?=\r?\n|$)|[ \t]*\r?\n[ \t]*(?=\r?\n|$))+)?/g },
   { label: "AWS access key id", re: /\bAKIA[0-9A-Z]{16}\b/g },
   { label: "GitHub token", re: /\bgh[pousr]_[A-Za-z0-9]{36,}\b/g },
   { label: "Slack token", re: /\bxox[baprs]-[A-Za-z0-9-]{10,}\b/g },

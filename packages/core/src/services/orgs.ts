@@ -83,17 +83,31 @@ export async function linkUserMemberships(
 
   let accessible: Array<{ id: number }> = [];
   try {
-    const res = await fetch("https://api.github.com/user/installations?per_page=100", {
-      headers: {
-        authorization: `Bearer ${accessToken}`,
-        accept: "application/vnd.github+json",
-        "user-agent": "company-brain",
-        "x-github-api-version": "2022-11-28",
-      },
-    });
-    if (!res.ok) return;
-    const data = (await res.json()) as { installations?: Array<{ id: number }> };
-    accessible = data.installations ?? [];
+    let url: string | null = "https://api.github.com/user/installations?per_page=100";
+    while (url) {
+      const res: Response = await fetch(url, {
+        headers: {
+          authorization: `Bearer ${accessToken}`,
+          accept: "application/vnd.github+json",
+          "user-agent": "company-brain",
+          "x-github-api-version": "2022-11-28",
+        },
+      });
+      if (!res.ok) return;
+      const data = (await res.json()) as { installations?: Array<{ id: number }> };
+      accessible.push(...(data.installations ?? []));
+      const link: string | null = res.headers.get("link");
+      url = null;
+      if (link) {
+        for (const part of link.split(",") as string[]) {
+          const m: RegExpMatchArray | null = part.match(/<([^>]+)>\s*;\s*rel="next"/);
+          if (m && m[1]) {
+            url = m[1];
+            break;
+          }
+        }
+      }
+    }
   } catch {
     return;
   }

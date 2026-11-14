@@ -119,18 +119,23 @@ interface SynthOutput {
   confidence: AnswerConfidence;
 }
 
+export function sanitizePlanningText(s: string | null | undefined): string {
+  // Truncate first to bound regex work on untrusted text, then strip
+  // fence/tag sequences with a bounded number of passes (a nested pattern
+  // like "<sy<system>stem>" recreates one outer tag per pass).
+  let out = (s ?? "").slice(0, 2000);
+  for (let i = 0; i < 3; i++) {
+    const next = out.replace(/```|"""|<\/?(?:system|instructions?|prompt)>/gi, "");
+    if (next === out) break;
+    out = next;
+  }
+  return out;
+}
+
 async function synthesisePlan(input: SynthInput): Promise<SynthOutput | null> {
   // Decision/request text is untrusted (extracted from external PRs/docs).
   // Strip fence/tag sequences so it can't break out of its block (as in can-i.ts).
-  const clean = (s: string | null | undefined) => {
-    let out = s ?? "";
-    let prev: string;
-    do {
-      prev = out;
-      out = out.replace(/```|"""|<\/?(?:system|instructions?|prompt)>/gi, "");
-    } while (out !== prev);
-    return out;
-  };
+  const clean = sanitizePlanningText;
   const safeRequest = clean(input.request).replace(/["\r\n]+/g, " ").slice(0, 500);
   const constraintBlock = input.constraints.length
     ? input.constraints.map((c, i) => `[C${i + 1}] ${clean(c)}`).join("\n")

@@ -28,12 +28,56 @@ export interface RemotePreflightPayload {
  * (typecheck/test/build/…) require the local workspace and are reported as
  * skipped with that reason, never silently omitted.
  */
+export const REMOTE_PREFLIGHT_MAX_FILES = 200;
+export const REMOTE_PREFLIGHT_MAX_FILE_CHARS = 256 * 1024;
+export const REMOTE_PREFLIGHT_MAX_TOTAL_CHARS = 3 * 1024 * 1024;
+export const REMOTE_PREFLIGHT_MAX_DIFF_CHARS = 1_000_000;
+export const REMOTE_PREFLIGHT_MAX_CHANGED_FILES = 5000;
+export const REMOTE_PREFLIGHT_MAX_DIFF_FOR_CHECKS = 200_000;
+
+export class RemotePreflightTooLargeError extends Error {
+  readonly statusCode = 413;
+  readonly code = "PAYLOAD_TOO_LARGE";
+  constructor(message: string) {
+    super(message);
+    this.name = "RemotePreflightTooLargeError";
+  }
+}
+
 export async function runRemotePreflight(repoId: string, payload: RemotePreflightPayload): Promise<PreflightResult> {
   const started = new Date();
-  const { config } = loadPreflightConfig(process.cwd()); // server defaults; repo config lives client-side
   const files = payload.files ?? [];
-  const changed = [...new Set([...(payload.changedFiles ?? []), ...files.map((f) => f.path)])];
-  const diff = payload.diff ?? files.map((f) => `+++ ${f.path}\n${f.content}`).join("\n");
+  const changedFilesInput = payload.changedFiles ?? [];
+  if (files.length > REMOTE_PREFLIGHT_MAX_FILES) {
+    throw new RemotePreflightTooLargeError(`Too many files: ${files.length} exceeds limit of ${REMOTE_PREFLIGHT_MAX_FILES}`);
+  }
+  if (changedFilesInput.length > REMOTE_PREFLIGHT_MAX_CHANGED_FILES) {
+    throw new RemotePreflightTooLargeError(`Too many changed files: ${changedFilesInput.length} exceeds limit of ${REMOTE_PREFLIGHT_MAX_CHANGED_FILES}`);
+  }
+  if (payload.diff !== undefined && payload.diff.length > REMOTE_PREFLIGHT_MAX_DIFF_CHARS) {
+    throw new RemotePreflightTooLargeError(`Diff too large: ${payload.diff.length} chars exceeds limit of ${REMOTE_PREFLIGHT_MAX_DIFF_CHARS}`);
+  }
+  let totalChars = payload.diff?.length ?? 0;
+  for (const p of changedFilesInput) {
+    totalChars += p.length;
+    if (totalChars > REMOTE_PREFLIGHT_MAX_TOTAL_CHARS) {
+      throw new RemotePreflightTooLargeError(`Payload too large: exceeds limit of ${REMOTE_PREFLIGHT_MAX_TOTAL_CHARS} chars`);
+    }
+  }
+  for (const f of files) {
+    const contentLen = f.content?.length ?? 0;
+    if (contentLen > REMOTE_PREFLIGHT_MAX_FILE_CHARS) {
+      throw new RemotePreflightTooLargeError(`File too large: ${f.path} exceeds limit of ${REMOTE_PREFLIGHT_MAX_FILE_CHARS} chars`);
+    }
+    totalChars += contentLen + (f.path?.length ?? 0);
+    if (totalChars > REMOTE_PREFLIGHT_MAX_TOTAL_CHARS) {
+      throw new RemotePreflightTooLargeError(`Payload too large: exceeds limit of ${REMOTE_PREFLIGHT_MAX_TOTAL_CHARS} chars`);
+    }
+  }
+  const { config } = loadPreflightConfig(process.cwd()); // server defaults; repo config lives client-side
+  const changed = [...new Set([...changedFilesInput, ...files.map((f) => f.path)])].slice(0, REMOTE_PREFLIGHT_MAX_CHANGED_FILES);
+  const rawDiff = payload.diff ?? files.map((f) => `+++ ${f.path}\n${f.content}`).join("\n");
+  const diff = rawDiff.length > REMOTE_PREFLIGHT_MAX_DIFF_FOR_CHECKS ? rawDiff.slice(0, REMOTE_PREFLIGHT_MAX_DIFF_FOR_CHECKS) : rawDiff;
 
   const checks: CheckResult[] = [];
 

@@ -56,18 +56,22 @@ export async function upsertDecisions(
   // through as duplicates — merge their evidence/examples up front.
   const merged = new Map<string, UpsertItem>();
   for (const item of items) {
-    const key = item.d.decision.trim().toLowerCase();
+    const raw = item?.d;
+    if (!raw || typeof raw.decision !== "string") continue;
+    const evidence = Array.isArray(raw.evidence) ? raw.evidence : [];
+    const examples = Array.isArray(raw.examples) ? raw.examples : [];
+    const key = raw.decision.trim().toLowerCase();
     const existing = merged.get(key);
     if (existing) {
-      existing.d.evidence = uniq([...existing.d.evidence, ...item.d.evidence]);
-      existing.d.examples = uniq([...(existing.d.examples ?? []), ...(item.d.examples ?? [])]);
+      existing.d.evidence = uniq([...existing.d.evidence, ...evidence]);
+      existing.d.examples = uniq([...(existing.d.examples ?? []), ...examples]);
     } else {
       merged.set(key, {
         source: item.source,
         d: {
-          ...item.d,
-          evidence: [...item.d.evidence],
-          examples: [...(item.d.examples ?? [])],
+          ...raw,
+          evidence: [...evidence],
+          examples: [...examples],
         },
       });
     }

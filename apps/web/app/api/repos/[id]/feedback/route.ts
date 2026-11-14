@@ -1,6 +1,6 @@
 import { dashboard, logAudit } from "@company-brain/core";
 import { assertRepoWrite, requireViewer } from "@/lib/server/auth";
-import { HttpError, handle, ok } from "@/lib/server/respond";
+import { HttpError, handle, ok, readJsonBody } from "@/lib/server/respond";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,12 +14,12 @@ export async function POST(
     const viewer = await requireViewer();
     const { id } = await ctx.params;
     await assertRepoWrite(id, viewer);
-    const body = (await req.json()) as {
+    const body = await readJsonBody<{
       prNumber?: number;
       decisionId?: string;
       action?: "dismiss" | "confirm";
       reason?: string;
-    };
+    }>(req);
     if (body.action !== "dismiss" && body.action !== "confirm") {
       throw new HttpError(400, "action must be 'dismiss' or 'confirm'");
     }

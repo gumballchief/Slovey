@@ -13,6 +13,12 @@ export interface CitableDecision {
 }
 
 /** Normalize a citation token so "PR #29499", "pr 29499", "#29499" all compare equal. */
+/** The PR number inside a normalized citation, if it is one ("pr29499" or "29499"). */
+function prNumber(n: string): string | null {
+  const m = /^(?:pr)?(\d+)$/.exec(n);
+  return m ? m[1]! : null;
+}
+
 export function normalizeCitation(s: string): string {
   if (typeof s !== "string") return "";
   return s.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -33,7 +39,9 @@ export function resolveCitation(
     for (const ev of d.evidence) {
       const n = normalizeCitation(ev);
       if (!n) continue;
-      if (n === target || target.includes(n) || n.includes(target)) return d;
+      // Exact token, or the same PR number ("29499" vs "PR #29499"). No loose
+      // substring matching: "PR #1" must never resolve to PR #12345.
+      if (n === target || (prNumber(n) !== null && prNumber(n) === prNumber(target))) return d;
     }
   }
   return null;

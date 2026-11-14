@@ -29,10 +29,26 @@ export class JiraConnector implements ConnectorClient {
   constructor(private readonly token: string) {}
 
   async fetchDocs(config: ConnectorConfig = {}): Promise<ConnectorDoc[]> {
-    const baseUrl = config.baseUrl?.replace(/\/$/, "");
-    if (!baseUrl || !config.email) {
+    const rawBaseUrl = config.baseUrl?.replace(/\/$/, "");
+    if (!rawBaseUrl || !config.email) {
       throw new Error("Jira: configure the site URL and account email");
     }
+    let parsed: URL;
+    try {
+      parsed = new URL(rawBaseUrl);
+    } catch {
+      throw new Error("Jira: baseUrl must be a valid https://*.atlassian.net URL");
+    }
+    if (
+      parsed.protocol !== "https:" ||
+      parsed.username !== "" ||
+      parsed.password !== "" ||
+      (parsed.port !== "" && parsed.port !== "443") ||
+      !(parsed.hostname === "atlassian.net" || parsed.hostname.endsWith(".atlassian.net"))
+    ) {
+      throw new Error("Jira: baseUrl must be a valid https://*.atlassian.net URL");
+    }
+    const baseUrl = parsed.origin;
     const auth = Buffer.from(`${config.email}:${this.token}`).toString("base64");
     const max = Math.min(config.limit ?? 50, 100);
     const url = `${baseUrl}/rest/api/3/search?jql=${encodeURIComponent(
@@ -41,8 +57,10 @@ export class JiraConnector implements ConnectorClient {
 
     const res = await fetch(url, {
       headers: { authorization: `Basic ${auth}`, accept: "application/json" },
+      redirect: "error",
+      signal: AbortSignal.timeout(10_000),
     });
-    if (!res.ok) throw new Error(`Jira ${res.status}: ${await res.text()}`);
+    if (!res.ok) throw new Error(`Jira ${res.status}`);
     const json = (await res.json()) as { issues?: JiraIssue[] };
 
     return (json.issues ?? []).map((issue) => {

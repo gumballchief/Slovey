@@ -176,15 +176,34 @@ export async function fetchPrForCheck(
     if (files.data.length < 100) break;
   }
   const changedFiles = filesData.map((f) => f.filename);
-  const perFileCap =
-    filesData.length > 0 ? Math.floor(DIFF_SUMMARY_CAP / filesData.length) : DIFF_SUMMARY_CAP;
-  const diffSummary = filesData
-    .map((f) => {
-      const header = `${f.filename} (+${f.additions}/-${f.deletions})\n`;
-      const patchBudget = Math.max(0, perFileCap - header.length);
-      return `${header}${truncate(f.patch ?? "", patchBudget)}`;
-    })
-    .join("\n\n");
+  // Fixed per-file budget (never divided by attacker-controlled file count) plus a
+  // total cap. Suspicious files go first so a many-file PR cannot push the
+  // interesting patch out, and any omission/truncation is flagged fail-closed.
+  // Small PRs get the whole budget per file; big PRs still get at least 500 chars each.
+  const PER_FILE_PATCH_CAP = Math.max(500, Math.floor(DIFF_SUMMARY_CAP / Math.max(1, filesData.length)));
+  const SUSPICIOUS_RE =
+    /auth|secret|password|token|session|crypto|login|admin|permission|privilege|bypass|security|credential|key/i;
+  const ordered = [...filesData].sort(
+    (a, b) =>
+      Number(SUSPICIOUS_RE.test(b.filename)) - Number(SUSPICIOUS_RE.test(a.filename)),
+  );
+  const parts: string[] = [];
+  let used = 0;
+  let patchTruncated = false;
+  for (const f of ordered) {
+    const header = `${f.filename} (+${f.additions}/-${f.deletions})\n`;
+    const rawPatch = f.patch ?? "";
+    if (rawPatch.length > PER_FILE_PATCH_CAP) patchTruncated = true;
+    const entry = `${header}${truncate(rawPatch, PER_FILE_PATCH_CAP)}`;
+    const sep = parts.length > 0 ? 2 : 0;
+    if (used + sep + entry.length > DIFF_SUMMARY_CAP) continue;
+    parts.push(entry);
+    used += sep + entry.length;
+  }
+  let diffSummary = parts.join("\n\n");
+  if (parts.length < filesData.length || patchTruncated) {
+    diffSummary += `\n\n…[truncated: incomplete diff — showing ${parts.length} of ${filesData.length} files; full review required, do not approve on partial diff]`;
+  }
   return {
     number: prNumber,
     title: pr.data.title,

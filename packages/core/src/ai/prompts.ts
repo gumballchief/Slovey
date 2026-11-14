@@ -151,12 +151,10 @@ export function filterExtractedDecisionsToBatch(
       const id = normalizeId(value);
       if (id !== null) idsInBatch.add(id);
     }
-  } else if (typeof prBatchText === "string") {
-    for (const match of prBatchText.matchAll(/PR\s+#(\d+)/g)) {
-      const id = match[1];
-      if (id) idsInBatch.add(id);
-    }
   }
+  // No string-scanning fallback: prBatchText is untrusted, so scanning it
+  // for citations would let injected text self-validate. Without structured
+  // IDs the batch set stays empty and all citations are dropped.
   const out: ExtractedDecision[] = [];
   for (const d of decisions) {
     const validEvidence = (d.evidence ?? []).flatMap((e) => {

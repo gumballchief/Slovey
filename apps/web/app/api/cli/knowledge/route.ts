@@ -34,8 +34,11 @@ const OPS = {
   can_i: (repoId: string, a: Args) => decisionApi.canI(repoId, req(a.intent, "intent")),
   ask: (repoId: string, a: Args) => decisionApi.ask(repoId, req(a.question, "question")),
   plan: (repoId: string, a: Args) => decisionApi.plan(repoId, req(a.request, "request")),
-  rejected: (repoId: string, a: Args) =>
-    decisionApi.getRejectedKnowledge(repoId, a.query, clampLimit(a.limit)),
+  rejected: (repoId: string, a: Args) => {
+    const q = a.query?.trim() || undefined;
+    if (q && q.length > 4000) throw new HttpError(413, `"query" is too long (max 4000 characters).`);
+    return decisionApi.getRejectedKnowledge(repoId, q, clampLimit(a.limit));
+  },
   search: (repoId: string, a: Args) => decisionApi.search(repoId, req(a.query, "query")),
 } as const;
 

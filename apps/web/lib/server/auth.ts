@@ -81,7 +81,8 @@ export async function getViewer(): Promise<Viewer | null> {
         });
         userId = row?.id;
       }
-      return { login, githubId, userId, email: user.email ?? undefined, isDev: false };
+      const email = user.email_confirmed_at ? (user.email ?? undefined) : undefined;
+      return { login, githubId, userId, email, isDev: false };
     }
     if (process.env.NODE_ENV === "production") return null;
   }
