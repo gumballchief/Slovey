@@ -47,6 +47,17 @@ export function apiModeFromEnv(): ApiModeConfig | null {
   return { apiUrl, token };
 }
 
+/** The hosted API answered with an error status (vs. being unreachable). */
+export class RemotePreflightHttpError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = "RemotePreflightHttpError";
+  }
+}
+
 /** Fetch the hosted knowledge checks. Throws on network/auth error (caller degrades). */
 export async function fetchRemoteKnowledge(
   cfg: ApiModeConfig,
@@ -64,7 +75,10 @@ export async function fetchRemoteKnowledge(
     });
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      throw new Error(`hosted preflight HTTP ${res.status}${text ? `: ${text.slice(0, 160)}` : ""}`);
+      throw new RemotePreflightHttpError(
+        res.status,
+        `hosted preflight HTTP ${res.status}${text ? `: ${text.slice(0, 160)}` : ""}`,
+      );
     }
     const json = (await res.json()) as { result: PreflightResult };
     if (!json?.result) throw new Error("hosted preflight returned no result");
@@ -75,6 +89,67 @@ export async function fetchRemoteKnowledge(
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * The verdict when the hosted checks could not be used, built from the local
+ * result alone. Pure + unit-tested.
+ *
+ * Downtime (unreachable, timeout, 5xx, rate limit) fails OPEN: our uptime must
+ * not block a developer's commit. The unverifiable decision-check stops
+ * blocking, a loud warning says so, and the GitHub App re-checks the decision
+ * graph at PR time as the backstop.
+ *
+ * A rejected token (401/403) fails CLOSED: waiting never fixes it, and failing
+ * open would quietly switch the decision gate off for good (a revoked token, a
+ * typo in CI) with only a warning line to show for it.
+ */
+export function localOnlyResult(local: PreflightResult, err: unknown): PreflightResult {
+  const msg = err instanceof Error ? err.message : String(err);
+  const rejected = err instanceof RemotePreflightHttpError && (err.status === 401 || err.status === 403);
+
+  if (rejected) {
+    const reason = `Slovey rejected your token (HTTP ${(err as RemotePreflightHttpError).status}), so the decision graph could not be checked.`;
+    const checks: CheckResult[] = local.checks.map((c) =>
+      c.name === "decision-check"
+        ? { ...c, status: "error", blocking: true, skippedReason: reason }
+        : c,
+    );
+    if (!checks.some((c) => c.name === "decision-check")) {
+      checks.push({ name: "decision-check", status: "error", command: "", durationMs: 0, blocking: true, errors: [], skippedReason: reason });
+    }
+    const anyFailure = checks.some((c) => c.status === "fail");
+    return {
+      ...local,
+      checks,
+      safeToCommit: false,
+      safeToPush: false,
+      status: resolveStatus({ checks, blocked: true, anyFailure, blockingViolations: 0 }),
+      warnings: [
+        ...local.warnings,
+        `${reason} Commit blocked until it is fixed: create a new token in the Slovey dashboard and set SLOVEY_TOKEN.`,
+      ],
+      agentInstruction:
+        "Agent, do not commit. The SLOVEY_TOKEN is invalid, expired or revoked, so Slovey's decision checks could not run. A human has to create a new token in the Slovey dashboard; do not try to work around this.",
+    };
+  }
+
+  const checks = local.checks.map((c) =>
+    c.name === "decision-check" && c.status === "skipped" ? { ...c, blocking: false } : c,
+  );
+  const blocked = checks.some((c) => c.blocking && c.status === "fail");
+  const anyFailure = checks.some((c) => c.status === "fail");
+  return {
+    ...local,
+    checks,
+    safeToCommit: !blocked,
+    safeToPush: !blocked,
+    status: resolveStatus({ checks, blocked, anyFailure, blockingViolations: 0 }),
+    warnings: [
+      ...local.warnings,
+      `Slovey hosted checks unavailable (${msg.slice(0, 90)}) — ran local checks only; the decision graph was NOT verified (it will be re-checked on your PR).`,
+    ],
+  };
 }
 
 /** Checks the hosted API owns (they need the decision graph / server AI keys). */

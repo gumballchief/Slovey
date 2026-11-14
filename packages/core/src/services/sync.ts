@@ -206,8 +206,13 @@ export async function listAllRepos(): Promise<ResolvedRepo[]> {
     .where(isNull(installations.suspendedAt));
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /** Resolve a repo by id (used by the web layer's repo-access check). */
 export async function resolveRepoById(repoId: string): Promise<ResolvedRepo | null> {
+  // A malformed id is simply "not found": passed to Postgres it raises a uuid
+  // parse error, which surfaced as a 500 on every /api/repos/<bad id>/… route.
+  if (!UUID_RE.test(repoId)) return null;
   const db = getDb();
   const [row] = await db
     .select(RESOLVE_COLUMNS)
