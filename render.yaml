@@ -102,6 +102,9 @@ envVarGroups:
         sync: false
       - key: STRIPE_SECRET_KEY
         sync: false
+      # Public key for the on-site checkout form; inlined at build time (see Dockerfile.web).
+      - key: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+        sync: false
       - key: STRIPE_WEBHOOK_SECRET
         sync: false
       - key: STRIPE_PRICE_PRO

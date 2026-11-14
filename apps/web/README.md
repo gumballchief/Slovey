@@ -1,89 +1,62 @@
-# Slovey
+# Slovey web
 
-Engineering memory for your team. Remembers every decision, warns before a PR violates one.
+The Next.js 16 app behind slovey.dev: the public site, sign-in, checkout, the dashboard and every HTTP API
+(GitHub webhooks, Stripe, the CLI and MCP endpoints). Business logic lives in `@company-brain/core`; this app
+is the surface.
 
 ## Running locally
 
 ```bash
-cd company-brain
-npm install
-npm run dev
+pnpm install
+pnpm dev:web
 ```
 
-Open [http://localhost:3000](http://localhost:3000) (or the next available port).
+Open http://localhost:3000. Without Supabase keys the app runs in single-user dev mode: sign-in is skipped and
+you act as the local owner. Without `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` the checkout page explains that
+payments are off instead of loading the payment form.
+
+## Layout
+
+| Path | What it holds |
+|------|---------------|
+| `app/` | Routes only. Each page file imports one feature component and sets metadata. |
+| `app/api/` | Route handlers. `lib/server/respond.ts` turns thrown errors into JSON responses. |
+| `features/` | One folder per screen: component plus its stylesheet. |
+| `features/shell/` | The dashboard frame: floating nav bar, phone tab bar, repo switcher, Ctrl/Cmd+K palette. |
+| `features/site/` | Shared pieces of the public pages: nav, footer, art hero band, legal layout. |
+| `landing/` | The home page. |
+| `ui/` | The design system: `ui.css` (tokens and components, scoped to `.ui`) and `kit.tsx` (React wrappers). |
+| `lib/api-client.ts` | Typed fetchers the dashboard uses to call `app/api`. |
+| `lib/server/` | Server-only helpers: auth, rate limiting, Stripe, Supabase. |
 
 ## Routes
 
-| Route | Description |
-|-------|-------------|
-| `/` | Marketing landing page |
-| `/demo` | Interactive demo workspace — no install needed |
-| `/app` | Overview dashboard |
-| `/app/memory` | Searchable decision memory |
-| `/app/pull-requests` | Checked PRs with verdict detail |
-| `/app/connectors` | Data source connectors by layer |
-| `/app/settings` | Confidence threshold and trigger settings |
+| Route | Screen |
+|-------|--------|
+| `/` | Landing page |
+| `/login` | Sign in with GitHub, Google or email |
+| `/checkout`, `/checkout/complete` | Team plan checkout (Stripe Checkout Sessions, elements mode) |
+| `/app` | Today: what changed, what was blocked, what needs you |
+| `/app/memory` | The decision graph as a map or a list |
+| `/app/review` | Approve or reject learned decisions (A / R / J / K) |
+| `/app/ask` | Ask the memory, ask "can I", or plan a change |
+| `/app/pull-requests`, `/app/preflight`, `/app/tasks` | Checked PRs, local preflight runs, agent tasks |
+| `/app/architecture`, `/app/connectors` | Repository map and connected sources |
+| `/app/org`, `/app/profile`, `/app/billing`, `/app/settings` | Account |
+| `/docs`, `/mcp`, `/api-reference`, `/integrations`, `/demo` | Product pages |
+| `/changelog`, `/about`, `/careers`, `/contact`, `/security`, `/privacy`, `/terms` | Company pages |
 
-## Design tokens
+## Design
 
-All tokens are CSS variables defined in `app/globals.css`:
+- Type: Bellefair (display caps), Afacad Flux (text), Geist Mono (labels, refs, code). All three are
+  self-hosted from `app/fonts/` or the `geist` package, so builds never fetch fonts.
+- Colour: deep navy ground (`--bg #06070f`), one blue accent (`--blue #3d7bff`), red reserved for blocks.
+- Tokens and components are in `ui/ui.css`; portals (sheets, menus, dialogs) carry `ui-portal` so they get the
+  same tokens outside the `.ui` tree.
 
-| Token | Light | Dark |
-|-------|-------|------|
-| `--bg` | `#FFFFFF` | `#0A0F1C` |
-| `--bg-subtle` | `#F4F8FC` | `#0E1526` |
-| `--surface` | `#FFFFFF` | `#111A2E` |
-| `--primary` | `#0EA5E9` | `#38BDF8` |
-| `--text` | `#0F172A` | `#E6EDF7` |
-| `--text-muted` | `#64748B` | `#94A3B8` |
-| `--border` | `#E2E8F0` | `#1E293B` |
+## Checks
 
-Typography: **Space Grotesk** (display — h1/h2 + big numbers), **Inter** (body), **JetBrains Mono** (PR numbers, citations, eyebrow labels, stat units — the brand's connective tissue).
-
-## The Memory Core (hero centerpiece)
-
-`components/core/` holds the signature 3D scene, built with `three` + `@react-three/fiber` + `@react-three/drei` + `@react-three/postprocessing`:
-
-- **`MemoryCoreScene.tsx`** — the live scene: an icosahedron core with a custom fresnel-rim shader + sine-noise vertex displacement (breathing), 3 tilted orbital rings, ~160 instanced decision nodes drifting on the orbits (hover for a mono tooltip), a 1.4k-point starfield with cursor parallax, ACES tone-mapping + selective Bloom. A product-moment loop fires every ~6s: a node flies in from the right, the core pulses, then a green "clear" or a coral conflict line snaps to an orbiting decision with a mono callout.
-- **`MemoryCore.tsx`** — lazy wrapper: `next/dynamic` (`ssr:false`), an SVG **poster fallback** while loading / under `prefers-reduced-motion` / no WebGL, and an `IntersectionObserver` that pauses the render loop offscreen. `dpr={[1,2]}`.
-
-Motion system: `lenis` smooth scroll (`components/motion/SmoothScroll.tsx`), a power-on intro loader (`IntroLoader.tsx`), scroll reveals (`components/ui/Reveal.tsx`), count-up stats — all gated behind `prefers-reduced-motion`.
-
-Dark mode uses the `dark` class on `<html>`, persisted in a `theme` cookie (SSR-safe, no flash).
-
-## Integration seams
-
-All data is read from **`lib/data.ts`** — the clearly-marked seam where real backends plug in.
-
-| Seam | What plugs in |
-|------|--------------|
-| `DECISIONS` array | Memory DB query (Postgres/vector store) |
-| `CHECKED_PRS` array | GitHub App webhook events + check pipeline |
-| `REPOS` array | GitHub App installation list |
-| `CONNECTORS` array | OAuth connector status from auth service |
-| `Button onClick` on Connect | OAuth redirect to connector auth flow |
-| Settings `handleRebuild` | POST to memory rebuild job queue |
-
-The types in `lib/data.ts` match the `brain.json` schema exactly — swap the arrays for real API calls and the UI updates with no changes needed.
-
-## Component library
-
-Located in `components/ui/`:
-
-- `Button` — primary / secondary / ghost / danger variants
-- `VerdictPill` — conflict (coral) / clear (green) / pending (amber)
-- `Badge` — source labels, status badges
-- `SearchInput` — controlled/uncontrolled with clear
-- `Toggle` — accessible switch with aria-checked
-- `Stat` — metric card with trend
-- `EmptyState` — with icon, title, description, action
-- `ThemeToggle` — instant client-side dark/light switch
-
-## Tech
-
-- **Next.js 16** (App Router, React Server Components)
-- **TypeScript** — strict mode
-- **Tailwind CSS v4** — CSS-first config via `@theme`
-- **lucide-react** — icons
-- **recharts** — area charts on Overview
-- **Space Grotesk + JetBrains Mono** via `next/font/google`
+```bash
+pnpm --filter @company-brain/web typecheck
+pnpm --filter @company-brain/web build
+```
