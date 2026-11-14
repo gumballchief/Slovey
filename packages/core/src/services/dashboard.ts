@@ -186,7 +186,9 @@ export async function listRepos(scope?: RepoScope): Promise<ApiRepo[]> {
     db
       .select({ repoId: decisions.repoId, n: sql<number>`count(*)::int` })
       .from(decisions)
-      .where(inArray(decisions.status, ["approved", "proposed"]))
+      .innerJoin(repos, eq(decisions.repoId, repos.id))
+      .innerJoin(installations, eq(repos.installationId, installations.id))
+      .where(and(inArray(decisions.status, ["approved", "proposed"]), visible))
       .groupBy(decisions.repoId),
     db
       .select({
@@ -195,11 +197,16 @@ export async function listRepos(scope?: RepoScope): Promise<ApiRepo[]> {
         conflicts: sql<number>`(count(*) filter (where ${prChecks.verdict} = 'conflict'))::int`,
       })
       .from(prChecks)
+      .innerJoin(repos, eq(prChecks.repoId, repos.id))
+      .innerJoin(installations, eq(repos.installationId, installations.id))
+      .where(visible)
       .groupBy(prChecks.repoId),
     db
       .select({ repoId: prChecks.repoId, verdict: prChecks.verdict, checkedAt: prChecks.checkedAt })
       .from(prChecks)
-      .where(sql`${prChecks.checkedAt} > now() - interval '42 days'`),
+      .innerJoin(repos, eq(prChecks.repoId, repos.id))
+      .innerJoin(installations, eq(repos.installationId, installations.id))
+      .where(and(sql`${prChecks.checkedAt} > now() - interval '42 days'`, visible)),
   ]);
 
   const decByRepo = new Map(decisionCounts.map((d) => [d.repoId, d.n]));
@@ -331,6 +338,14 @@ export async function createDecision(
     alternatives?: string[];
   },
 ): Promise<ApiDecision> {
+  const org = await getOrgForRepo(repoId);
+  if (org) {
+    const billing = await getBilling(org.id);
+    const limit = PLAN_LIMITS[billing.plan].decisions;
+    if (limit !== -1 && billing.usage.decisions >= limit) {
+      throw new Error(`Decision limit reached for ${billing.plan} plan (${limit})`);
+    }
+  }
   const db = getDb();
   const text = [input.decision, input.why ?? "", (input.examples ?? []).join(" ")].join("\n");
   const embedding = await getEmbeddings().embedOne(text);

@@ -41,9 +41,36 @@ export async function readJsonBody<T>(req: Request, maxBytes = 1_000_000): Promi
   if (declared > maxBytes) {
     throw new HttpError(413, `Request body too large (max ${Math.round(maxBytes / 1000)}KB).`);
   }
-  const text = await req.text();
-  if (text.length > maxBytes) {
-    throw new HttpError(413, `Request body too large (max ${Math.round(maxBytes / 1000)}KB).`);
+  let text = "";
+  if (!req.body) {
+    text = await req.text();
+    if (text.length > maxBytes) {
+      throw new HttpError(413, `Request body too large (max ${Math.round(maxBytes / 1000)}KB).`);
+    }
+  } else {
+    const reader = req.body.getReader();
+    const decoder = new TextDecoder();
+    let seen = 0;
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (!value) break;
+        seen += value.byteLength;
+        if (seen > maxBytes) {
+          await reader.cancel();
+          throw new HttpError(413, `Request body too large (max ${Math.round(maxBytes / 1000)}KB).`);
+        }
+        text += decoder.decode(value, { stream: true });
+        if (text.length > maxBytes) {
+          await reader.cancel();
+          throw new HttpError(413, `Request body too large (max ${Math.round(maxBytes / 1000)}KB).`);
+        }
+      }
+      text += decoder.decode();
+    } finally {
+      reader.releaseLock();
+    }
   }
   if (!text.trim()) return {} as T;
   try {

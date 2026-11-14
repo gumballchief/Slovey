@@ -1,6 +1,6 @@
 import { dashboard, logAudit } from "@company-brain/core";
 import { assertRepoAccess, assertRepoWrite, requireViewer } from "@/lib/server/auth";
-import { handle, ok } from "@/lib/server/respond";
+import { handle, ok, readJsonBody } from "@/lib/server/respond";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,13 +25,13 @@ export async function PATCH(
     const viewer = await requireViewer();
     const { id } = await ctx.params;
     await assertRepoWrite(id, viewer);
-    const body = (await req.json()) as Partial<{
+    const body = await readJsonBody<Partial<{
       confidenceThreshold: "low" | "high" | "strict";
       triggerOpened: boolean;
       triggerSynchronize: boolean;
       mode: "comment" | "status_check";
       learnFromDismissals: boolean;
-    }>;
+    }>>(req);
     const updated = await dashboard.updateSettings(id, body);
     await logAudit({ repoId: id, actorUser: viewer.login, action: "settings.update", metadata: body });
     return ok(updated);

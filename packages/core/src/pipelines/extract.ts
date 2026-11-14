@@ -5,7 +5,7 @@ import { consolidatePrompt, extractDocPrompt, extractPrompt, filterExtractedDeci
 import type { ExtractedDecision } from "../ai/types";
 import { getInstallationOctokit } from "../github/app";
 import { buildPrBatchText, fetchClosedPRs, fetchDocs } from "../github/fetchers";
-import { isRepoWithinPlan } from "../services/plan-guard";
+import { decisionHeadroom, isRepoWithinPlan } from "../services/plan-guard";
 import { upsertDecisions } from "./upsert-decisions";
 
 const PR_BATCH = 8;
@@ -112,6 +112,7 @@ export async function runExtract(params: ExtractParams): Promise<ExtractResult> 
     });
     if (Array.isArray(res) && res.length > 0) {
       consolidated = res
+        .filter((d) => d && typeof d === "object")
         .map((d) => ({ ...d, evidence: normalizeEvidence(d.evidence) }))
         .filter((d) => d.decision && d.evidence.length > 0);
     }
@@ -128,7 +129,7 @@ export async function runExtract(params: ExtractParams): Promise<ExtractResult> 
       );
       if (Array.isArray(res)) {
         for (const d of res) {
-          if (d.decision) docDecisions.push({ ...d, evidence: [doc.path] });
+          if (d?.decision) docDecisions.push({ ...d, evidence: [doc.path] });
         }
       }
     }
@@ -153,11 +154,32 @@ export async function runExtract(params: ExtractParams): Promise<ExtractResult> 
     }
   }
 
-  // 7. Embed + upsert with pgvector dedup (refresh updates rather than duplicates).
-  const { inserted, updated } = await upsertDecisions(params.repoId, [
+  // 7. Plan enforcement: don't exceed the org's decision allowance.
+  const items = [
     ...consolidated.map((d) => ({ d, source: "github_pr" as const })),
     ...docDecisions.map((d) => ({ d, source: "doc" as const })),
-  ]);
+  ];
+  const headroom = await decisionHeadroom(params.repoId, items.length);
+  let toUpsert = items;
+  if (!headroom.ok) {
+    const allowed = headroom.limit < 0 ? items.length : Math.max(0, headroom.limit - headroom.used);
+    if (allowed <= 0) {
+      return {
+        prsFetched: prs.length,
+        extracted: grounded.length,
+        droppedEmptyEvidence,
+        consolidated: consolidated.length,
+        docDecisions: docDecisions.length,
+        inserted: 0,
+        updated: 0,
+        aborted: `plan-limit (${headroom.plan}: ${headroom.limit} decisions)`,
+      };
+    }
+    toUpsert = items.slice(0, allowed);
+  }
+
+  // 7. Embed + upsert with pgvector dedup (refresh updates rather than duplicates).
+  const { inserted, updated } = await upsertDecisions(params.repoId, toUpsert);
 
   return {
     prsFetched: prs.length,

@@ -1,6 +1,6 @@
 import { createApiToken, listApiTokens, logAudit } from "@company-brain/core";
 import { assertRepoAccess, assertRepoWrite, requireViewer } from "@/lib/server/auth";
-import { HttpError, handle, ok } from "@/lib/server/respond";
+import { HttpError, handle, ok, readJsonBody } from "@/lib/server/respond";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,7 +25,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     if (!viewer.userId) {
       throw new HttpError(403, "Sign in with GitHub to create a CLI token (tokens are tied to your GitHub identity).");
     }
-    const body = (await req.json().catch(() => ({}))) as { name?: string; days?: number };
+    const body = (await readJsonBody(req)) as { name?: string; days?: number };
     const name = (body.name ?? "cli").slice(0, 60);
     const expiresAt =
       typeof body.days === "number" && body.days > 0

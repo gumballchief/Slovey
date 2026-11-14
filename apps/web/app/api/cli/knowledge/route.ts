@@ -1,5 +1,5 @@
 import { dashboard, decisionApi, resolveRepoById, verifyApiToken, getUserGithubId } from "@company-brain/core";
-import { HttpError, handle, ok } from "@/lib/server/respond";
+import { HttpError, handle, ok, readJsonBody } from "@/lib/server/respond";
 import { clientIp, rateLimit } from "@/lib/server/ratelimit";
 
 export const runtime = "nodejs";
@@ -104,7 +104,7 @@ export async function POST(req_: Request): Promise<Response> {
       }
     }
 
-    const body = (await req_.json().catch(() => ({}))) as { op?: string; args?: Args };
+    const body = await readJsonBody<{ op?: string; args?: Args }>(req_, 1_000_000);
     const op = body.op as OpName | undefined;
     if (!op || !(op in OPS)) {
       throw new HttpError(400, `Unknown operation. Expected one of: ${Object.keys(OPS).join(", ")}.`);

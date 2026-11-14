@@ -14,6 +14,7 @@ export interface CitableDecision {
 
 /** Normalize a citation token so "PR #29499", "pr 29499", "#29499" all compare equal. */
 export function normalizeCitation(s: string): string {
+  if (typeof s !== "string") return "";
   return s.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 

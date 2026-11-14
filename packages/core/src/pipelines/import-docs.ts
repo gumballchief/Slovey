@@ -80,6 +80,8 @@ export function splitDocs(raw: string, fallbackPath = "pasted-doc"): ImportDoc[]
  * seed the graph from the docs you already wrote. Reuses the same extractor as
  * PR/doc ingestion; everything lands in the review queue (source = "doc").
  */
+const reservedByRepo = new Map<string, number>();
+
 export async function importDocs(
   repoId: string,
   docs: ImportDoc[],
@@ -87,6 +89,18 @@ export async function importDocs(
   maxNew?: number,
 ): Promise<ImportResult> {
   const ai = getAI();
+  // Reserve headroom synchronously (before any await) so concurrent imports
+  // for the same repo cannot all slice against the same stale maxNew.
+  const alreadyReserved = maxNew !== undefined ? reservedByRepo.get(repoId) ?? 0 : 0;
+  const effectiveMaxNew = maxNew !== undefined ? Math.max(0, maxNew - alreadyReserved) : undefined;
+  if (effectiveMaxNew) reservedByRepo.set(repoId, alreadyReserved + effectiveMaxNew);
+  const releaseReservation = () => {
+    if (!effectiveMaxNew) return;
+    const remaining = (reservedByRepo.get(repoId) ?? 0) - effectiveMaxNew;
+    if (remaining > 0) reservedByRepo.set(repoId, remaining);
+    else reservedByRepo.delete(repoId);
+  };
+  try {
   const items: { d: ExtractedDecision; source: "doc" }[] = [];
   let extracted = 0;
 
@@ -107,8 +121,11 @@ export async function importDocs(
 
   // Enforce the org's remaining plan headroom so one import can't exceed the cap
   // (conservative: counts every item as new, so we never overshoot the limit).
-  const toUpsert = maxNew !== undefined && maxNew >= 0 ? items.slice(0, maxNew) : items;
+  const toUpsert = effectiveMaxNew !== undefined ? items.slice(0, effectiveMaxNew) : items;
   if (toUpsert.length === 0) return { docs: docs.length, extracted, inserted: 0, updated: 0 };
   const { inserted, updated } = await upsertDecisions(repoId, toUpsert, "import");
   return { docs: docs.length, extracted, inserted, updated };
+  } finally {
+    releaseReservation();
+  }
 }

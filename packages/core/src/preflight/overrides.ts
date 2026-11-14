@@ -34,7 +34,7 @@ export async function getActiveOverrides(repoId: string, branch: string | null):
     .catch(() => [] as ActiveOverride[]);
   const map = new Map<string, ActiveOverride>();
   for (const r of rows) {
-    if (r.branch && branch && r.branch !== branch) continue;
+    if (r.branch && r.branch !== branch) continue;
     map.set(r.decisionId, r);
   }
   return map;

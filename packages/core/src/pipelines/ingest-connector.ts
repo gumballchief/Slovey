@@ -39,6 +39,7 @@ export async function runIngestConnector(params: {
     .where(eq(connectors.id, params.connectorId))
     .limit(1);
   if (!row) throw new Error(`connector not found: ${params.connectorId}`);
+  if (row.repoId !== params.repoId) throw new Error(`connector not found: ${params.connectorId}`);
 
   const type = row.type;
   if (!isConnectorType(type)) throw new Error(`unsupported connector type: ${type}`);

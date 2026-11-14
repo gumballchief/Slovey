@@ -10,8 +10,11 @@ const log = logger.child({ component: "reactions" });
 
 interface ReactionLike {
   content?: string;
+  author_association?: string;
   user?: { login?: string; type?: string } | null;
 }
+
+const TRUSTED_ASSOCIATIONS = new Set(["COLLABORATOR", "MEMBER", "OWNER"]);
 
 /**
  * Pure: the distinct non-bot users who reacted 👎 (content "-1"). Extracted so it
@@ -23,6 +26,11 @@ export function pickDownvoters(reactions: ReactionLike[]): string[] {
     if (r.content !== "-1") continue;
     const u = r.user;
     if (!u?.login || u.type === "Bot" || u.login.endsWith("[bot]")) continue;
+    if (
+      r.author_association !== undefined &&
+      !TRUSTED_ASSOCIATIONS.has(r.author_association)
+    )
+      continue;
     out.add(u.login);
   }
   return [...out];
@@ -69,7 +77,32 @@ export async function pollReactionDismissals(params: {
   if (!check) return { recorded: 0 };
 
   let recorded = 0;
+  let prAuthor: string | null = null;
+  try {
+    const { data: pr } = await octokit.rest.pulls.get({
+      owner: params.owner,
+      repo: params.name,
+      pull_number: params.prNumber,
+    });
+    prAuthor = pr.user?.login ?? null;
+  } catch {
+    prAuthor = null;
+  }
   for (const user of downvoters) {
+    if (prAuthor && user.toLowerCase() === prAuthor.toLowerCase()) continue;
+    try {
+      const { data: perm } =
+        await octokit.rest.repos.getCollaboratorPermissionLevel({
+          owner: params.owner,
+          repo: params.name,
+          username: user,
+        });
+      const level = (perm as { permission?: string } | null)?.permission;
+      if (level !== "admin" && level !== "maintain" && level !== "write")
+        continue;
+    } catch {
+      continue;
+    }
     const existing = await db
       .select({ id: feedback.id })
       .from(feedback)

@@ -122,6 +122,23 @@ const STATUS_MARK: Record<string, string> = {
   fail: "FAIL ✗",
 };
 
+export function isInteractiveHuman(): boolean {
+  if (process.env.SLOVEY_AGENT === "1" || process.env.SLOVEY_AGENT === "true") return false;
+  if (process.env.CI === "1" || process.env.CI === "true") return false;
+  return Boolean(process.stdin.isTTY && process.stdout.isTTY);
+}
+
+export function stripOverrideHint(text: string): string {
+  return text
+    .split("\n")
+    .filter((line) => !line.includes("preflight override"))
+    .join("\n");
+}
+
+export function stripOverrideSteps(steps: string[]): string[] {
+  return steps.filter((s) => !s.includes("preflight override"));
+}
+
 function printHuman(r: PreflightResult): void {
   // buildSummary no longer embeds the status — the mark below is the only place it renders.
   const mark = STATUS_MARK[r.status] ?? "FAIL ✗";
@@ -165,12 +182,14 @@ function printHuman(r: PreflightResult): void {
     console.log("  • set allowSkippedChecks: true in the config to run without them on purpose");
   }
 
-  // Surface the human's override fast-lane in the human-readable output too.
+  // Surface the human's override fast-lane in the human-readable output too —
+  // only on an interactive human terminal so piped/agent-captured output never
+  // advertises the human-only override command.
   const overrideStep = r.nextSteps.find((s) => s.includes("preflight override"));
-  if (overrideStep) console.log(`\n→ ${overrideStep}`);
+  if (overrideStep && isInteractiveHuman()) console.log(`\n→ ${overrideStep}`);
   // agentInstruction is addressed to an agent; a human reading an unverified run already
   // got the plain-English version above.
-  if (r.status !== "unverified") console.log(`\n${r.agentInstruction}\n`);
+  if (r.status !== "unverified") console.log(`\n${stripOverrideHint(r.agentInstruction)}\n`);
   else console.log("");
 }
 
@@ -180,13 +199,13 @@ function printAgent(r: PreflightResult): void {
       {
         safeToCommit: r.safeToCommit,
         safeToPush: r.safeToPush,
-        agentInstruction: r.agentInstruction,
+        agentInstruction: stripOverrideHint(r.agentInstruction),
         humanReviewRequired: r.humanReviewRequired,
         attempt: r.attempt,
         fixInstructions: r.fixInstructions,
         decisionViolations: r.decisionViolations,
         warnings: r.warnings,
-        nextSteps: r.nextSteps,
+        nextSteps: stripOverrideSteps(r.nextSteps),
       },
       null,
       2,
@@ -208,7 +227,7 @@ async function showStatus(cwd: string): Promise<void> {
   console.log(`latest run: ${run.status.toUpperCase()} (mode: ${run.mode}) · ${run.summary}`);
   console.log(`safe to commit: ${run.safeToCommit} · safe to push: ${run.safeToPush} · attempt ${run.attempt}/${run.maxAttempts}${run.humanReviewRequired ? " · HUMAN REVIEW REQUIRED" : ""}`);
   console.log(`branch: ${run.branch ?? "—"} · ${new Date(run.createdAt as unknown as string).toLocaleString()}`);
-  console.log(`\n${run.agentInstruction}`);
+  console.log(`\n${stripOverrideHint(run.agentInstruction)}`);
 }
 
 /** HUMAN-ONLY: record an attributed, time-boxed override for a blocking decision. */
@@ -221,6 +240,12 @@ async function recordOverride(cwd: string, args: string[]): Promise<void> {
   const reason = flag("--reason");
   if (!decisionId || decisionId.startsWith("--") || !reason) {
     console.error('Usage: slovey preflight override <decisionId> --reason "<why>" [--hours 168] [--branch <b>]');
+    process.exitCode = 1;
+    return;
+  }
+  // Agents run commands without a terminal attached; a person typing has one.
+  if (!isInteractiveHuman()) {
+    console.error("Refusing override: run this yourself in a terminal (agents must not run it).");
     process.exitCode = 1;
     return;
   }
@@ -470,7 +495,7 @@ async function main() {
     r = await preflight.runPreflight({ cwd, repoId, mode, checkOnly, maxAttempts });
   }
 
-  if (argv.includes("--json")) console.log(JSON.stringify(r, null, 2));
+  if (argv.includes("--json")) console.log(JSON.stringify({ ...r, agentInstruction: stripOverrideHint(r.agentInstruction), nextSteps: stripOverrideSteps(r.nextSteps) }, null, 2));
   else if (argv.includes("--fix-agent")) printAgent(r);
   else printHuman(r);
 
@@ -481,8 +506,10 @@ async function main() {
   await closeDb();
 }
 
-main().catch(async (e) => {
-  console.error(`preflight failed: ${e instanceof Error ? e.message : String(e)}`);
-  process.exitCode = 1;
-  await closeDb().catch(() => {});
-});
+if (!process.env.VITEST) {
+  main().catch(async (e) => {
+    console.error(`preflight failed: ${e instanceof Error ? e.message : String(e)}`);
+    process.exitCode = 1;
+    await closeDb().catch(() => {});
+  });
+}

@@ -296,7 +296,7 @@ function registerTools(server: McpServer) {
       requireDirectMode("Preflight run history");
       const run = await preflight.getLatestRun(REPO_ID, preflight.getBranch(REPO_PATH));
       if (!run) return text('No Preflight run yet. Call "preflight_run" first.');
-      const detail = await preflight.getRunDetail(run.id);
+      const detail = await preflight.getRunDetail(run.id, REPO_ID);
       // New runs store instructions in preflight_fix_instructions; fall back to
       // the legacy merged columns for runs recorded before the split.
       const fixes =
@@ -417,7 +417,7 @@ function registerTools(server: McpServer) {
       const run = await preflight.getLatestRun(REPO_ID, preflight.getBranch(REPO_PATH));
       if (!run) return text('No Preflight run yet. Call "preflight_run" first.');
       if (run.status === "pass") return text("The last Preflight run passed — safe to commit.");
-      const detail = await preflight.getRunDetail(run.id);
+      const detail = await preflight.getRunDetail(run.id, REPO_ID);
       const checks = (detail?.checks ?? []).filter((c) => (check ? c.name === check : c.status === "fail"));
       const failing = checks.map((c) => `- ${c.name}: ${c.status}${c.skippedReason ? ` (${c.skippedReason})` : ""}`);
       const fixSource = detail?.fixInstructions?.length

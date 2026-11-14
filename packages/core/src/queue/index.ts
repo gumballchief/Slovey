@@ -21,7 +21,15 @@ export async function getBoss(): Promise<PgBoss> {
   // pool — up to 20 connections, each with buffers. Cap it (PGBOSS_MAX) so the
   // 512MB worker doesn't blow its memory budget on idle connections.
   const max = Number(process.env.PGBOSS_MAX) || 10;
-  const boss = new PgBoss({ connectionString: dbUrl.toString(), ssl: { rejectUnauthorized: false }, max });
+  // If the Supabase CA bundle is provided (SUPABASE_CA, PEM text), verify the
+  // server for real; without it, keep the encrypted-but-unverified connection
+  // that production relies on today.
+  const ca = process.env.SUPABASE_CA;
+  const boss = new PgBoss({
+    connectionString: dbUrl.toString(),
+    ssl: ca ? { rejectUnauthorized: true, ca } : { rejectUnauthorized: false },
+    max,
+  });
   boss.on("error", (e) => logger.error("pg-boss error", { err: e }));
   _started = boss.start().then(() => {
     _boss = boss;

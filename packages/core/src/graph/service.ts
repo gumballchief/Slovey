@@ -126,8 +126,8 @@ export async function getDecision(repoId: string, id: string): Promise<DecisionW
     .limit(1);
   if (!decision) return null;
   const [outgoing, incoming, vers] = await Promise.all([
-    db.select().from(decisionEdges).where(eq(decisionEdges.fromDecisionId, id)),
-    db.select().from(decisionEdges).where(eq(decisionEdges.toDecisionId, id)),
+    db.select().from(decisionEdges).where(and(eq(decisionEdges.repoId, repoId), eq(decisionEdges.fromDecisionId, id))),
+    db.select().from(decisionEdges).where(and(eq(decisionEdges.repoId, repoId), eq(decisionEdges.toDecisionId, id))),
     db
       .select({ n: sql<number>`count(*)::int` })
       .from(decisionVersions)
@@ -221,6 +221,20 @@ export async function addEdge(
   opts: { confidence?: number; provenance?: unknown } = {},
 ): Promise<EdgeRow> {
   const db = getDb();
+  const [from] = await db
+    .select({ id: decisions.id })
+    .from(decisions)
+    .where(and(eq(decisions.id, fromDecisionId), eq(decisions.repoId, repoId)))
+    .limit(1);
+  if (!from) throw new Error("addEdge: from decision not found in repo");
+  if ("decisionId" in target) {
+    const [to] = await db
+      .select({ id: decisions.id })
+      .from(decisions)
+      .where(and(eq(decisions.id, target.decisionId), eq(decisions.repoId, repoId)))
+      .limit(1);
+    if (!to) throw new Error("addEdge: target decision not found in repo");
+  }
   const [row] = await db
     .insert(decisionEdges)
     .values({
@@ -253,6 +267,12 @@ export async function traverse(
   opts: { depth?: number; types?: EdgeType[] } = {},
 ): Promise<TraversalResult> {
   const db = getDb();
+  const [start] = await db
+    .select({ id: decisions.id })
+    .from(decisions)
+    .where(and(eq(decisions.id, startId), eq(decisions.repoId, repoId)))
+    .limit(1);
+  if (!start) return { nodes: [], edges: [] };
   const depth = opts.depth ?? 2;
   const seen = new Set<string>([startId]);
   const edges: EdgeRow[] = [];
@@ -287,7 +307,10 @@ export async function traverse(
 
   const ids = [...seen];
   const nodes = ids.length
-    ? await db.select().from(decisions).where(inArray(decisions.id, ids))
+    ? await db
+        .select()
+        .from(decisions)
+        .where(and(eq(decisions.repoId, repoId), inArray(decisions.id, ids)))
     : [];
   // de-dupe edges by id
   const uniqEdges = [...new Map(edges.map((e) => [e.id, e])).values()];
@@ -366,6 +389,7 @@ export async function reviewDecision(
     .where(and(eq(decisions.id, id), eq(decisions.repoId, repoId)))
     .limit(1);
   if (!current) return null;
+  if (!isReviewable(current.status, current.review)) return null;
   const [row] = await db
     .update(decisions)
     .set({
@@ -376,7 +400,14 @@ export async function reviewDecision(
       confidence: sql`least(0.99, ${decisions.confidence} + 0.1)`,
       version: sql`${decisions.version} + 1`,
     })
-    .where(and(eq(decisions.id, id), eq(decisions.repoId, repoId)))
+    .where(
+      and(
+        eq(decisions.id, id),
+        eq(decisions.repoId, repoId),
+        eq(decisions.review, "unreviewed"),
+        inArray(decisions.status, ["candidate", "proposed", "approved"]),
+      ),
+    )
     .returning();
   if (row) await snapshot(id, row.version, row, opts.by, "reviewed → approved");
   return row ?? null;

@@ -15,14 +15,28 @@ function envLevel(): Level {
     : "info";
 }
 
-function redact(fields: Record<string, unknown>): Record<string, unknown> {
+function redact(fields: Record<string, unknown>, seen = new WeakSet<object>()): Record<string, unknown> {
+  seen.add(fields);
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(fields)) {
     if (REDACT.test(k)) out[k] = "[redacted]";
-    else if (v instanceof Error) out[k] = { message: v.message, name: v.name };
-    else out[k] = v;
+    else out[k] = redactValue(v, seen);
   }
   return out;
+}
+
+function redactValue(value: unknown, seen: WeakSet<object>): unknown {
+  if (value instanceof Error) return { message: value.message, name: value.name };
+  if (Array.isArray(value)) {
+    if (seen.has(value)) return "[circular]";
+    seen.add(value);
+    return value.map((item) => redactValue(item, seen));
+  }
+  if (value !== null && typeof value === "object") {
+    if (seen.has(value)) return "[circular]";
+    return redact(value as Record<string, unknown>, seen);
+  }
+  return value;
 }
 
 export class Logger {
@@ -41,7 +55,7 @@ export class Logger {
       t: new Date().toISOString(),
       level,
       msg,
-      ...this.ctx,
+      ...redact(this.ctx),
       ...(fields ? redact(fields) : {}),
     });
     // Route to the matching console method so stdout/stderr split is preserved.

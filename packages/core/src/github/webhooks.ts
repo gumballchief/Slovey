@@ -5,7 +5,8 @@ let _wh: Webhooks | null = null;
 function webhooks(): Webhooks {
   if (_wh) return _wh;
   const env = loadEnv();
-  _wh = new Webhooks({ secret: env.GITHUB_WEBHOOK_SECRET ?? "" });
+  if (!env.GITHUB_WEBHOOK_SECRET) throw new Error("GITHUB_WEBHOOK_SECRET is required");
+  _wh = new Webhooks({ secret: env.GITHUB_WEBHOOK_SECRET });
   return _wh;
 }
 
@@ -90,6 +91,10 @@ export function parseWebhook(event: string, payload: any): WebhookIntent[] {
       if (payload.action !== "created" || !payload.issue?.pull_request) return [];
       // Never act on our own (or any bot's) comments — prevents self-dismissal loops.
       if (isBotComment(payload.comment)) return [];
+      // Comment-only users must not dismiss/confirm checks; the worker re-verifies
+      // collaborator permission (write+) via the installation token before acting.
+      const association = payload.comment?.author_association;
+      if (association !== "OWNER" && association !== "MEMBER" && association !== "COLLABORATOR") return [];
       const body: string = payload.comment?.body ?? "";
       const action = DISMISS_RE.test(body)
         ? "dismiss"

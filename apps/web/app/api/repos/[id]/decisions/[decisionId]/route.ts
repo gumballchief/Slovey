@@ -1,6 +1,6 @@
 import { dashboard, logAudit } from "@company-brain/core";
 import { assertRepoWrite, requireViewer } from "@/lib/server/auth";
-import { HttpError, handle, ok } from "@/lib/server/respond";
+import { HttpError, handle, ok, readJsonBody } from "@/lib/server/respond";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,7 +13,7 @@ export async function PATCH(
     const viewer = await requireViewer();
     const { id, decisionId } = await ctx.params;
     await assertRepoWrite(id, viewer);
-    const body = (await req.json()) as {
+    const body = (await readJsonBody(req)) as {
       decision?: string;
       why?: string;
       examples?: string[];

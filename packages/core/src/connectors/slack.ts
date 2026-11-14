@@ -34,7 +34,7 @@ export class SlackConnector implements ConnectorClient {
 
   private async resolveChannels(config: ConnectorConfig): Promise<SlackChannel[]> {
     if (config.channels?.length) {
-      return config.channels.map((id) => ({ id, name: id }));
+      return config.channels.slice(0, 20).map((id) => ({ id, name: id }));
     }
     const data = await this.call<{ channels?: SlackChannel[] }>("conversations.list", {
       types: "public_channel",

@@ -45,14 +45,32 @@ export function fingerprint(e: Pick<PreflightError, "file" | "code" | "message">
   return (h >>> 0).toString(16).padStart(8, "0");
 }
 
+/** Mask secrets/tokens/credentialed URLs so parsed output is safe to persist/send. */
+function redactSecrets(value: string): string {
+  return value
+    .replace(/\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|amqp):\/\/[^\s'")\]]+/gi, "[REDACTED]")
+    .replace(/\b([A-Za-z][\w.-]*:\/\/)[^\s/:@'"]+:[^\s/@'"]+@/g, "$1[REDACTED]@")
+    .replace(/\bAKIA[0-9A-Z]{16}\b/g, "[REDACTED]")
+    .replace(/\bgithub_pat_[A-Za-z0-9_]{20,}\b/g, "[REDACTED]")
+    .replace(/\bgh[pousr]_[A-Za-z0-9_]{20,}\b/g, "[REDACTED]")
+    .replace(/\b(?:sk|rk)_(?:live|test)_[A-Za-z0-9_-]{10,}\b/g, "[REDACTED]")
+    .replace(/\bsk-[A-Za-z0-9_-]{16,}\b/g, "[REDACTED]")
+    .replace(/\bxox[baprs]-[A-Za-z0-9-]{10,}\b/g, "[REDACTED]")
+    .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[REDACTED]")
+    .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]{8,}/gi, "Bearer [REDACTED]")
+    .replace(/(\b[A-Z0-9_.-]*(?:SECRET|TOKEN|PASSWORD|PASSWD|API[_-]?KEY|PRIVATE[_-]?KEY|DATABASE_URL|AUTHORIZATION)[A-Z0-9_.-]*["']?\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi, "$1[REDACTED]");
+}
+
 /** Parse a check's combined output into structured errors grouped by file. */
 export function parseErrors(check: string, output: string): PreflightError[] {
   const category = CATEGORY_BY_CHECK[check] ?? "unknown";
   const lines = output.split(/\r?\n/);
   const errors: PreflightError[] = [];
   let stylishFile = "";
-  const push = (e: Omit<PreflightError, "id" | "category">) =>
-    errors.push({ ...e, id: fingerprint(e), category });
+  const push = (e: Omit<PreflightError, "id" | "category">) => {
+    const safe = { ...e, message: redactSecrets(e.message), raw: e.raw ? redactSecrets(e.raw) : e.raw };
+    errors.push({ ...safe, id: fingerprint(safe), category });
+  };
 
   for (let li = 0; li < lines.length; li++) {
     const line = lines[li]!;
@@ -146,14 +164,15 @@ export function toFixInstructions(check: string, errors: PreflightError[]): FixI
   const priority = PRIORITY_BY_CHECK[check] ?? "medium";
   return errors.slice(0, 40).map((e) => {
     const loc = e.file ? `${e.file}${e.line ? `:${e.line}` : ""}` : "(no specific file)";
+    const message = redactSecrets(e.message);
     return {
       id: e.id ?? fingerprint(e),
       checkId: check,
       priority,
       file: e.file,
-      problem: `${check}: ${e.message}`,
+      problem: `${check}: ${message}`,
       instructionForAgent:
-        `Agent, fix this before continuing. In ${loc}, resolve: ${e.message}` +
+        `Agent, fix this before continuing. In ${loc}, resolve: ${message}` +
         (e.code ? ` (${e.code}).` : ".") +
         " Do not commit yet. Run Preflight again after fixing.",
       evidence: `${check} · ${loc}${e.code ? ` · ${e.code}` : ""}`,

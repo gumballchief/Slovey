@@ -1,5 +1,5 @@
 import { agentRuns, getDb, type AgentRun } from "@company-brain/db";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { logger } from "../logger";
 import { runAgentTask } from "../pipelines/agent";
 import { resolveRepoById } from "./sync";
@@ -33,17 +33,15 @@ export async function executeAgentRun(runId: string): Promise<void> {
   const db = getDb();
   const log = logger.child({ component: "agent-run", runId });
 
-  const [run] = await db.select().from(agentRuns).where(eq(agentRuns.id, runId)).limit(1);
+  const [run] = await db
+    .update(agentRuns)
+    .set({ status: "running", updatedAt: new Date() })
+    .where(and(eq(agentRuns.id, runId), eq(agentRuns.status, "queued")))
+    .returning();
   if (!run) {
-    log.warn("agent run not found");
+    log.info("agent run already processed; skipping");
     return;
   }
-  if (run.status !== "queued") {
-    log.info("agent run already processed; skipping", { status: run.status });
-    return;
-  }
-
-  await db.update(agentRuns).set({ status: "running", updatedAt: new Date() }).where(eq(agentRuns.id, runId));
 
   try {
     const repo = await resolveRepoById(run.repoId);

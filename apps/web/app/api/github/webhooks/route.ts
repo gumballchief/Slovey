@@ -19,7 +19,15 @@ export async function POST(req: Request): Promise<Response> {
 
   const signature = req.headers.get("x-hub-signature-256") ?? "";
   const event = req.headers.get("x-github-event") ?? "";
+  const MAX_BODY_BYTES = 26_000_000; // GitHub caps webhook payloads at 25MB; refuse anything larger before buffering
+  const declared = Number(req.headers.get("content-length") ?? 0);
+  if (declared > MAX_BODY_BYTES) {
+    return new Response("payload too large", { status: 413 });
+  }
   const raw = await req.text();
+  if (raw.length > MAX_BODY_BYTES) {
+    return new Response("payload too large", { status: 413 });
+  }
 
   if (!(await verifySignature(raw, signature))) {
     return new Response("invalid signature", { status: 401 });

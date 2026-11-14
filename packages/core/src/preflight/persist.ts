@@ -29,9 +29,13 @@ export async function getLatestAttempt(repoId: string, branch: string | null) {
 }
 
 /** Latest run + its checks/errors/fixes/violations, for the dashboard and status tools. */
-export async function getRunDetail(runId: string) {
+export async function getRunDetail(runId: string, repoId: string) {
   const db = getDb();
-  const [run] = await db.select().from(preflightRuns).where(eq(preflightRuns.id, runId)).limit(1);
+  const [run] = await db
+    .select()
+    .from(preflightRuns)
+    .where(and(eq(preflightRuns.id, runId), eq(preflightRuns.repoId, repoId)))
+    .limit(1);
   if (!run) return null;
   const [checks, errors, fixInstructions, violations] = await Promise.all([
     db.select().from(preflightChecks).where(eq(preflightChecks.runId, runId)),

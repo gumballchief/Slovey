@@ -45,7 +45,10 @@ export async function POST(req: Request): Promise<Response> {
       repo.ownerGithubId != null &&
       callerGithubId != null &&
       repo.ownerGithubId === callerGithubId;
-    if (!isOwner && repo.orgId) {
+    if (!isOwner) {
+      if (!repo.orgId) {
+        throw new HttpError(403, "Your access to this repository has been revoked.");
+      }
       const orgIds = await dashboard.listUserOrgIds(verified.userId);
       if (!orgIds.includes(repo.orgId)) {
         throw new HttpError(403, "Your access to this repository has been revoked.");

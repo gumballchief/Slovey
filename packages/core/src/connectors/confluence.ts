@@ -29,16 +29,34 @@ export class ConfluenceConnector implements ConnectorClient {
   constructor(private readonly token: string) {}
 
   async fetchDocs(config: ConnectorConfig = {}): Promise<ConnectorDoc[]> {
-    const baseUrl = config.baseUrl?.replace(/\/$/, "");
-    if (!baseUrl || !config.email) {
+    const rawBaseUrl = config.baseUrl?.replace(/\/$/, "");
+    if (!rawBaseUrl || !config.email) {
       throw new Error("Confluence: configure the site URL and account email");
     }
+    let parsed: URL;
+    try {
+      parsed = new URL(rawBaseUrl);
+    } catch {
+      throw new Error("Confluence: baseUrl must be a valid https://*.atlassian.net URL");
+    }
+    if (
+      parsed.protocol !== "https:" ||
+      parsed.username !== "" ||
+      parsed.password !== "" ||
+      (parsed.port !== "" && parsed.port !== "443") ||
+      !(parsed.hostname === "atlassian.net" || parsed.hostname.endsWith(".atlassian.net"))
+    ) {
+      throw new Error("Confluence: baseUrl must be a valid https://*.atlassian.net URL");
+    }
+    const baseUrl = parsed.origin;
     const auth = Buffer.from(`${config.email}:${this.token}`).toString("base64");
     const limit = Math.min(config.limit ?? 25, 50);
     const url = `${baseUrl}/wiki/rest/api/content?type=page&status=current&expand=body.storage&limit=${limit}`;
 
     const res = await fetch(url, {
       headers: { authorization: `Basic ${auth}`, accept: "application/json" },
+      redirect: "error",
+      signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) throw new Error(`Confluence ${res.status}: ${await res.text()}`);
     const json = (await res.json()) as { results?: ConfluencePage[] };

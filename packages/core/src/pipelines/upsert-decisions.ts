@@ -83,6 +83,8 @@ export async function upsertDecisions(
         id: decisions.id,
         evidence: decisions.evidence,
         examples: decisions.examples,
+        review: decisions.review,
+        source: decisions.source,
         distance: sql<number>`(${decisions.embedding} <=> ${lit}::vector)`,
       })
       .from(decisions)
@@ -91,15 +93,17 @@ export async function upsertDecisions(
       .limit(1);
 
     if (near && near.distance < DEDUP_DISTANCE) {
+      // A decision a human wrote or confirmed keeps its wording: a later PR that
+      // reads similar (possibly an attacker's) may add evidence, never rewrite it.
+      const locked = near.review === "confirmed" || near.source === "manual";
       await db
         .update(decisions)
         .set({
-          decision: d.decision,
-          why: d.why ?? "",
+          ...(locked
+            ? {}
+            : { decision: d.decision, why: d.why ?? "", category: d.category ?? null, embedding: vec }),
           examples: uniq([...(near.examples ?? []), ...(d.examples ?? [])]),
           evidence: uniq([...(near.evidence ?? []), ...d.evidence]),
-          category: d.category ?? null,
-          embedding: vec,
           updatedAt: new Date(),
         })
         .where(eq(decisions.id, near.id));
