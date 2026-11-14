@@ -66,11 +66,11 @@ Return ONLY JSON: {"findings":[{"file":"path","line":123,"issue":"one precise se
   }
 
   const errors: PreflightError[] = findings
-    .filter((f) => f.issue && (f.confidence ?? 1) >= 0.6)
+    .filter((f) => typeof f === "object" && f !== null && typeof f.issue === "string" && f.issue && (f.confidence ?? 1) >= 0.6)
     .slice(0, 20)
     .map((f) => {
       const e = {
-        file: redactSecrets(f.file ?? ""),
+        file: redactSecrets(typeof f.file === "string" ? f.file : ""),
         line: typeof f.line === "number" ? f.line : undefined,
         code: `sec-${f.severity ?? "high"}`,
         message: redactSecrets(f.issue),

@@ -34,9 +34,9 @@ const CATEGORY_BY_CHECK: Record<string, ErrorCategory> = {
   perf: "performance",
 };
 
-/** Stable short fingerprint of an error (file+code+message) for repeat detection. */
-export function fingerprint(e: Pick<PreflightError, "file" | "code" | "message">): string {
-  const s = `${e.file}|${e.code ?? ""}|${e.message}`;
+/** Stable short fingerprint of an error (file+code+message+line+column) for repeat detection. */
+export function fingerprint(e: Pick<PreflightError, "file" | "code" | "message" | "line" | "column">): string {
+  const s = `${e.file}|${e.code ?? ""}|${e.message}|${e.line ?? ""}|${e.column ?? ""}`;
   let h = 0x811c9dc5;
   for (let i = 0; i < s.length; i++) {
     h ^= s.charCodeAt(i);
@@ -143,8 +143,14 @@ export function parseErrors(check: string, output: string): PreflightError[] {
     });
   }
   // De-dupe identical fingerprints (e.g. a vitest failure echoed in two sections).
+  // Key includes line/column so identical messages at different locations are kept.
   const seen = new Set<string>();
-  return errors.filter((e) => (seen.has(e.id!) ? false : (seen.add(e.id!), true)));
+  return errors.filter((e) => {
+    const key = `${e.id!}:${e.line ?? ""}:${e.column ?? ""}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 const PRIORITY_BY_CHECK: Record<string, Priority> = {

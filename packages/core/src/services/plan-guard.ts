@@ -53,22 +53,26 @@ export async function isRepoWithinPlan(repoId: string): Promise<RepoPlanGate> {
   const limit = PLAN_LIMITS[info.plan].repos;
   if (limit < 0) return { ok: true, plan: info.plan, limit };
 
-  const db = getDb();
-  const [row] = await db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(repos)
-    .innerJoin(installations, eq(repos.installationId, installations.id))
-    .where(
-      and(
-        eq(installations.orgId, info.orgId),
-        or(
-          lt(repos.createdAt, info.createdAt),
-          and(eq(repos.createdAt, info.createdAt), lt(repos.id, info.repoId)),
+  try {
+    const db = getDb();
+    const [row] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(repos)
+      .innerJoin(installations, eq(repos.installationId, installations.id))
+      .where(
+        and(
+          eq(installations.orgId, info.orgId),
+          or(
+            lt(repos.createdAt, info.createdAt),
+            and(eq(repos.createdAt, info.createdAt), lt(repos.id, info.repoId)),
+          ),
         ),
-      ),
-    );
-  const rank = row?.n ?? 0; // repos ahead of this one
-  return { ok: rank < limit, plan: info.plan, limit };
+      );
+    const rank = row?.n ?? 0; // repos ahead of this one
+    return { ok: rank < limit, plan: info.plan, limit };
+  } catch {
+    return { ok: true, plan: info.plan, limit };
+  }
 }
 
 export interface DecisionHeadroom {
@@ -86,13 +90,17 @@ export async function decisionHeadroom(repoId: string, adding = 1): Promise<Deci
   const limit = PLAN_LIMITS[info.plan].decisions;
   if (limit < 0) return { ok: true, used: 0, limit, plan: info.plan };
 
-  const db = getDb();
-  const [row] = await db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(decisions)
-    .innerJoin(repos, eq(decisions.repoId, repos.id))
-    .innerJoin(installations, eq(repos.installationId, installations.id))
-    .where(and(eq(installations.orgId, info.orgId), ne(decisions.status, "removed")));
-  const used = row?.n ?? 0;
-  return { ok: used + adding <= limit, used, limit, plan: info.plan };
+  try {
+    const db = getDb();
+    const [row] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(decisions)
+      .innerJoin(repos, eq(decisions.repoId, repos.id))
+      .innerJoin(installations, eq(repos.installationId, installations.id))
+      .where(and(eq(installations.orgId, info.orgId), ne(decisions.status, "removed")));
+    const used = row?.n ?? 0;
+    return { ok: used + adding <= limit, used, limit, plan: info.plan };
+  } catch {
+    return { ok: true, used: 0, limit, plan: info.plan };
+  }
 }

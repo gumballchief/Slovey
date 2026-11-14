@@ -50,8 +50,10 @@ export function freshnessScore(d: {
   return Math.max(0, Math.min(1, score));
 }
 
-async function snapshot(decisionId: string, version: number, row: DecisionRow, by?: string, note?: string) {
-  const db = getDb();
+type DbClient = ReturnType<typeof getDb>;
+type TxClient = Parameters<Parameters<DbClient["transaction"]>[0]>[0];
+async function snapshot(decisionId: string, version: number, row: DecisionRow, by?: string, note?: string, dbClient?: DbClient | TxClient) {
+  const db = dbClient ?? getDb();
   await db.insert(decisionVersions).values({
     decisionId,
     version,
@@ -203,12 +205,15 @@ export async function transitionStatus(
   if (status === "superseded" && opts.supersededById) set.supersededById = opts.supersededById;
   if (status === "rejected" && opts.rejectionReason) set.rejectionReason = opts.rejectionReason;
   const db = getDb();
-  const [row] = await db
-    .update(decisions)
-    .set(set)
-    .where(and(eq(decisions.id, id), eq(decisions.repoId, repoId)))
-    .returning();
-  if (row) await snapshot(id, row.version, row, opts.by, `status → ${status}`);
+  const row = await db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(decisions)
+      .set(set)
+      .where(and(eq(decisions.id, id), eq(decisions.repoId, repoId)))
+      .returning();
+    if (updated) await snapshot(id, updated.version, updated, opts.by, `status → ${status}`, tx);
+    return updated ?? null;
+  });
   return row ?? null;
 }
 
@@ -459,6 +464,15 @@ export function scopeScore(
   scope: ScopeQuery,
   paths: string[],
 ): number {
+  // Empty scope means applies-everywhere (e.g. global "use pnpm everywhere"):
+  // give a baseline so activeDecisionsForScope keeps it instead of dropping it.
+  const hasNoScope =
+    (d.services?.length ?? 0) === 0 &&
+    (d.domains?.length ?? 0) === 0 &&
+    (d.languages?.length ?? 0) === 0 &&
+    (d.frameworks?.length ?? 0) === 0 &&
+    (d.directories?.length ?? 0) === 0;
+  if (hasNoScope) return 1;
   const overlap = (a: string[], b?: string[]) =>
     !b || b.length === 0 ? 0 : a.filter((x) => b.map((y) => y.toLowerCase()).includes(x.toLowerCase())).length;
 
@@ -471,7 +485,7 @@ export function scopeScore(
   // directory-prefix match against changed paths
   for (const dir of d.directories) {
     const norm = dir.replace(/\/+$/, "").toLowerCase();
-    if (norm && paths.some((p) => p.toLowerCase().startsWith(norm))) score += 2;
+    if (norm && paths.some((p) => { const lp = p.toLowerCase(); return lp === norm || lp.startsWith(norm + "/"); })) score += 2;
   }
   return score;
 }

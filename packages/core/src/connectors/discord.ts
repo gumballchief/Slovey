@@ -40,7 +40,8 @@ export class DiscordConnector implements ConnectorClient {
         const messages = await this.get<DiscordMessage[]>(
           `/channels/${id}/messages?limit=${perChannel}`,
         );
-        const text = messages
+        const text = [...messages]
+          .reverse()
           .filter((m) => m.content)
           .map((m) => m.content!.trim())
           .filter(Boolean)

@@ -4,6 +4,19 @@ import { getAI } from "../ai";
 import { retrieveDecisions } from "../pipelines/retrieve";
 import type { DecisionViolation, EvidenceRef } from "./types";
 
+export const JUDGE_DIFF_LIMIT = 20000;
+
+/** Warning when the diff was capped for the AI judge; the keyword scan still covers the full diff. */
+export function truncationNoteForDiff(diff: string): string | undefined {
+  if (diff.length <= JUDGE_DIFF_LIMIT) return undefined;
+  return `Diff truncated for AI judge (${diff.length} chars, first ${JUDGE_DIFF_LIMIT} shown); keyword scan covered the full diff.`;
+}
+
+function combineNotes(...notes: (string | undefined)[]): string | undefined {
+  const parts = notes.filter((n): n is string => !!n);
+  return parts.length > 0 ? parts.join(" ") : undefined;
+}
+
 /** Classify a raw evidence string ("PR #296", "docs/adr-17.md", …) into a typed ref. */
 export function toEvidenceRefs(raw: string[]): EvidenceRef[] {
   return raw.map((s) => {
@@ -54,7 +67,8 @@ export async function runDecisionCheck(
   if (!diff.trim() && changedFiles.length === 0) {
     return { violations: [], note: "No changes to check against the decision graph." };
   }
-  const cappedDiff = diff.slice(0, 20000);
+  const cappedDiff = diff.slice(0, JUDGE_DIFF_LIMIT);
+  const truncationNote = truncationNoteForDiff(diff);
   const db = getDb();
   const [relevant, rejected] = await Promise.all([
     retrieveDecisions(
@@ -93,18 +107,18 @@ export async function runDecisionCheck(
   const list = [...catalog.values()];
   let raw: { violations?: RawViolation[] } | null = null;
   try {
-    raw = await getAI().completeJSON<{ violations: RawViolation[] }>(buildPrompt(list, cappedDiff), { tier: "premium", maxTokens: 900 });
+    raw = await getAI().completeJSON<{ violations: RawViolation[] }>(buildPrompt(list, cappedDiff, changedFiles), { tier: "premium", maxTokens: 900 });
   } catch {
     raw = null;
   }
 
-  if (!raw) return { violations: keywordFallback(list, cappedDiff), note: "Decision check ran in keyword-only mode (AI unavailable)." };
+  if (!raw) return { violations: keywordFallback(list, diff, changedFiles), note: combineNotes("Decision check ran in keyword-only mode (AI unavailable).", truncationNote) };
 
   if (
     !Array.isArray(raw.violations) ||
     raw.violations.some((v) => !v || typeof v !== "object" || typeof v.decisionId !== "string")
   ) {
-    return { violations: keywordFallback(list, cappedDiff), note: "Decision check ran in keyword-only mode (AI unavailable)." };
+    return { violations: keywordFallback(list, diff, changedFiles), note: combineNotes("Decision check ran in keyword-only mode (AI unavailable).", truncationNote) };
   }
 
   const violations: DecisionViolation[] = [];
@@ -117,10 +131,10 @@ export async function runDecisionCheck(
     seen.add(v.decisionId);
     violations.push(toViolation(d, typeof v.violation === "string" ? v.violation : "", clamp(v.confidence)));
   }
-  for (const v of keywordFallback(list, cappedDiff)) {
+  for (const v of keywordFallback(list, diff, changedFiles)) {
     if (!seen.has(v.decisionId)) violations.push(v);
   }
-  return { violations };
+  return truncationNote ? { violations, note: truncationNote } : { violations };
 }
 
 function sanitizeViolationText(raw: string): string {
@@ -143,11 +157,11 @@ function toViolation(d: CatalogEntry, violation: string, confidence: number): De
   };
 }
 
-function buildPrompt(list: CatalogEntry[], diff: string): string {
+function buildPrompt(list: CatalogEntry[], diff: string, changedFiles: string[] = []): string {
   const decisionsText = list
     .map((d) => `- id=${d.id} [${d.status}] ${d.decision}`)
     .join("\n");
-  const safeDiff = (diff || "(no textual diff available)").replace(/```/g, "` ` `");
+  const safeDiff = ((diff || "(no textual diff available)") + (changedFiles.length > 0 ? `\n\nCHANGED FILES:\n${changedFiles.join("\n")}` : "")).replace(/```/g, "` ` `");
   return `You are a strict code reviewer enforcing a team's engineering decisions against a diff.
 
 DECISIONS (active = must follow; rejected = must NOT reintroduce):
@@ -192,8 +206,8 @@ export function distinctiveTerms(decisionText: string, max = 4): string[] {
 
 /** A distinctive term from a rejected decision that reappears in the diff, or null.
  *  E.g. rejectedKeywordHit("Redis was rejected…", "import Redis") → "redis". */
-export function rejectedKeywordHit(decisionText: string, diff: string): string | null {
-  const hay = diff.toLowerCase();
+export function rejectedKeywordHit(decisionText: string, diff: string, changedFiles: string[] = []): string | null {
+  const hay = [diff, ...changedFiles].join("\n").toLowerCase();
   return distinctiveTerms(decisionText, 40).find((t) => new RegExp(`\\b${t.replace(/[.+@/-]/g, "\\$&")}\\b`).test(hay)) ?? null;
 }
 
@@ -239,11 +253,11 @@ Return ONLY JSON: {"genuine":[indexes of real violations]}. No real violations �
  *  A whole-word match on a rejected decision's distinctive term is a strong signal,
  *  so it carries blocking confidence (0.9) — the gate should not weaken when the
  *  AI judge is down. */
-function keywordFallback(list: CatalogEntry[], diff: string): DecisionViolation[] {
+function keywordFallback(list: CatalogEntry[], diff: string, changedFiles: string[] = []): DecisionViolation[] {
   const out: DecisionViolation[] = [];
   for (const d of list) {
     if (d.status !== "rejected") continue;
-    const hit = rejectedKeywordHit(d.decision, diff);
+    const hit = rejectedKeywordHit(d.decision, diff, changedFiles);
     if (hit) out.push(toViolation(d, `The diff reintroduces "${hit}", which this rejected decision forbids.`, 0.9));
   }
   return out;

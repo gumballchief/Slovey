@@ -56,13 +56,17 @@ export async function runIngestConnector(params: {
 
     const ai = getAI();
     const items: UpsertItem[] = [];
+    let extractFailures = 0;
     for (const doc of docs) {
       if (!doc.content.trim()) continue;
       const res = await ai.completeJSON<ExtractedDecision[]>(
         extractPrompt(`### ${type.toUpperCase()} — ${doc.title}\n${doc.content}`),
         { tier: "cheap", maxTokens: 2000 },
       );
-      if (!Array.isArray(res)) continue;
+      if (!Array.isArray(res)) {
+        extractFailures++;
+        continue;
+      }
       for (const d of res) {
         if (!d.decision) continue;
         items.push({
@@ -70,6 +74,16 @@ export async function runIngestConnector(params: {
           source: type as DecisionSource,
         });
       }
+    }
+
+    if (!items.length && extractFailures > 0) {
+      const msg = `extraction failed for ${extractFailures} document(s)`;
+      await db
+        .update(connectors)
+        .set({ status: "error", lastError: msg.slice(0, 500) })
+        .where(eq(connectors.id, row.id));
+      log.warn("connector ingest failed", { type, err: msg });
+      throw new Error(msg);
     }
 
     const { inserted, updated } = items.length

@@ -69,16 +69,22 @@ export async function plan(repoId: string, request: string): Promise<Engineering
     constraints.length > 0 || verdictRes.citations.length > 0 || rejectedPrecedent.length > 0;
 
   // Synthesise the prose plan, grounded strictly in gathered evidence.
-  const synth = await synthesisePlan({
-    request,
-    intent,
-    verdict: verdictRes.verdict,
-    rationale: verdictRes.rationale,
-    constraints: constraints.map((c) => c.decision),
-    rejected: rejectedPrecedent.map(
-      (r) => `${r.decision}${r.rejectionReason ? ` (rejected: ${r.rejectionReason})` : ""}`,
-    ),
-  });
+  // The LLM is best-effort: a throw (network/rate-limit/outage) falls back.
+  let synth: { summary: string; steps: PlanStep[]; confidence: AnswerConfidence } | null;
+  try {
+    synth = await synthesisePlan({
+      request,
+      intent,
+      verdict: verdictRes.verdict,
+      rationale: verdictRes.rationale,
+      constraints: constraints.map((c) => c.decision),
+      rejected: rejectedPrecedent.map(
+        (r) => `${r.decision}${r.rejectionReason ? ` (rejected: ${r.rejectionReason})` : ""}`,
+      ),
+    });
+  } catch {
+    synth = null;
+  }
   reasoning.push(synth ? "Synthesised plan from evidence." : "LLM unavailable; used deterministic fallback plan.");
 
   const { summary, steps } = synth ?? fallbackPlan(intent, verdictRes.verdict, hasEvidence);

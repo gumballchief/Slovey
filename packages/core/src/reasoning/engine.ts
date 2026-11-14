@@ -247,6 +247,7 @@ Write a concise answer (2–5 sentences) as plain prose, citing sources inline a
 
   const ai = getAI();
   let full = "";
+  let truncated = false;
   try {
     if (ai.completeStream) {
       for await (const chunk of ai.completeStream(prompt, { tier: "premium", maxTokens: 500 })) {
@@ -261,11 +262,12 @@ Write a concise answer (2–5 sentences) as plain prose, citing sources inline a
       for (const w of text.match(/\S+\s*/g) ?? [text]) yield { type: "token", text: w };
     }
   } catch {
-    /* keep whatever streamed; handled below */
+    truncated = true;
   }
 
   full = full.trim();
   if (!full) {
+    if (truncated) reasoning.push("Streaming was interrupted; response is truncated/incomplete.");
     const answer = "Unable to produce a grounded answer from the decision graph right now.";
     yield { type: "token", text: answer };
     yield { type: "done", answer: { question, answer, confidence: "none", citations: [], reasoning } };
@@ -288,8 +290,12 @@ Write a concise answer (2–5 sentences) as plain prose, citing sources inline a
     citations.map((c) => reinforce(repoId, c.decisionId, "referenced").catch(() => undefined)),
   );
 
-  const conf: AnswerConfidence =
+  let conf: AnswerConfidence =
     citations.length >= 2 ? "high" : citations.length === 1 ? "medium" : "low";
+  if (truncated) {
+    reasoning.push("Streaming was interrupted; response is truncated/incomplete.");
+    conf = "low";
+  }
 
   yield { type: "done", answer: { question, answer: full, confidence: conf, citations, reasoning } };
 }

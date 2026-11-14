@@ -91,7 +91,7 @@ const VENDORED_PATH =
 export function getChangedFiles(cwd: string): string[] {
   const out = new Set<string>();
   for (const spec of [["diff", "--name-only", "HEAD"], ["diff", "--cached", "--name-only"], ["ls-files", "--others", "--exclude-standard"]]) {
-    for (const f of git(cwd, spec).split("\n")) if (f.trim()) out.add(f.trim());
+    for (const f of git(cwd, ["-c", "core.quotePath=false", ...spec]).split("\n")) if (f.trim()) out.add(f.trim());
   }
   return [...out].filter((f) => !VENDORED_PATH.test(f));
 }
@@ -100,7 +100,7 @@ export function getChangedFiles(cwd: string): string[] {
  *  Untracked files never appear in `git diff` — and brand-new files are exactly
  *  what coding agents create — so their contents are appended as a pseudo-diff. */
 export function getDiff(cwd: string, files: string[], maxChars = 12_000): string {
-  let d = git(cwd, ["diff", "HEAD", "--", ...files]) || git(cwd, ["diff", "--cached", "--", ...files]);
+  let d = git(cwd, ["-c", "core.quotePath=false", "diff", "HEAD", "--", ...files]) || git(cwd, ["-c", "core.quotePath=false", "diff", "--cached", "--", ...files]);
   const inDiff = new Set([...d.matchAll(/^\+\+\+ b\/(.+)$/gm)].map((m) => m[1]!));
   for (const f of files) {
     if (inDiff.has(f) || d.length >= maxChars) continue;

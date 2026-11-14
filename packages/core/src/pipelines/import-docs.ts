@@ -60,8 +60,10 @@ export function splitDocs(raw: string, fallbackPath = "pasted-doc"): ImportDoc[]
     if (content) docs.push({ path: title ? `${slugify(title)}.md` : fallbackPath, content });
     buf = [];
   };
+  let inFence = false;
   for (const line of lines) {
-    const m = line.match(/^#\s+(.+?)\s*$/);
+    if (/^\s*(```|~~~)/.test(line)) inFence = !inFence;
+    const m = !inFence ? line.match(/^#\s+(.+?)\s*$/) : null;
     if (m) {
       flush();
       title = m[1] ?? "";
@@ -111,10 +113,15 @@ export async function importDocs(
   for (const doc of docs.slice(0, MAX_DOCS)) {
     const content = (doc.content ?? "").slice(0, MAX_CHARS);
     if (!content.trim()) continue;
-    const res = await ai.completeJSON<ExtractedDecision[]>(
-      extractDocPrompt(`### ${doc.path}\n${content}`),
-      { tier: "cheap", maxTokens: 2000 },
-    );
+    let res: ExtractedDecision[] | null;
+    try {
+      res = await ai.completeJSON<ExtractedDecision[]>(
+        extractDocPrompt(`### ${doc.path}\n${content}`),
+        { tier: "cheap", maxTokens: 2000 },
+      );
+    } catch {
+      continue;
+    }
     if (!Array.isArray(res)) continue;
     for (const d of res) {
       if (!d?.decision) continue;

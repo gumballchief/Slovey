@@ -64,6 +64,13 @@ export async function enqueue<N extends JobName>(
 }
 
 export async function stopBoss() {
+  if (_started) {
+    try {
+      await _started;
+    } catch {
+      // start failed; _started was already cleared by getBoss
+    }
+  }
   if (_boss) {
     await _boss.stop({ graceful: true });
     _boss = null;

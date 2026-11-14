@@ -85,6 +85,18 @@ export function unionDecisionPools<T extends { id: string }>(...pools: T[][]): T
   return [...byId.values()];
 }
 
+/** Max total chars sent to the embedding provider for retrieval. */
+export const RETRIEVAL_QUERY_MAX_CHARS = 8000;
+
+/** Build the embedding query with per-field caps so huge diffs cannot overflow provider limits. */
+export function buildRetrievalQueryText(pr: JudgePrInput): string {
+  const title = (pr.title ?? "").slice(0, 500);
+  const body = (pr.body ?? "").slice(0, 2000);
+  const files = (pr.changedFiles ?? []).join(" ").slice(0, 2000);
+  const diff = (pr.diffSummary ?? "").slice(0, 4000);
+  return [title, body, files, diff].filter(Boolean).join("\n").slice(0, RETRIEVAL_QUERY_MAX_CHARS);
+}
+
 /**
  * Smarter retrieval: categorize → query-embed (title+body+paths+diff) → pgvector
  * cosine top-K over the repo's ACTIVE decisions (human-approved + AI-proposed),
@@ -99,14 +111,7 @@ export async function retrieveDecisions(
   const topK = opts.topK ?? 8;
   const pool = opts.pool ?? Math.max(topK * 3, 24);
 
-  const queryText = [
-    pr.title,
-    pr.body,
-    (pr.changedFiles ?? []).join(" "),
-    pr.diffSummary ?? "",
-  ]
-    .filter(Boolean)
-    .join("\n");
+  const queryText = buildRetrievalQueryText(pr);
 
   const vec = await getEmbeddings().embedOne(queryText);
   const lit = toVectorLiteral(vec);

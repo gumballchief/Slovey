@@ -169,9 +169,12 @@ export class GeminiProvider implements AIProvider {
           }
         }
       }
-    } catch {
-      if (!emitted) yield await this.call(prompt, opts, false);
-      return;
+    } catch (err) {
+      if (!emitted) {
+        yield await this.call(prompt, opts, false);
+        return;
+      }
+      throw err;
     }
     // Stream ended with no text at all → fall back so the user still gets an answer.
     if (!emitted) yield await this.call(prompt, opts, false);

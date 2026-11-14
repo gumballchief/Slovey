@@ -43,6 +43,8 @@ export async function recordFeedback(params: RecordFeedbackParams) {
     if (c) {
       prCheckId = c.id;
       if (!decisionId) decisionId = c.matched ?? null;
+    } else {
+      throw new Error("pr check not found for pr number");
     }
   }
 
@@ -57,11 +59,12 @@ export async function recordFeedback(params: RecordFeedbackParams) {
 
   if (prCheckId) {
     const [c2] = await db
-      .select({ id: prChecks.id })
+      .select({ id: prChecks.id, matched: prChecks.matchedDecisionId })
       .from(prChecks)
       .where(and(eq(prChecks.id, prCheckId), eq(prChecks.repoId, params.repoId)))
       .limit(1);
     if (!c2) throw new Error("pr check does not belong to repo");
+    if (!decisionId) decisionId = c2.matched ?? null;
   }
 
   const [row] = await db

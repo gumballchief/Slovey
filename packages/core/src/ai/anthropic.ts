@@ -90,10 +90,15 @@ export class AnthropicProvider implements AIProvider {
   async completeJSON<T>(prompt: string, opts: AICompleteOptions = {}): Promise<T | null> {
     // Re-issue the network only when the first call succeeded but returned
     // unparseable JSON; a thrown error returns null so callers fall back.
+    // Share one budget across both attempts so two slow/invalid responses
+    // can't block the gate for twice the intended deadline.
+    const deadline = Date.now() + budgetMs(opts);
     for (let attempt = 1; attempt <= 2; attempt++) {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) break;
       let text: string;
       try {
-        text = await this.complete(prompt, opts);
+        text = await this.complete(prompt, { ...opts, timeoutMs: remaining });
       } catch {
         return null;
       }

@@ -61,6 +61,7 @@ export async function upsertDecisions(
     const evidence = Array.isArray(raw.evidence) ? raw.evidence : [];
     const examples = Array.isArray(raw.examples) ? raw.examples : [];
     const key = raw.decision.trim().toLowerCase();
+    if (!key) continue;
     const existing = merged.get(key);
     if (existing) {
       existing.d.evidence = uniq([...existing.d.evidence, ...evidence]);
@@ -70,6 +71,7 @@ export async function upsertDecisions(
         source: item.source,
         d: {
           ...raw,
+          decision: raw.decision.trim(),
           evidence: [...evidence],
           examples: [...examples],
         },
@@ -100,12 +102,24 @@ export async function upsertDecisions(
       // A decision a human wrote or confirmed keeps its wording: a later PR that
       // reads similar (possibly an attacker's) may add evidence, never rewrite it.
       const locked = near.review === "confirmed" || near.source === "manual";
+      const scope = locked
+        ? null
+        : extractScope([d.decision, d.why ?? "", (d.examples ?? []).join(" ")].join("\n"));
       await db
         .update(decisions)
         .set({
-          ...(locked
+          ...(locked || !scope
             ? {}
-            : { decision: d.decision, why: d.why ?? "", category: d.category ?? null, embedding: vec }),
+            : {
+                decision: d.decision,
+                why: d.why ?? "",
+                category: d.category ?? null,
+                embedding: vec,
+                domains: scope.domains ?? [],
+                services: scope.services ?? [],
+                languages: scope.languages ?? [],
+                frameworks: scope.frameworks ?? [],
+              }),
           examples: uniq([...(near.examples ?? []), ...(d.examples ?? [])]),
           evidence: uniq([...(near.evidence ?? []), ...d.evidence]),
           updatedAt: new Date(),

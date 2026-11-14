@@ -331,8 +331,7 @@ async function buildPlanningContext(repoId: string | null, config: PreflightConf
     .select({ id: decisionsTable.id, decision: decisionsTable.decision, evidence: decisionsTable.evidence, status: decisionsTable.status })
     .from(decisionsTable)
     .where(and(eq(decisionsTable.repoId, repoId), inArray(decisionsTable.status, ["approved", "proposed", "rejected"])))
-    .limit(120)
-    .catch(() => [] as { id: string; decision: string; evidence: string[] | null; status: string }[]);
+    .limit(120);
   const rejected = rows.filter((r) => r.status === "rejected");
   return {
     activeDecisions: rows.filter((r) => r.status !== "rejected").map((r) => ({ id: r.id, decision: r.decision, evidence: r.evidence ?? [] })),
@@ -358,10 +357,14 @@ export function evaluateLoop(input: {
   currentSignature: string;
   maxAttempts: number;
 }): { attempt: number; repeated: boolean; humanReviewRequired: boolean } {
-  const base = input.priorRunStatus === "fail" ? input.priorAttempt : 0;
+  const priorFailed =
+    input.priorRunStatus === "fail" ||
+    input.priorRunStatus === "unverified" ||
+    input.priorRunStatus === "error";
+  const base = priorFailed ? input.priorAttempt : 0;
   const attempt = base + 1;
   const repeated =
-    input.currentStatus === "fail" && input.priorRunStatus === "fail" && input.priorSignature === input.currentSignature;
+    input.currentStatus === "fail" && priorFailed && input.priorSignature === input.currentSignature;
   const humanReviewRequired = input.currentStatus === "fail" && attempt >= input.maxAttempts;
   return { attempt, repeated, humanReviewRequired };
 }

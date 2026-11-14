@@ -9,6 +9,10 @@ interface SlackChannel {
 interface SlackMessage {
   text?: string;
   subtype?: string;
+  ts?: string;
+  user?: string;
+  thread_ts?: string;
+  reply_count?: number;
 }
 
 /**
@@ -54,11 +58,37 @@ export class SlackConnector implements ConnectorClient {
           channel: ch.id,
           limit: String(perChannel),
         });
-        const text = (hist.messages ?? [])
+        const messages = [...(hist.messages ?? [])].reverse();
+        const lines = messages
           .filter((m) => m.text && !m.subtype)
           .map((m) => m.text!.trim())
-          .filter(Boolean)
-          .join("\n");
+          .filter(Boolean);
+        for (const parent of messages) {
+          if (!parent.ts) continue;
+          const isThreadParent =
+            (parent.reply_count !== undefined && parent.reply_count > 0) ||
+            parent.thread_ts !== undefined;
+          if (!isThreadParent) continue;
+          try {
+            const thread = await this.call<{ messages?: SlackMessage[] }>(
+              "conversations.replies",
+              {
+                channel: ch.id,
+                ts: parent.ts,
+                limit: String(perChannel),
+              },
+            );
+            for (const reply of thread.messages ?? []) {
+              if (reply.ts === parent.ts) continue;
+              if (!reply.text || reply.subtype) continue;
+              const t = reply.text.trim();
+              if (t) lines.push(t);
+            }
+          } catch {
+            // skip threads the bot can't read
+          }
+        }
+        const text = lines.join("\n");
         if (!text) continue;
         docs.push({
           id: ch.id,
@@ -66,8 +96,10 @@ export class SlackConnector implements ConnectorClient {
           content: text,
           url: `slack://channel/${ch.id}`,
         });
-      } catch {
-        // skip channels the bot isn't in
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg.includes("channel_not_found") || msg.includes("not_in_channel")) continue;
+        throw e;
       }
     }
     return docs;

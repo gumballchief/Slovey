@@ -77,6 +77,13 @@ exit 0
 `;
   for (const [name, args] of [["pre-commit", "--mode commit"], ["pre-push", "--mode push"]] as const) {
     const p = resolve(dir, name);
+    if (existsSync(p)) {
+      const existing = readFileSync(p, "utf8");
+      if (!existing.includes(HOOK_MARKER) && !existing.includes(LEGACY_HOOK_MARKER)) {
+        console.error(`skipped ${name}: existing hook not installed by Slovey \u2014 merge manually (see ${p})`);
+        continue;
+      }
+    }
     writeFileSync(p, hook(args), { mode: 0o755 });
     try {
       chmodSync(p, 0o755);

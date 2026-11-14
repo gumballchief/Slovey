@@ -119,6 +119,18 @@ function postingAllowed(fullName: string): boolean {
 }
 
 /**
+ * Whether a concurrent/second check result may overwrite an existing row.
+ * Only a transient "skipped" row may be replaced; a recorded clear/conflict
+ * result is terminal and must never be overwritten (first writer wins).
+ */
+export function shouldOverwriteExistingCheck(
+  existingVerdict: CheckPrResult["verdict"],
+  _newVerdict: CheckPrResult["verdict"],
+): boolean {
+  return existingVerdict === "skipped";
+}
+
+/**
  * The check pipeline. Retrieves → judges → enforces confidence floor + citation
  * guardrail → posts a single cited comment (or status check) → records the result.
  * Idempotent on (repo, pr, head sha); never double-comments.
@@ -360,6 +372,7 @@ export async function checkPr(params: CheckPrParams): Promise<CheckPrResult> {
     .onConflictDoUpdate({
       target: [prChecks.repoId, prChecks.prNumber, prChecks.headSha],
       set: { verdict, matchedDecisionId, confidence, severity, explanation, suggestedFix, githubCommentId: commentId, posted },
+      where: eq(prChecks.verdict, "skipped"),
     })
     .returning({ id: prChecks.id });
 

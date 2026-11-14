@@ -58,7 +58,12 @@ export interface ApiRepo {
 }
 
 // ── mappers ──
-function toApiDecision(d: typeof decisions.$inferSelect): ApiDecision {
+function toApiDecision(
+  d: Pick<
+    typeof decisions.$inferSelect,
+    "id" | "repoId" | "decision" | "why" | "examples" | "evidence" | "source" | "status" | "createdAt"
+  >,
+): ApiDecision {
   return {
     id: d.id,
     decision: d.decision,
@@ -317,10 +322,21 @@ export async function listDecisions(
     conds.push(or(ilike(decisions.decision, q), ilike(decisions.why, q))!);
   }
   const rows = await db
-    .select()
+    .select({
+      id: decisions.id,
+      repoId: decisions.repoId,
+      decision: decisions.decision,
+      why: decisions.why,
+      examples: decisions.examples,
+      evidence: decisions.evidence,
+      source: decisions.source,
+      status: decisions.status,
+      createdAt: decisions.createdAt,
+    })
     .from(decisions)
     .where(and(...conds))
-    .orderBy(desc(decisions.createdAt));
+    .orderBy(desc(decisions.createdAt))
+    .limit(1000);
   return rows.map(toApiDecision);
 }
 
@@ -946,11 +962,21 @@ export async function dashboardFeedback(
 ) {
   await requireRepoScope(repoId, scope);
   const db = getDb();
+  let prCheckId: string | null = null;
+  if (input.prNumber != null) {
+    const [check] = await db
+      .select({ id: prChecks.id })
+      .from(prChecks)
+      .where(and(eq(prChecks.repoId, repoId), eq(prChecks.prNumber, input.prNumber)))
+      .orderBy(desc(prChecks.checkedAt))
+      .limit(1);
+    prCheckId = check?.id ?? null;
+  }
   const [row] = await db
     .insert(feedbackTable)
     .values({
       repoId,
-      prCheckId: null,
+      prCheckId,
       decisionId: input.decisionId ?? null,
       action: input.action,
       byUser: input.byUser ?? null,

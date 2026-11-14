@@ -42,18 +42,24 @@ export async function saveConnector(
   if (!isConnectorType(type)) throw new Error(`unsupported connector type: ${type}`);
   if (!token?.trim()) throw new Error("token is required");
   const db = getDb();
+  const encryptedToken = encryptSecret(token.trim());
   const [row] = await db
     .insert(connectors)
     .values({
       repoId,
       type: type as ConnectorType,
-      encryptedToken: encryptSecret(token.trim()),
+      encryptedToken,
       config: config ?? {},
       status: "connected",
     })
     .onConflictDoUpdate({
       target: [connectors.repoId, connectors.type],
-      set: { encryptedToken: encryptSecret(token.trim()), config: config ?? {}, status: "connected", lastError: null },
+      set: {
+        encryptedToken,
+        ...(config === undefined ? {} : { config }),
+        status: "connected",
+        lastError: null,
+      },
     })
     .returning();
   if (!row) throw new Error("failed to save connector");

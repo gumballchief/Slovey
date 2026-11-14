@@ -24,6 +24,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     if (!q) throw new HttpError(400, "q is required");
 
     const encoder = new TextEncoder();
+    let onAbort: (() => void) | undefined;
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
         let closed = false;

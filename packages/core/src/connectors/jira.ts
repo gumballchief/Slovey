@@ -51,12 +51,20 @@ export class JiraConnector implements ConnectorClient {
     const baseUrl = parsed.origin;
     const auth = Buffer.from(`${config.email}:${this.token}`).toString("base64");
     const max = Math.min(config.limit ?? 50, 100);
-    const url = `${baseUrl}/rest/api/3/search?jql=${encodeURIComponent(
-      "order by updated DESC",
-    )}&maxResults=${max}&fields=summary,description,comment`;
+    const url = `${baseUrl}/rest/api/3/search/jql`;
 
     const res = await fetch(url, {
-      headers: { authorization: `Basic ${auth}`, accept: "application/json" },
+      method: "POST",
+      headers: {
+        authorization: `Basic ${auth}`,
+        accept: "application/json",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        jql: "order by updated DESC",
+        maxResults: max,
+        fields: ["summary", "description", "comment"],
+      }),
       redirect: "error",
       signal: AbortSignal.timeout(10_000),
     });

@@ -73,8 +73,10 @@ export async function syncInstallation(installationId: number) {
         target: repos.fullName,
         set: {
           installationId: inst.id,
+          githubRepoId: r.id,
           owner: r.owner.login,
           ownerGithubId: r.owner.id,
+          name: r.name,
           defaultBranch: r.default_branch ?? "main",
           isPrivate: r.private,
         },
@@ -84,6 +86,9 @@ export async function syncInstallation(installationId: number) {
       await db.insert(repoSettings).values({ repoId: repoRow.id }).onConflictDoNothing();
     }
   }
+  // Repos this installation no longer sees are deliberately NOT deleted here:
+  // deleting a repo cascades to its learned decisions, and a single empty or
+  // partial GitHub response must never wipe a customer's memory.
   await logAudit({ orgId, action: "installation.synced", actorUser: "system", metadata: { installationId, repos: allRepos.length } });
   return inst;
 }

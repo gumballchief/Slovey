@@ -27,6 +27,16 @@ function normalizeEvidence(ev: unknown): string[] {
   return [];
 }
 
+/** Parse numeric PR numbers (e.g. 29499 from "PR #29499") for the citation guardrail. */
+export function evidencePrNumbers(evidence: string[]): number[] {
+  const out: number[] = [];
+  for (const ev of evidence) {
+    const m = /#(\d+)/.exec(ev);
+    if (m) out.push(Number(m[1]));
+  }
+  return out;
+}
+
 export interface ExtractParams {
   repoId: string;
   installationId: number;
@@ -117,7 +127,7 @@ export async function runExtract(params: ExtractParams): Promise<ExtractResult> 
         .filter((d) => d.decision && d.evidence.length > 0);
       // Re-apply the batch-citation guardrail: consolidation must not invent
       // citations (e.g. "PR #999999") or re-ground decisions in other PRs.
-      const groundedIds = grounded.flatMap((d) => d.evidence);
+      const groundedIds = grounded.flatMap((d) => evidencePrNumbers(d.evidence));
       consolidated = filterExtractedDecisionsToBatch(cleaned, groundedIds);
     }
   }

@@ -89,11 +89,21 @@ export async function runRemotePreflight(repoId: string, payload: RemotePrefligh
     });
   }
 
-  // secret-scan on supplied contents.
-  if (config.secretScan.enabled && files.length) {
+  // secret-scan on supplied contents; when contents are unavailable (large,
+  // binary, or deleted files omit files[]) fall back to scanning the diff so a
+  // secret visible only in the diff cannot bypass the gate. With neither,
+  // report skipped instead of omitting the check.
+  if (config.secretScan.enabled) {
     const start = Date.now();
-    const errors = scanForSecrets(files);
-    checks.push({ name: "secret-scan", agent: "security", command: "", durationMs: Date.now() - start, blocking: true, status: errors.length ? "fail" : "pass", errors });
+    if (files.length) {
+      const errors = scanForSecrets(files);
+      checks.push({ name: "secret-scan", agent: "security", command: "", durationMs: Date.now() - start, blocking: true, status: errors.length ? "fail" : "pass", errors });
+    } else if (diff.trim()) {
+      const errors = scanForSecrets([{ path: "diff.patch", content: diff }]);
+      checks.push({ name: "secret-scan", agent: "security", command: "", durationMs: Date.now() - start, blocking: true, status: errors.length ? "fail" : "pass", errors });
+    } else {
+      checks.push({ name: "secret-scan", agent: "security", command: "", durationMs: 0, blocking: true, status: "skipped", errors: [], skippedReason: "No file contents or diff supplied \u2014 secret scan had no coverage." });
+    }
   }
 
   // AI security pass on the supplied diff.
@@ -109,16 +119,23 @@ export async function runRemotePreflight(repoId: string, payload: RemotePrefligh
     ...(config.architectureChecks.deriveFromDecisions ? rulesFromRejectedDecisions(rejected) : []),
   ];
   const arch = architectureCheckContents(files, changed, rules);
-  checks.push({ ...arch, blocking: true });
+  if (!files.length && rules.some((r) => r.type !== "forbidden-path") && arch.status !== "fail") {
+    checks.push({ ...arch, blocking: true, status: "skipped", skippedReason: "No file contents supplied \u2014 content rules had no coverage; supply files[] for full enforcement." });
+  } else {
+    checks.push({ ...arch, blocking: true });
+  }
 
   // decision-check on the supplied diff.
   const startDec = Date.now();
   const decisionResult = await runDecisionCheck(repoId, diff, changed);
   const { blocking: violations, warnings: overrideWarnings } = applyOverrides(decisionResult.violations, overrides);
   const note = decisionResult.note;
+  const blockingViolations = violations.filter(
+    (v) => !config.decisionChecks.blockOnHighConfidence || v.confidence >= config.decisionChecks.minimumBlockingConfidence,
+  );
   checks.push({
-    name: "decision-check", command: "", durationMs: Date.now() - startDec, blocking: true,
-    status: violations.length ? "fail" : "pass", errors: [],
+    name: "decision-check", command: "", durationMs: Date.now() - startDec, blocking: blockingViolations.length > 0,
+    status: blockingViolations.length ? "fail" : "pass", errors: [],
     skippedReason: note && violations.length === 0 ? note : undefined,
   });
 
@@ -127,9 +144,6 @@ export async function runRemotePreflight(repoId: string, payload: RemotePrefligh
   const seen = new Set<string>();
   fixInstructions = fixInstructions.filter((f) => (seen.has(f.id) ? false : (seen.add(f.id), true)));
 
-  const blockingViolations = violations.filter(
-    (v) => !config.decisionChecks.blockOnHighConfidence || v.confidence >= config.decisionChecks.minimumBlockingConfidence,
-  );
   const blocked = checks.some((c) => c.blocking && c.status === "fail") || blockingViolations.length > 0;
   const anyFailure = checks.some((c) => c.status === "fail") || violations.length > 0;
   // Shared resolver — see engine.resolveStatus. The hosted path skips command checks, so

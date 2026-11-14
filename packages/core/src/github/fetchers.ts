@@ -116,12 +116,22 @@ export async function fetchDocs(
   opts: { maxFiles?: number } = {},
 ): Promise<DocFile[]> {
   const maxFiles = opts.maxFiles ?? 40;
-  const tree = await octokit.rest.git.getTree({
-    owner,
-    repo,
-    tree_sha: defaultBranch,
-    recursive: "1",
-  });
+  let tree: Awaited<ReturnType<typeof octokit.rest.git.getTree>>;
+  try {
+    tree = await octokit.rest.git.getTree({
+      owner,
+      repo,
+      tree_sha: defaultBranch,
+      recursive: "1",
+    });
+  } catch (err) {
+    const status =
+      typeof err === "object" && err !== null && "status" in err
+        ? (err as { status?: unknown }).status
+        : undefined;
+    if (status === 404 || status === 409) return [];
+    throw err;
+  }
   const candidates = tree.data.tree
     .filter((n) => n.type === "blob" && n.path && classifyDoc(n.path))
     .slice(0, maxFiles);
@@ -196,7 +206,7 @@ export async function fetchPrForCheck(
     if (f.patch == null || rawPatch.length > PER_FILE_PATCH_CAP) patchTruncated = true;
     const entry = `${header}${truncate(rawPatch, PER_FILE_PATCH_CAP)}`;
     const sep = parts.length > 0 ? 2 : 0;
-    if (used + sep + entry.length > DIFF_SUMMARY_CAP) continue;
+    if (parts.length > 0 && used + sep + entry.length > DIFF_SUMMARY_CAP) continue;
     parts.push(entry);
     used += sep + entry.length;
   }

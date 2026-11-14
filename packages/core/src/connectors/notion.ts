@@ -64,17 +64,32 @@ export class NotionConnector implements ConnectorClient {
 
     const docs: ConnectorDoc[] = [];
     for (const page of pages) {
+      const allBlocks: Array<Record<string, unknown>> = [];
       let content = "";
       try {
-        const blocksRes = await fetch(`${BASE}/blocks/${page.id}/children?page_size=100`, {
-          headers: this.headers(),
-        });
-        if (blocksRes.ok) {
-          const blocks = (await blocksRes.json()) as { results?: Array<Record<string, unknown>> };
-          content = (blocks.results ?? []).map(blockText).filter(Boolean).join("\n");
-        }
+        let cursor: string | undefined;
+        do {
+          const url =
+            `${BASE}/blocks/${page.id}/children?page_size=100` +
+            (cursor ? `&start_cursor=${encodeURIComponent(cursor)}` : "");
+          const blocksRes = await fetch(url, {
+            headers: this.headers(),
+          });
+          if (!blocksRes.ok) break;
+          const blocks = (await blocksRes.json()) as {
+            results?: Array<Record<string, unknown>>;
+            has_more?: boolean;
+            next_cursor?: string | null;
+          };
+          allBlocks.push(...(blocks.results ?? []));
+          cursor = blocks.has_more ? (blocks.next_cursor ?? undefined) : undefined;
+        } while (cursor);
+        content = allBlocks.map(blockText).filter(Boolean).join("\n");
       } catch {
         // a single page's blocks failing shouldn't abort the whole sync
+        if (!content && allBlocks.length > 0) {
+          content = allBlocks.map(blockText).filter(Boolean).join("\n");
+        }
       }
       docs.push({ id: page.id, title: pageTitle(page), content, url: page.url });
     }

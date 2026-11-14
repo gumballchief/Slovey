@@ -119,8 +119,13 @@ export async function pollReactionDismissals(params: {
       pull_number: params.prNumber,
     });
     prAuthor = pr.user?.login ?? null;
-  } catch {
-    prAuthor = null;
+  } catch (err) {
+    log.warn("failed to fetch PR author; skipping reaction dismissals", {
+      repo: `${params.owner}/${params.name}`,
+      pr: params.prNumber,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return { recorded: 0 };
   }
   for (const user of downvoters) {
     if (prAuthor && user.toLowerCase() === prAuthor.toLowerCase()) continue;
