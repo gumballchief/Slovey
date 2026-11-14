@@ -20,6 +20,7 @@ vi.mock("../src/services/orgs", () => ({
   ensureOrg: vi.fn(),
   ensureOwnerMembership: vi.fn(),
   getUserIdByGithubId: vi.fn(),
+  userOrgRole: vi.fn(),
 }));
 
 import { getDb } from "@company-brain/db";
@@ -55,6 +56,8 @@ describe("syncInstallation pagination (R3-302)", () => {
 
     const insertedFullNames: string[] = [];
     const fakeDb = {
+      select: () => ({ from: () => ({ where: () => ({ limit: async () => [] }) }) }),
+      update: () => ({ set: () => ({ where: async () => undefined }) }),
       insert: (table: unknown) => ({
         values: (vals: Record<string, unknown>) => ({
           onConflictDoUpdate: (_opts: unknown) => ({
@@ -74,7 +77,7 @@ describe("syncInstallation pagination (R3-302)", () => {
     vi.mocked(ensureOrg).mockResolvedValue("org-1" as never);
     vi.mocked(getApp).mockReturnValue({
       octokit: {
-        request: async () => ({ data: { account: { login: "acme", type: "Organization" } } }),
+        request: async () => ({ data: { account: { login: "acme", id: 1, type: "Organization" } } }),
       },
     } as never);
     vi.mocked(getInstallationOctokit).mockResolvedValue({

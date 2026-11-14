@@ -1,18 +1,108 @@
 import { getDb, installations, memberships, organizations, users } from "@company-brain/db";
-import { and, eq, notInArray } from "drizzle-orm";
+import { and, eq, isNull, notInArray } from "drizzle-orm";
 
 export type Role = "owner" | "admin" | "member" | "viewer";
 
-/** Create/find the organization for an installation account (slug = account login). */
-export async function ensureOrg(accountLogin: string): Promise<string> {
+/**
+ * Create/find the organization for an installation's GitHub account.
+ *
+ * The org is identified by the account's immutable GitHub id, never by its
+ * login: a login can be renamed and then registered by someone else, and
+ * matching on it would hand the new owner the old org (its members, plan and
+ * decisions). The slug is the login, kept for display only.
+ *
+ * Orgs created before github_account_id existed have it null. One of those is
+ * adopted only when this installation already points at it (an installation
+ * never changes account, so that covers renames), or when `ownsLegacyOrg`
+ * confirms the account really is the one the org was made for. Otherwise this
+ * account gets a new org and the old one is left alone.
+ */
+export async function ensureOrg(
+  account: { id: number | null; login: string },
+  opts: { linkedOrgId: string | null; ownsLegacyOrg: (orgId: string) => Promise<boolean> },
+): Promise<string> {
   const db = getDb();
+  const login = account.login;
+  const slug = login.toLowerCase();
+
+  if (account.id == null) {
+    // GitHub always sends the account id; without it there is no safe identity,
+    // so never attach to an existing org.
+    throw new Error("ensureOrg: GitHub account id missing");
+  }
+  const accountId = account.id;
+
+  // 1. Already linked by id. The login may have changed, so refresh the name
+  // and, when nobody else holds it, the slug.
+  const [byId] = await db
+    .select({ id: organizations.id, slug: organizations.slug })
+    .from(organizations)
+    .where(eq(organizations.githubAccountId, accountId))
+    .limit(1);
+  if (byId) {
+    await db.update(organizations).set({ name: login }).where(eq(organizations.id, byId.id));
+    if (byId.slug !== slug) await trySetSlug(byId.id, slug);
+    return byId.id;
+  }
+
+  // 2. The legacy org this same installation already belongs to.
+  if (opts.linkedOrgId) {
+    const claimed = await claimLegacyOrg(opts.linkedOrgId, accountId, login);
+    if (claimed) {
+      await trySetSlug(claimed, slug);
+      return claimed;
+    }
+  }
+
+  // 3. A legacy org holding this login's slug, if the account proves it's theirs.
+  const [bySlug] = await db
+    .select({ id: organizations.id, githubAccountId: organizations.githubAccountId })
+    .from(organizations)
+    .where(eq(organizations.slug, slug))
+    .limit(1);
+  if (bySlug && bySlug.githubAccountId == null && (await opts.ownsLegacyOrg(bySlug.id))) {
+    const claimed = await claimLegacyOrg(bySlug.id, accountId, login);
+    if (claimed) return claimed;
+    // Lost a race to a concurrent sync of the same account: fall through and
+    // pick up the row it linked.
+  }
+
+  // 4. A new account, or a reused login whose old org belongs to someone else:
+  // a fresh org. The slug is taken in that second case, so add the id.
   const [org] = await db
     .insert(organizations)
-    .values({ name: accountLogin, slug: accountLogin.toLowerCase() })
-    .onConflictDoUpdate({ target: organizations.slug, set: { name: accountLogin } })
-    .returning();
+    .values({ name: login, slug: bySlug ? `${slug}-${accountId}` : slug, githubAccountId: accountId })
+    .onConflictDoUpdate({ target: organizations.githubAccountId, set: { name: login } })
+    .returning({ id: organizations.id });
   if (!org) throw new Error("ensureOrg: failed to upsert organization");
   return org.id;
+}
+
+/** Link a legacy org (no account id yet) to this account. Null if it already has one. */
+async function claimLegacyOrg(orgId: string, accountId: number, login: string): Promise<string | null> {
+  const db = getDb();
+  const [claimed] = await db
+    .update(organizations)
+    .set({ githubAccountId: accountId, name: login })
+    .where(and(eq(organizations.id, orgId), isNull(organizations.githubAccountId)))
+    .returning({ id: organizations.id });
+  return claimed?.id ?? null;
+}
+
+/** Point an org's slug at its account's current login, unless another org has it. */
+async function trySetSlug(orgId: string, slug: string): Promise<void> {
+  const db = getDb();
+  const [taken] = await db
+    .select({ id: organizations.id })
+    .from(organizations)
+    .where(eq(organizations.slug, slug))
+    .limit(1);
+  if (taken) return;
+  try {
+    await db.update(organizations).set({ slug }).where(eq(organizations.id, orgId));
+  } catch {
+    // Another org took the slug in between. It is display only; keep the old one.
+  }
 }
 
 /**
@@ -144,14 +234,24 @@ export async function linkUserMemberships(
   const accessibleOrgIds: string[] = [];
   for (const inst of accessible) {
     const [row] = await db
-      .select({ orgId: installations.orgId, accountLogin: installations.accountLogin })
+      .select({
+        orgId: installations.orgId,
+        accountLogin: installations.accountLogin,
+        orgGithubId: organizations.githubAccountId,
+      })
       .from(installations)
+      .leftJoin(organizations, eq(installations.orgId, organizations.id))
       .where(eq(installations.githubInstallationId, inst.id))
       .limit(1);
     if (!row?.orgId) continue;
     accessibleOrgIds.push(row.orgId);
-    const role: Role =
-      row.accountLogin?.toLowerCase() === login.toLowerCase() ? "owner" : "member";
+    // Owner = the account the org mirrors, matched by immutable id. Orgs not
+    // yet linked to an id fall back to the login match they always used.
+    const isAccountOwner =
+      row.orgGithubId != null
+        ? row.orgGithubId === githubId
+        : row.accountLogin?.toLowerCase() === login.toLowerCase();
+    const role: Role = isAccountOwner ? "owner" : "member";
     await db
       .insert(memberships)
       .values({ orgId: row.orgId, userId, role })

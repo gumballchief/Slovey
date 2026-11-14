@@ -1,8 +1,51 @@
 import { getDb, installations, repos, repoSettings } from "@company-brain/db";
-import { eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, ne, sql } from "drizzle-orm";
 import { getApp, getInstallationOctokit } from "../github/app";
 import { logAudit } from "./audit";
-import { ensureOrg, ensureOwnerMembership, getUserIdByGithubId } from "./orgs";
+import { ensureOrg, ensureOwnerMembership, getUserIdByGithubId, userOrgRole } from "./orgs";
+
+/**
+ * Whether a GitHub account really is the one an org made before
+ * github_account_id existed was created for. Such an org only has a login
+ * (its slug), and a login can be re-registered by someone else after a rename.
+ */
+async function accountOwnsLegacyOrg(
+  orgId: string,
+  installationId: number,
+  account: { id: number; type: "User" | "Organization" },
+): Promise<boolean> {
+  const db = getDb();
+  const linked = await db
+    .select({ githubInstallationId: installations.githubInstallationId })
+    .from(installations)
+    .where(eq(installations.orgId, orgId));
+  // Set up by hand before any install (e.g. a plan granted in advance): there
+  // is nothing in it to take over, so the login is enough, as before.
+  if (linked.length === 0) return true;
+  // The same installation syncing again. An installation never changes account.
+  if (linked.some((l) => l.githubInstallationId === installationId)) return true;
+
+  // Ask GitHub who owns the org's other installations.
+  const app = getApp();
+  for (const l of linked) {
+    try {
+      const res = await app.octokit.request("GET /app/installations/{installation_id}", {
+        installation_id: l.githubInstallationId,
+      });
+      const ownerId = (res.data.account as { id?: number } | null)?.id;
+      if (typeof ownerId === "number") return ownerId === account.id;
+    } catch {
+      // Uninstalled since: this one can't tell us anything.
+    }
+  }
+  // Every earlier installation is gone. A personal account can still prove it:
+  // its own user is already this org's owner here.
+  if (account.type === "User") {
+    const userId = await getUserIdByGithubId(account.id);
+    if (userId && (await userOrgRole(userId, orgId)) === "owner") return true;
+  }
+  return false;
+}
 
 /**
  * Upsert an installation and all repos it can access, with default settings.
@@ -23,8 +66,24 @@ export async function syncInstallation(installationId: number) {
     | "User"
     | "Organization";
 
-  // Every installation belongs to an organization (the account it's installed on).
-  const orgId = await ensureOrg(accountLogin);
+  // Every installation belongs to an organization (the account it's installed
+  // on), identified by the account's immutable GitHub id.
+  const accountId = typeof account?.id === "number" ? account.id : null;
+  const [existing] = await db
+    .select({ orgId: installations.orgId })
+    .from(installations)
+    .where(eq(installations.githubInstallationId, installationId))
+    .limit(1);
+  const orgId = await ensureOrg(
+    { id: accountId, login: accountLogin },
+    {
+      linkedOrgId: existing?.orgId ?? null,
+      ownsLegacyOrg: (legacyOrgId) =>
+        accountId == null
+          ? Promise.resolve(false)
+          : accountOwnsLegacyOrg(legacyOrgId, installationId, { id: accountId, type: accountType }),
+    },
+  );
 
   // A personal-account installation has exactly one member — the account owner —
   // so link them as owner now, rather than waiting for their next GitHub sign-in
@@ -57,6 +116,16 @@ export async function syncInstallation(installationId: number) {
   }
 
   for (const r of allRepos) {
+    // A repo is identified by GitHub's repo id, which survives renames and
+    // transfers. A different row still holding this full name is stale (GitHub
+    // never gives two repos one name at once: that repo was renamed, moved or
+    // deleted), so move it aside rather than overwrite it. Another repo must
+    // never inherit its decisions; if it still exists, its own next sync gives
+    // it its current name.
+    await db
+      .update(repos)
+      .set({ fullName: sql`${repos.fullName} || ' (moved ' || ${repos.githubRepoId}::text || ')'` })
+      .where(and(eq(repos.fullName, r.full_name), ne(repos.githubRepoId, r.id)));
     const [repoRow] = await db
       .insert(repos)
       .values({
@@ -70,13 +139,13 @@ export async function syncInstallation(installationId: number) {
         isPrivate: r.private,
       })
       .onConflictDoUpdate({
-        target: repos.fullName,
+        target: repos.githubRepoId,
         set: {
           installationId: inst.id,
-          githubRepoId: r.id,
           owner: r.owner.login,
           ownerGithubId: r.owner.id,
           name: r.name,
+          fullName: r.full_name,
           defaultBranch: r.default_branch ?? "main",
           isPrivate: r.private,
         },

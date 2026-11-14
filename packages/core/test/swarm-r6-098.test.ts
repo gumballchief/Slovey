@@ -6,8 +6,8 @@ import { ensureOrg } from "../src/services/orgs";
 
 vi.mock("@company-brain/db", () => ({
   getDb: vi.fn(),
-  installations: { githubInstallationId: "githubInstallationId", id: "id" },
-  repos: { fullName: "fullName", id: "id" },
+  installations: { githubInstallationId: "githubInstallationId", id: "id", orgId: "orgId" },
+  repos: { fullName: "fullName", id: "id", githubRepoId: "githubRepoId" },
   repoSettings: {},
 }));
 
@@ -20,16 +20,20 @@ vi.mock("../src/services/orgs", () => ({
   ensureOrg: vi.fn(),
   ensureOwnerMembership: vi.fn(),
   getUserIdByGithubId: vi.fn(),
+  userOrgRole: vi.fn(),
 }));
 
 vi.mock("../src/services/audit", () => ({
   logAudit: vi.fn(),
 }));
 
-const hoisted = vi.hoisted(() => ({ repoSet: null as Record<string, unknown> | null }));
+const hoisted = vi.hoisted(() => ({
+  repoConflict: null as { target: unknown; set: Record<string, unknown> } | null,
+  staleMoves: 0,
+}));
 
-describe("R6-098 recreated repo keeps stale GitHub ID", () => {
-  it("refreshes githubRepoId and name on fullName conflict", async () => {
+describe("R6-098 / R10-082 repo identity is GitHub's repo id", () => {
+  it("upserts on githubRepoId and refreshes the name, moving a stale holder of the name aside", async () => {
     const fakeRepo = {
       id: 999,
       owner: { login: "acme", id: 42 },
@@ -58,13 +62,21 @@ describe("R6-098 recreated repo keeps stale GitHub ID", () => {
     } as unknown as Awaited<ReturnType<typeof getInstallationOctokit>>);
 
     const fakeDb = {
+      select: () => ({ from: () => ({ where: () => ({ limit: async () => [] }) }) }),
+      update: () => ({
+        set: () => ({
+          where: async () => {
+            hoisted.staleMoves += 1;
+          },
+        }),
+      }),
       insert: (table: unknown) => ({
-        values: (vals: unknown) => ({
-          onConflictDoUpdate: (conf: { set: Record<string, unknown> }) => ({
+        values: () => ({
+          onConflictDoUpdate: (conf: { target: unknown; set: Record<string, unknown> }) => ({
             returning: async () => {
               const t = table as Record<string, unknown>;
               if (t && t["fullName"] === "fullName") {
-                hoisted.repoSet = conf.set;
+                hoisted.repoConflict = conf;
                 return [{ id: "repo-row-1" }];
               }
               return [{ id: "inst-1" }];
@@ -78,9 +90,10 @@ describe("R6-098 recreated repo keeps stale GitHub ID", () => {
 
     await syncInstallation(123);
 
-    expect(hoisted.repoSet).not.toBeNull();
-    const setRow = hoisted.repoSet as Record<string, unknown>;
-    expect(setRow["githubRepoId"]).toBe(999);
-    expect(setRow["name"]).toBe("myrepo");
+    expect(hoisted.repoConflict).not.toBeNull();
+    expect(hoisted.repoConflict!.target).toBe("githubRepoId");
+    expect(hoisted.repoConflict!.set["fullName"]).toBe("acme/myrepo");
+    expect(hoisted.repoConflict!.set["name"]).toBe("myrepo");
+    expect(hoisted.staleMoves).toBe(1);
   });
 });

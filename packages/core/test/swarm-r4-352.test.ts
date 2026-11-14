@@ -8,24 +8,25 @@ vi.mock("@company-brain/db", () => {
   };
   const memberships = { orgId: "orgId", userId: "userId", role: "role" };
   const users = { id: "id" };
-  const organizations = { slug: "slug" };
+  const organizations = { slug: "slug", id: "id", githubAccountId: "githubAccountId" };
   type Track = { upserted: string[]; deleteCalls: number; instQueries: number };
   const track: Track = { upserted: [], deleteCalls: 0, instQueries: 0 };
   const holder = globalThis as unknown as { __r4352track?: Track };
   holder.__r4352track = track;
   const db = {
     select: () => ({
-      from: (t: unknown) => ({
-        where: () => ({
+      from: (t: unknown) => {
+        const where = () => ({
           limit: async () => {
             if (t === users) return [{ id: "user-1" }];
             track.instQueries += 1;
             return [
-              { orgId: `org-${track.instQueries}`, accountLogin: "someone-else" },
+              { orgId: `org-${track.instQueries}`, accountLogin: "someone-else", orgGithubId: null },
             ];
           },
-        }),
-      }),
+        });
+        return { where, leftJoin: () => ({ where }) };
+      },
     }),
     insert: () => ({
       values: (v: { orgId: string }) => ({

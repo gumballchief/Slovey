@@ -135,6 +135,11 @@ export const organizations = pgTable("organizations", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
+  // Immutable GitHub account id of the account this org mirrors. Logins (and
+  // so slugs) can be renamed and then re-registered by someone else, so the
+  // org is identified by this id; the slug is display only. Null only for orgs
+  // created before the column existed, until their installation next syncs.
+  githubAccountId: bigint("github_account_id", { mode: "number" }).unique(),
   plan: orgPlan("plan").notNull().default("free"),
   // Stripe linkage — set on first checkout; plan changes flow through webhooks.
   stripeCustomerId: text("stripe_customer_id"),
@@ -186,7 +191,10 @@ export const repos = pgTable("repos", {
   installationId: uuid("installation_id")
     .notNull()
     .references(() => installations.id, { onDelete: "cascade" }),
-  githubRepoId: bigint("github_repo_id", { mode: "number" }).notNull(),
+  // GitHub's repo id never changes on rename or transfer, so it is the repo's
+  // identity (sync upserts on it). full_name stays unique because GitHub never
+  // has two repos with one name at the same moment.
+  githubRepoId: bigint("github_repo_id", { mode: "number" }).notNull().unique(),
   owner: text("owner").notNull(),
   // Immutable GitHub account id of the repo owner — logins can change or be
   // recycled, so access checks prefer this. Nullable until the next sync
@@ -469,7 +477,10 @@ export const agentRuns = pgTable("agent_runs", {
   requestedBy: text("requested_by"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-});
+},
+  // Per-repo task list + the pending-task count on every new task.
+  (t) => [index("agent_runs_repo_created_idx").on(t.repoId, t.createdAt)],
+);
 
 // ─────────────────────────── preflight ───────────────────────────
 export const preflightStatus = pgEnum("preflight_status", ["pass", "fail", "partial", "unverified", "error"]);
@@ -493,8 +504,13 @@ export const preflightRuns = pgTable("preflight_runs", {
   humanReviewRequired: boolean("human_review_required").notNull().default(false),
   durationMs: integer("duration_ms").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
+},
+  // Run history and "latest run on this branch" are read per repo, newest first.
+  (t) => [index("preflight_runs_repo_created_idx").on(t.repoId, t.createdAt)],
+);
 
+// Postgres never indexes foreign keys by itself: every child table below is
+// read (and cascade-deleted) by run_id, so each gets an index on it.
 export const preflightChecks = pgTable("preflight_checks", {
   id: uuid("id").defaultRandom().primaryKey(),
   runId: uuid("run_id").notNull().references(() => preflightRuns.id, { onDelete: "cascade" }),
@@ -506,7 +522,9 @@ export const preflightChecks = pgTable("preflight_checks", {
   skippedReason: text("skipped_reason"),
   stdoutSummary: text("stdout_summary"),
   stderrSummary: text("stderr_summary"),
-});
+},
+  (t) => [index("preflight_checks_run_idx").on(t.runId)],
+);
 
 /** Raw parsed errors, one per parser hit, linked to the check row that produced them. */
 export const preflightErrors = pgTable("preflight_errors", {
@@ -527,7 +545,13 @@ export const preflightErrors = pgTable("preflight_errors", {
   priority: text("priority"),
   instructionForAgent: text("instruction_for_agent"),
   evidence: text("evidence"),
-});
+},
+  (t) => [
+    index("preflight_errors_run_idx").on(t.runId),
+    // "Has this exact error been seen before in this repo" looks up by fingerprint.
+    index("preflight_errors_fingerprint_idx").on(t.fingerprint),
+  ],
+);
 
 /** Agent-directed fix instructions (deduped by fingerprint), one per action item. */
 export const preflightFixInstructions = pgTable("preflight_fix_instructions", {
@@ -540,7 +564,9 @@ export const preflightFixInstructions = pgTable("preflight_fix_instructions", {
   problem: text("problem").notNull(),
   instructionForAgent: text("instruction_for_agent").notNull(),
   evidence: text("evidence"),
-});
+},
+  (t) => [index("preflight_fix_instructions_run_idx").on(t.runId)],
+);
 
 /** Loop-safety lineage: fingerprints of prior attempts on the same branch. */
 export const preflightAttempts = pgTable("preflight_attempts", {
@@ -556,7 +582,13 @@ export const preflightAttempts = pgTable("preflight_attempts", {
   unrelatedChangesDetected: boolean("unrelated_changes_detected").notNull().default(false),
   humanReviewRequired: boolean("human_review_required").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
+},
+  (t) => [
+    index("preflight_attempts_run_idx").on(t.runId),
+    // Loop safety reads the latest attempt per (repo, branch) on every gate run.
+    index("preflight_attempts_repo_branch_created_idx").on(t.repoId, t.branch, t.createdAt),
+  ],
+);
 
 export const preflightDecisionViolations = pgTable("preflight_decision_violations", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -567,7 +599,9 @@ export const preflightDecisionViolations = pgTable("preflight_decision_violation
   instructionForAgent: text("instruction_for_agent").notNull().default(""),
   confidence: doublePrecision("confidence").notNull().default(0),
   evidence: jsonb("evidence").notNull().default(sql`'[]'::jsonb`),
-});
+},
+  (t) => [index("preflight_decision_violations_run_idx").on(t.runId)],
+);
 
 /** Personal API tokens for the CLI / CI to authenticate to the hosted preflight
  *  API without a browser session or a direct DB connection. Only the SHA-256
