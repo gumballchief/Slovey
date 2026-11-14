@@ -925,8 +925,18 @@ export async function getSettings(repoId: string, scope?: RepoScope) {
     .where(eq(repoSettings.repoId, repoId))
     .limit(1);
   if (row) return row;
-  const [created] = await db.insert(repoSettings).values({ repoId }).returning();
-  return created!;
+  const [created] = await db
+    .insert(repoSettings)
+    .values({ repoId })
+    .onConflictDoNothing({ target: repoSettings.repoId })
+    .returning();
+  if (created) return created;
+  const [existing] = await db
+    .select()
+    .from(repoSettings)
+    .where(eq(repoSettings.repoId, repoId))
+    .limit(1);
+  return existing!;
 }
 
 export async function updateSettings(

@@ -164,10 +164,13 @@ export function filterExtractedDecisionsToBatch(
   // IDs the batch set stays empty and all citations are dropped.
   const out: ExtractedDecision[] = [];
   for (const d of decisions) {
-    const validEvidence = (d.evidence ?? []).flatMap((e) => {
+    // Model JSON is untrusted: skip non-objects and treat non-array evidence as none.
+    if (!d || typeof d !== "object") continue;
+    const evidence: unknown[] = Array.isArray(d.evidence) ? d.evidence : [];
+    const validEvidence = evidence.flatMap((e) => {
       // Accept the citation styles models actually emit ("PR #12", "PR#12", "#12")
       // and store them in the canonical "PR #12" form the rest of the app expects.
-      const m = /(?:PR\s*)?#(\d+)/.exec(e);
+      const m = /(?:PR\s*)?#(\d+)/.exec(String(e));
       const id = m?.[1];
       return id !== undefined && idsInBatch.has(id) ? [`PR #${id}`] : [];
     });

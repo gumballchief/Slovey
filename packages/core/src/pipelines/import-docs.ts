@@ -37,7 +37,10 @@ export function normalizeEvidence(ev: unknown, fallback: string): string[] {
     const x = uniq(ev.map((e) => String(e).trim()));
     return x.length ? x : [fallback];
   }
-  if (typeof ev === "string" && ev.trim()) return uniq(ev.split(",").map((s) => s.trim()));
+  if (typeof ev === "string" && ev.trim()) {
+    const x = uniq(ev.split(",").map((s) => s.trim()));
+    return x.length ? x : [fallback];
+  }
   return [fallback];
 }
 

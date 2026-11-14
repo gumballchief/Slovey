@@ -1,4 +1,4 @@
-import { readChanged, type RawCheck } from "./checks";
+import { readChanged, type RawCheck, unquoteGitPath } from "./checks";
 import { fingerprint, redactSecrets } from "./parse";
 import type { PreflightError } from "./types";
 
@@ -56,7 +56,9 @@ const TEST_FILE = /\.(test|spec)\.[cm]?[jt]sx?$|(^|\/)(test|tests|__tests__)\//;
 export function perfCheck(cwd: string, changed: string[]): RawCheck {
   const start = Date.now();
   const errors: PreflightError[] = [];
-  for (const { path, content } of readChanged(cwd, changed.filter((f) => SOURCE_FILE.test(f) && !TEST_FILE.test(f)))) {
+  // Git quotes paths with spaces or non-ASCII characters ("src/caf\303\251.ts"); unquote before matching extensions.
+  const sources = changed.map(unquoteGitPath).filter((f) => SOURCE_FILE.test(f) && !TEST_FILE.test(f));
+  for (const { path, content } of readChanged(cwd, sources)) {
     const lines = content.split("\n");
     for (const rule of RULES) {
       if (rule.pathRe && !rule.pathRe.test(path)) continue;

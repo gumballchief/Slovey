@@ -50,7 +50,8 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
         try {
           for await (const ev of reasoning.engineeringSearchStream(id, q)) send(ev);
         } catch (err) {
-          send({ type: "error", message: err instanceof Error ? err.message : "stream failed" });
+          console.error("[api] stream error:", err);
+          send({ type: "error", message: "stream failed" });
         } finally {
           clearInterval(ping);
           closed = true;

@@ -6,6 +6,9 @@ import { scanForSecrets } from "./redact";
 import { runCommand } from "./runner";
 import type { CheckResult, PreflightError } from "./types";
 
+// The fs calls in this file read the user's repository at check time, never this app's own files,
+// so each carries /* turbopackIgnore: true */ to keep the web bundle from tracing the whole project.
+
 /** Check helpers return everything but `blocking` — the engine stamps that from requiredChecks. */
 export type RawCheck = Omit<CheckResult, "blocking">;
 
@@ -40,7 +43,7 @@ export async function runCommandCheck(
 }
 
 /** Decode a C-style quoted git path (core.quotePath), e.g. `"src/caf\303\251.ts"` -> `src/caf\u00e9.ts`. */
-function unquoteGitPath(p: string): string {
+export function unquoteGitPath(p: string): string {
   if (p.length < 2 || p[0] !== '"' || p[p.length - 1] !== '"') return p;
   const inner = p.slice(1, -1);
   const bytes: number[] = [];
@@ -97,8 +100,8 @@ export function readChanged(cwd: string, files: string[], maxBytes = 512_000): {
     const rel = unquoteGitPath(raw);
     const abs = resolve(cwd, rel);
     try {
-      if (!existsSync(abs) || statSync(abs).size > maxBytes) continue;
-      const content = readFileSync(abs, "utf8");
+      if (!existsSync(/* turbopackIgnore: true */ abs) || statSync(/* turbopackIgnore: true */ abs).size > maxBytes) continue;
+      const content = readFileSync(/* turbopackIgnore: true */ abs, "utf8");
       if (content.includes("\u0000")) continue; // NUL byte -> binary file
       out.push({ path: rel, content });
     } catch {
@@ -131,7 +134,7 @@ export function envCheck(cwd: string, changed: string[]): RawCheck {
   const declared = new Set<string>();
   for (const f of [".env.example", ".env.sample", ".env.template"]) {
     try {
-      for (const line of readFileSync(resolve(cwd, f), "utf8").split("\n")) {
+      for (const line of readFileSync(/* turbopackIgnore: true */ resolve(cwd, f), "utf8").split("\n")) {
         const m = line.match(/^\s*([A-Z][A-Z0-9_]+)\s*=/);
         if (m) declared.add(m[1]!);
       }
@@ -183,7 +186,7 @@ export function depsCheck(cwd: string): RawCheck {
   const dirs = [cwd];
   const root = getRepoRoot(cwd);
   if (root && resolve(root) !== resolve(cwd)) dirs.push(root);
-  const hasLock = dirs.some((d) => LOCKFILES.some((f) => existsSync(resolve(d, f))));
+  const hasLock = dirs.some((d) => LOCKFILES.some((f) => existsSync(/* turbopackIgnore: true */ resolve(d, f))));
   if (!hasLock)
     errors.push({
       file: "",
@@ -193,7 +196,7 @@ export function depsCheck(cwd: string): RawCheck {
         "No lockfile found — dependency versions are unpinned. Run your package manager's install (npm/pnpm/yarn/bun install) to create one.",
     });
   try {
-    JSON.parse(readFileSync(resolve(cwd, "package.json"), "utf8"));
+    JSON.parse(readFileSync(/* turbopackIgnore: true */ resolve(cwd, "package.json"), "utf8"));
   } catch {
     errors.push({ file: "package.json", code: "deps", category: "deps", message: "package.json is missing or not valid JSON." });
   }

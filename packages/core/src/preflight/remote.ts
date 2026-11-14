@@ -45,6 +45,16 @@ export class RemotePreflightTooLargeError extends Error {
   }
 }
 
+/** The payload has the wrong shape, e.g. a path that is not a string. */
+export class RemotePreflightInvalidError extends Error {
+  readonly statusCode = 400;
+  readonly code = "INVALID_PAYLOAD";
+  constructor(message: string) {
+    super(message);
+    this.name = "RemotePreflightInvalidError";
+  }
+}
+
 /**
  * Cap per-check errors to the first N plus an overflow summary so a bounded
  * request cannot fan out into millions of error/fix objects and DB rows.
@@ -68,16 +78,46 @@ export async function runRemotePreflight(repoId: string, payload: RemotePrefligh
   const started = new Date();
   const files = payload.files ?? [];
   const changedFilesInput = payload.changedFiles ?? [];
+  if (!Array.isArray(files) || !Array.isArray(changedFilesInput)) {
+    throw new RemotePreflightInvalidError("Invalid payload: files and changedFiles must be arrays");
+  }
+  for (const p of changedFilesInput) {
+    if (typeof p !== "string") {
+      throw new RemotePreflightInvalidError("Invalid changedFiles entry: expected a string path");
+    }
+  }
+  for (const f of files) {
+    if (!f || typeof f !== "object" || typeof f.path !== "string" || typeof f.content !== "string") {
+      throw new RemotePreflightInvalidError("Invalid files entry: expected an object with string path and content");
+    }
+  }
   if (files.length > REMOTE_PREFLIGHT_MAX_FILES) {
     throw new RemotePreflightTooLargeError(`Too many files: ${files.length} exceeds limit of ${REMOTE_PREFLIGHT_MAX_FILES}`);
   }
   if (changedFilesInput.length > REMOTE_PREFLIGHT_MAX_CHANGED_FILES) {
     throw new RemotePreflightTooLargeError(`Too many changed files: ${changedFilesInput.length} exceeds limit of ${REMOTE_PREFLIGHT_MAX_CHANGED_FILES}`);
   }
+  if (payload.diff !== undefined && typeof payload.diff !== "string") {
+    throw new RemotePreflightInvalidError("Invalid payload: diff must be a string");
+  }
   if (payload.diff !== undefined && payload.diff.length > REMOTE_PREFLIGHT_MAX_DIFF_CHARS) {
     throw new RemotePreflightTooLargeError(`Diff too large: ${payload.diff.length} chars exceeds limit of ${REMOTE_PREFLIGHT_MAX_DIFF_CHARS}`);
   }
-  let totalChars = payload.diff?.length ?? 0;
+  const scalarLimits: [string, string | null | undefined, number][] = [
+    ["branch", payload.branch, 255],
+    ["commitSha", payload.commitSha, 64],
+    ["attemptId", payload.attemptId, 128],
+  ];
+  for (const [name, value, limit] of scalarLimits) {
+    if (value == null) continue;
+    if (typeof value !== "string") {
+      throw new RemotePreflightInvalidError(`Invalid payload: ${name} must be a string`);
+    }
+    if (value.length > limit) {
+      throw new RemotePreflightTooLargeError(`${name} too large: ${value.length} chars exceeds limit of ${limit}`);
+    }
+  }
+  let totalChars = (payload.diff?.length ?? 0) + (payload.branch?.length ?? 0) + (payload.commitSha?.length ?? 0) + (payload.attemptId?.length ?? 0);
   for (const p of changedFilesInput) {
     totalChars += p.length;
     if (totalChars > REMOTE_PREFLIGHT_MAX_TOTAL_CHARS) {
