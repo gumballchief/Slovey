@@ -406,6 +406,10 @@ a.ui-ref:hover {
   border-color: var(--line-2);
   box-shadow: var(--shadow);
 }
+/* a raised card is already panel-coloured, so its skeletons step up a shade to stay visible */
+.ui-card--raised .ui-skel {
+  background-image: linear-gradient(90deg, var(--panel-3) 0%, #232a50 40%, var(--panel-3) 80%);
+}
 .ui-hr {
   height: 1px;
   border: 0;

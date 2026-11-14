@@ -11,7 +11,7 @@ import {
 } from "@stripe/react-stripe-js/checkout";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { fetchBilling, openBillingPortal, startCheckout } from "@/lib/api-client";
 import { NeedsRepo } from "@/features/shell/Page";
 import { useData } from "@/features/use-data";
@@ -210,12 +210,18 @@ function PayForm({ interval, pending }: { interval: Interval; pending: boolean }
   const state = useCheckoutElements();
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  // Decided once: the session gains an email as soon as the buyer types one, and the field
+  // must not vanish under their cursor.
+  const askEmail = useRef<boolean | null>(null);
+  // Stripe's fields paint a few seconds after the session is ready; hold their space with a skeleton.
+  const [fieldsReady, setFieldsReady] = useState(false);
 
   if (state.type === "loading") return <PaySkeleton />;
   if (state.type === "error") {
     return <ErrorState error={state.error.message} title="Checkout couldn't start" onRetry={() => window.location.reload()} />;
   }
   const { checkout } = state;
+  if (askEmail.current === null) askEmail.current = !checkout.email;
   const total = checkout.total.total.amount;
   const per = interval === "annual" ? "year" : "month";
 
@@ -233,13 +239,26 @@ function PayForm({ interval, pending }: { interval: Interval; pending: boolean }
       }}
     >
       <div className="ui-label">Payment</div>
-      {!checkout.email && (
+      <div className="co-fields" data-ready={fieldsReady}>
+        {!fieldsReady && (
+          <div className="co-fields-skel" aria-busy="true">
+            <Skeleton h={46} r={12} />
+            <Skeleton h={46} r={12} />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <Skeleton h={46} r={12} />
+              <Skeleton h={46} r={12} />
+            </div>
+            <Skeleton h={46} r={12} />
+          </div>
+        )}
+        {askEmail.current && (
+          <div className="co-el">
+            <ContactDetailsElement />
+          </div>
+        )}
         <div className="co-el">
-          <ContactDetailsElement />
+          <PaymentElement options={{ layout: "tabs" }} onReady={() => setFieldsReady(true)} />
         </div>
-      )}
-      <div className="co-el">
-        <PaymentElement options={{ layout: "tabs" }} />
       </div>
       {message && (
         <div className="co-msg" role="alert">

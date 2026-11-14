@@ -146,6 +146,22 @@
 .co-el {
   min-height: 44px;
 }
+.co-fields {
+  position: relative;
+  display: grid;
+  gap: 16px;
+  min-height: 250px;
+}
+.co-fields[data-ready="false"] > .co-el {
+  visibility: hidden;
+}
+.co-fields-skel {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
 .co-msg {
   padding: 12px 14px;
   border-radius: 12px;

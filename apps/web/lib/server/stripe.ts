@@ -38,7 +38,7 @@ export function proLineItem(interval: BillingInterval): {
     price_data: {
       currency: "usd",
       product_data: {
-        name: annual ? "Slovey Team — annual ($19/user/mo, billed yearly)" : "Slovey Team — monthly ($24/user/mo)",
+        name: annual ? "Slovey Team, yearly ($19 per seat a month)" : "Slovey Team, monthly ($24 per seat)",
       },
       unit_amount: annual ? 22800 : 2400, // cents per seat per period
       recurring: { interval: annual ? "year" : "month" },
