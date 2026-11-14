@@ -193,11 +193,69 @@ export async function runWinnerRestore<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 /**
+ * Re-apply a concurrent winner's final commit status. A duplicate run may have
+ * posted "pending" after the winner posted its final status, so the loser must
+ * restore the winner's status on its early-return path too (not only after the
+ * conditional upsert). Returns true when a status was restored.
+ */
+export async function restoreWinnerStatus(
+  postStatus: (status: { state: "success" | "failure" | "pending"; description: string }) => Promise<unknown>,
+  winnerVerdict: string | null | undefined,
+  explanation?: string | null,
+): Promise<boolean> {
+  if (winnerVerdict !== "conflict" && winnerVerdict !== "clear") return false;
+  const status = statusForVerdict(winnerVerdict, explanation);
+  await runWinnerRestore(() => postStatus(status));
+  return true;
+}
+
+/**
+ * Whether a loser that posted the pre-judge pending status must re-apply the
+ * winner's terminal status on the already-checked early return. Without this
+ * the loser's pending overwrites the winner's final status and sticks.
+ */
+export function shouldRestoreWinnerAfterPending(
+  pendingPosted: boolean,
+  winnerVerdict: string | null | undefined,
+): boolean {
+  if (!pendingPosted) return false;
+  return winnerVerdict === "conflict" || winnerVerdict === "clear";
+}
+
+/**
  * The check pipeline. Retrieves → judges → enforces confidence floor + citation
  * guardrail → posts a single cited comment (or status check) → records the result.
  * Idempotent on (repo, pr, head sha); never double-comments.
  */
+const checkLocks = new Map<string, Promise<void>>();
+
+/**
+ * Serialize check runs for the same PR within this process so two concurrent
+ * runs cannot both observe "no bot comment yet" and each create their own.
+ * The second run then sees the first run's recorded result / comment.
+ */
+export async function runCheckForPr<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const prev = checkLocks.get(key) ?? Promise.resolve();
+  let release!: () => void;
+  const next = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const tail = prev.then(() => next);
+  checkLocks.set(key, tail);
+  await prev;
+  try {
+    return await fn();
+  } finally {
+    release();
+    if (checkLocks.get(key) === tail) checkLocks.delete(key);
+  }
+}
+
 export async function checkPr(params: CheckPrParams): Promise<CheckPrResult> {
+  return runCheckForPr(`${params.repoId}:${params.prNumber}`, () => checkPrInner(params));
+}
+
+async function checkPrInner(params: CheckPrParams): Promise<CheckPrResult> {
   const db = getDb();
   const settings = await loadSettings(params.repoId);
 
@@ -232,6 +290,7 @@ export async function checkPr(params: CheckPrParams): Promise<CheckPrResult> {
     return { verdict: "skipped", posted: false, reason: "already-checked", checkId: existing[0]!.id };
   }
 
+  let pendingPosted = false;
   // status_check mode: show a pending status immediately so the (potentially
   // required) check appears as in-progress while the judge runs.
   if (settings.mode === "status_check" && postingAllowed(params.fullName)) {
@@ -244,6 +303,7 @@ export async function checkPr(params: CheckPrParams): Promise<CheckPrResult> {
         context: "company-brain",
         description: "Company Brain is checking this PR…",
       });
+      pendingPosted = true;
     } catch {
       // best-effort; the final status below is what matters
     }
@@ -333,7 +393,7 @@ export async function checkPr(params: CheckPrParams): Promise<CheckPrResult> {
   // check above, then race to post opposite GitHub results. Re-check after the
   // judge and let only the first writer post; a terminal row already wins.
   const rechecked = await db
-    .select({ id: prChecks.id, verdict: prChecks.verdict })
+    .select({ id: prChecks.id, verdict: prChecks.verdict, explanation: prChecks.explanation })
     .from(prChecks)
     .where(
       and(
@@ -344,6 +404,28 @@ export async function checkPr(params: CheckPrParams): Promise<CheckPrResult> {
     )
     .limit(1);
   if (rechecked.length > 0 && shouldSkipPostForExistingVerdict(rechecked[0]!.verdict)) {
+    // Our earlier "pending" status (status_check mode) may have landed after
+    // the winner's final status. Re-apply the winner's status before returning
+    // so GitHub matches the recorded terminal verdict.
+    if (
+      settings.mode === "status_check" &&
+      postingAllowed(params.fullName) &&
+      shouldRestoreWinnerAfterPending(pendingPosted, rechecked[0]!.verdict)
+    ) {
+      await restoreWinnerStatus(
+        (status) =>
+          octokit.rest.repos.createCommitStatus({
+            owner: params.owner,
+            repo: params.name,
+            sha: pr.headSha,
+            state: status.state,
+            context: "company-brain",
+            description: status.description,
+          }),
+        rechecked[0]!.verdict,
+        rechecked[0]!.explanation,
+      ).catch(() => {});
+    }
     return { verdict: "skipped", posted: false, reason: "already-checked", checkId: rechecked[0]!.id };
   }
 
@@ -495,7 +577,17 @@ export async function checkPr(params: CheckPrParams): Promise<CheckPrResult> {
       .limit(1);
     if (winner) {
       const winnerVerdict = winner.verdict as CheckPrResult["verdict"];
-      if (postingAllowed(params.fullName)) {
+      // Stale-head guard for the restore path, mirroring the primary post:
+      // a force-push during the race must not let this loser overwrite the
+      // new head's comment/status with the winner's verdict for the old head.
+      let restoreStale = false;
+      try {
+        const latest = await fetchPrForCheck(octokit, params.owner, params.name, params.prNumber);
+        restoreStale = hasHeadChanged(pr.headSha, latest.headSha);
+      } catch {
+        restoreStale = true;
+      }
+      if (!restoreStale && postingAllowed(params.fullName)) {
         await runWinnerRestore(async () => {
           if (settings.mode === "status_check") {
             if (winnerVerdict === "conflict" || winnerVerdict === "clear") {

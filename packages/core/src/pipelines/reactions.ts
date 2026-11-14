@@ -142,27 +142,37 @@ export async function pollReactionDismissals(params: {
     } catch {
       continue;
     }
-    const existing = await db
-      .select({ id: feedback.id })
-      .from(feedback)
-      .where(
-        and(
-          eq(feedback.prCheckId, check.id),
-          eq(feedback.byUser, user),
-          eq(feedback.action, "dismiss"),
-        ),
-      )
-      .limit(1);
-    if (existing.length > 0) continue;
-    await recordFeedback({
-      repoId: params.repoId,
-      prCheckId: check.id,
-      decisionId: check.matched ?? undefined,
-      action: "dismiss",
-      byUser: user,
-      reason: `👎 reaction on the Company Brain comment (PR #${params.prNumber})`,
-    });
-    recorded++;
+    try {
+      const existing = await db
+        .select({ id: feedback.id })
+        .from(feedback)
+        .where(
+          and(
+            eq(feedback.prCheckId, check.id),
+            eq(feedback.byUser, user),
+            eq(feedback.action, "dismiss"),
+          ),
+        )
+        .limit(1);
+      if (existing.length > 0) continue;
+      await recordFeedback({
+        repoId: params.repoId,
+        prCheckId: check.id,
+        decisionId: check.matched ?? undefined,
+        action: "dismiss",
+        byUser: user,
+        reason: `👎 reaction on the Company Brain comment (PR #${params.prNumber})`,
+      });
+      recorded++;
+    } catch (err) {
+      log.warn("failed to record reaction dismissal; skipping downvoter", {
+        repo: `${params.owner}/${params.name}`,
+        pr: params.prNumber,
+        user,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      continue;
+    }
   }
   if (recorded > 0) {
     log.info("reaction dismissals recorded", {

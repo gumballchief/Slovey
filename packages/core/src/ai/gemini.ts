@@ -133,6 +133,7 @@ export class GeminiProvider implements AIProvider {
       return;
     }
     if (!res.ok || !res.body) {
+      await res.body?.cancel().catch(() => {});
       yield await this.call(prompt, opts, false);
       return;
     }
@@ -176,6 +177,13 @@ export class GeminiProvider implements AIProvider {
         return;
       }
       throw err;
+    } finally {
+      try {
+        await reader.cancel();
+      } catch {
+        /* already closed */
+      }
+      reader.releaseLock();
     }
     // Stream ended with no text at all → fall back so the user still gets an answer.
     if (!emitted) yield await this.call(prompt, opts, false);

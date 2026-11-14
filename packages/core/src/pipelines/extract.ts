@@ -20,9 +20,29 @@ function uniq(arr: string[]): string[] {
   return [...new Set(arr.filter(Boolean))];
 }
 
+// Serializes the plan-headroom check + upsert critical section so two
+// concurrent rebuilds in this process cannot both pass decisionHeadroom()
+// before either inserts, exceeding the org's decision allowance.
+let extractQueue: Promise<void> = Promise.resolve();
+
+export async function withExtractLock<T>(fn: () => Promise<T>): Promise<T> {
+  let release!: () => void;
+  const next = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const prev = extractQueue;
+  extractQueue = prev.then(() => next);
+  await prev;
+  try {
+    return await fn();
+  } finally {
+    release();
+  }
+}
+
 /** Coerce evidence into a clean string[] (LLM sometimes returns a string). */
 function normalizeEvidence(ev: unknown): string[] {
-  if (Array.isArray(ev)) return uniq(ev.map((x) => String(x).trim()));
+  if (Array.isArray(ev)) return uniq(ev.flatMap((x) => String(x).split(",").map((s) => s.trim())));
   if (typeof ev === "string") return uniq(ev.split(",").map((s) => s.trim()));
   return [];
 }
@@ -31,8 +51,7 @@ function normalizeEvidence(ev: unknown): string[] {
 export function evidencePrNumbers(evidence: string[]): number[] {
   const out: number[] = [];
   for (const ev of evidence) {
-    const m = /#(\d+)/.exec(ev);
-    if (m) out.push(Number(m[1]));
+    for (const m of ev.matchAll(/#(\d+)/g)) out.push(Number(m[1]));
   }
   return out;
 }
@@ -191,35 +210,40 @@ export async function runExtract(params: ExtractParams): Promise<ExtractResult> 
     ...consolidated.map((d) => ({ d, source: "github_pr" as const })),
     ...docDecisions.map((d) => ({ d, source: "doc" as const })),
   ];
-  const headroom = await decisionHeadroom(params.repoId, items.length);
-  let toUpsert = items;
-  if (!headroom.ok) {
-    const allowed = headroom.limit < 0 ? items.length : Math.max(0, headroom.limit - headroom.used);
-    if (allowed <= 0) {
-      return {
-        prsFetched: prs.length,
-        extracted: grounded.length,
-        droppedEmptyEvidence,
-        consolidated: consolidated.length,
-        docDecisions: docDecisions.length,
-        inserted: 0,
-        updated: 0,
-        aborted: `plan-limit (${headroom.plan}: ${headroom.limit} decisions)`,
-      };
+  // Re-check headroom and upsert atomically w.r.t. other rebuilds in this
+  // process: holding the lock across both means a concurrent call re-counts
+  // after this call's inserts land, instead of racing past the check.
+  return withExtractLock(async () => {
+    const headroom = await decisionHeadroom(params.repoId, items.length);
+    let toUpsert = items;
+    if (!headroom.ok) {
+      const allowed = headroom.limit < 0 ? items.length : Math.max(0, headroom.limit - headroom.used);
+      if (allowed <= 0) {
+        return {
+          prsFetched: prs.length,
+          extracted: grounded.length,
+          droppedEmptyEvidence,
+          consolidated: consolidated.length,
+          docDecisions: docDecisions.length,
+          inserted: 0,
+          updated: 0,
+          aborted: `plan-limit (${headroom.plan}: ${headroom.limit} decisions)`,
+        };
+      }
+      toUpsert = items.slice(0, allowed);
     }
-    toUpsert = items.slice(0, allowed);
-  }
 
-  // 7. Embed + upsert with pgvector dedup (refresh updates rather than duplicates).
-  const { inserted, updated } = await upsertDecisions(params.repoId, toUpsert);
+    // 7. Embed + upsert with pgvector dedup (refresh updates rather than duplicates).
+    const { inserted, updated } = await upsertDecisions(params.repoId, toUpsert);
 
-  return {
-    prsFetched: prs.length,
-    extracted: grounded.length,
-    droppedEmptyEvidence,
-    consolidated: consolidated.length,
-    docDecisions: docDecisions.length,
-    inserted,
-    updated,
-  };
+    return {
+      prsFetched: prs.length,
+      extracted: grounded.length,
+      droppedEmptyEvidence,
+      consolidated: consolidated.length,
+      docDecisions: docDecisions.length,
+      inserted,
+      updated,
+    };
+  });
 }

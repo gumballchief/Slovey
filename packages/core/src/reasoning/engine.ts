@@ -151,9 +151,13 @@ Respond ONLY with JSON: {"answer": "<concise answer citing [n]>", "used": [<numb
 
   // The model can emit `used` as a non-array (a number, a "1,2" string) — guard
   // so a malformed field degrades to "no citations" instead of throwing.
-  const usedIdx = (Array.isArray(res.used) ? res.used : []).filter(
-    (n) => typeof n === "number" && n >= 1 && n <= considered.length,
-  );
+  const usedIdx = [
+    ...new Set(
+      (Array.isArray(res.used) ? res.used : []).filter(
+        (n) => typeof n === "number" && Number.isInteger(n) && n >= 1 && n <= considered.length,
+      ),
+    ),
+  ];
   // If the reasoner grounded the answer in NO decision, do not fabricate a
   // citation — that would fake evidence. An ungrounded answer is, at best, a
   // soft decline: show no citation and never claim high confidence.

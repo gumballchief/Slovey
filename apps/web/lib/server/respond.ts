@@ -17,6 +17,11 @@ export function fail(err: unknown): Response {
   if (err instanceof HttpError) {
     return Response.json({ error: err.message }, { status: err.status });
   }
+  // Core throws typed client errors (oversized or malformed preflight payloads) with a 4xx statusCode.
+  const status = (err as { statusCode?: unknown } | null)?.statusCode;
+  if (err instanceof Error && typeof status === "number" && status >= 400 && status < 500) {
+    return Response.json({ error: err.message }, { status });
+  }
   console.error("[api] unhandled error:", err);
   return Response.json({ error: "Internal error" }, { status: 500 });
 }

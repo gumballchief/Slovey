@@ -17,6 +17,18 @@ const log = logger.child({ component: "ingest-connector" });
 const MAX_DOCS = 40;
 const MAX_DOC_CHARS = 8000;
 
+/**
+ * A later successful sync advances `lastSyncedAt`, so a stale failing run
+ * must not overwrite that sync's status. Returns true when the connector
+ * row has advanced since this run started (i.e. another run superseded it).
+ */
+export function shouldSkipStaleSyncError(
+  startedLastSyncedAt: Date | null | undefined,
+  currentLastSyncedAt: Date | null | undefined,
+): boolean {
+  return (startedLastSyncedAt?.getTime() ?? null) !== (currentLastSyncedAt?.getTime() ?? null);
+}
+
 export interface IngestResult {
   docs: number;
   inserted: number;
@@ -41,6 +53,7 @@ export async function runIngestConnector(params: {
     .limit(1);
   if (!row) throw new Error(`connector not found: ${params.connectorId}`);
   if (row.repoId !== params.repoId) throw new Error(`connector not found: ${params.connectorId}`);
+  const startedLastSyncedAt = row.lastSyncedAt ?? null;
 
   const type = row.type;
   if (!isConnectorType(type)) throw new Error(`unsupported connector type: ${type}`);
@@ -83,14 +96,9 @@ export async function runIngestConnector(params: {
       }
     }
 
+    // Recorded as the connector's error by the catch below.
     if (!items.length && extractFailures > 0) {
-      const msg = `extraction failed for ${extractFailures} document(s)`;
-      await db
-        .update(connectors)
-        .set({ status: "error", lastError: msg.slice(0, 500) })
-        .where(eq(connectors.id, row.id));
-      log.warn("connector ingest failed", { type, err: msg });
-      throw new Error(msg);
+      throw new Error(`extraction failed for ${extractFailures} document(s)`);
     }
 
     const { inserted, updated } = items.length
@@ -105,10 +113,18 @@ export async function runIngestConnector(params: {
     return { docs: docs.length, inserted, updated };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    await db
-      .update(connectors)
-      .set({ status: "error", lastError: msg.slice(0, 500) })
-      .where(eq(connectors.id, row.id));
+    // A newer sync that finished while this one ran keeps its status.
+    const [current] = await db
+      .select({ lastSyncedAt: connectors.lastSyncedAt })
+      .from(connectors)
+      .where(eq(connectors.id, row.id))
+      .limit(1);
+    if (!current || !shouldSkipStaleSyncError(startedLastSyncedAt, current.lastSyncedAt)) {
+      await db
+        .update(connectors)
+        .set({ status: "error", lastError: msg.slice(0, 500) })
+        .where(eq(connectors.id, row.id));
+    }
     log.warn("connector ingest failed", { type, err: msg });
     throw e;
   }

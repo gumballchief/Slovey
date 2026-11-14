@@ -40,7 +40,7 @@ export async function runCommandCheck(
 }
 
 /** Decode a C-style quoted git path (core.quotePath), e.g. `"src/caf\303\251.ts"` -> `src/caf\u00e9.ts`. */
-function unquoteGitPath(p: string): string {
+export function unquoteGitPath(p: string): string {
   if (p.length < 2 || p[0] !== '"' || p[p.length - 1] !== '"') return p;
   const inner = p.slice(1, -1);
   const bytes: number[] = [];

@@ -17,7 +17,7 @@ describe("parseRepoSlug", () => {
 
   it("requires the variable to be set", () => {
     expect(() => parseRepoSlug(undefined)).toThrow(ConfigError);
-    expect(() => parseRepoSlug("")).toThrow(/not set/);
+    expect(() => parseRepoSlug("")).toThrow(/No repository configured/);
   });
 
   it("rejects an ambiguous slug (missing owner or name)", () => {

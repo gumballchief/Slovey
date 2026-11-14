@@ -246,7 +246,14 @@ export function distinctiveTerms(decisionText: string, max = 4): string[] {
  *  E.g. rejectedKeywordHit("Redis was rejected…", "import Redis") → "redis". */
 export function rejectedKeywordHit(decisionText: string, diff: string, changedFiles: string[] = []): string | null {
   const hay = [diff, ...changedFiles].join("\n").toLowerCase();
-  return distinctiveTerms(decisionText, 40).find((t) => new RegExp(`\\b${t.replace(/[.+@/-]/g, "\\$&")}\\b`).test(hay)) ?? null;
+  return distinctiveTerms(decisionText, 40).find((t) => {
+    const escaped = t.replace(/[.+@/-]/g, "\\$&");
+    // \b cannot match after a trailing non-word char (e.g. `gcc++`), so use
+    // lookarounds. Terms ending in a separator (/ . - @) may continue into a
+    // path/identifier, so they get no trailing guard.
+    const tail = /[a-z0-9_+]$/.test(t) ? "(?![a-z0-9_])" : "";
+    return new RegExp(`(?<![a-z0-9_])${escaped}${tail}`).test(hay);
+  }) ?? null;
 }
 
 /**
