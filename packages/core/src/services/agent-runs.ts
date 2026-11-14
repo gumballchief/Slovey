@@ -47,6 +47,18 @@ export function isAgentRunStillOwned(currentUpdatedAt: Date, lastHeartbeat: Date
 }
 
 /**
+ * Reconcile the ownership token after a heartbeat error. A lost response may
+ * mean the UPDATE committed (row now carries the beat) or failed (row still
+ * carries the previous heartbeat), so the caller re-SELECTs updatedAt. Only
+ * our own beat is adopted: any other value means another worker reclaimed the
+ * run, so we keep the old token and our final update correctly misses.
+ */
+export function resolveHeartbeatAfterError(expected: Date, beat: Date, currentUpdatedAt: Date | null): Date {
+  if (currentUpdatedAt && currentUpdatedAt.getTime() === beat.getTime()) return new Date(beat);
+  return expected;
+}
+
+/**
  * Stop heartbeating and wait for a beat already in flight to land. Without
  * settling, an in-flight beat can change updatedAt after the final update's
  * ownership token is read, making that update miss its own row: the run is
@@ -101,7 +113,18 @@ export async function executeAgentRun(runId: string): Promise<void> {
         const beatUpdatedAt = rows[0]?.updatedAt;
         if (rows.length > 0 && beatUpdatedAt) lastHeartbeat = new Date(beatUpdatedAt);
       })
-      .catch(() => {})
+      .catch(async () => {
+        try {
+          const [current] = await db
+            .select({ updatedAt: agentRuns.updatedAt })
+            .from(agentRuns)
+            .where(eq(agentRuns.id, runId))
+            .limit(1);
+          lastHeartbeat = resolveHeartbeatAfterError(expected, beat, current?.updatedAt ?? null);
+        } catch {
+          /* keep the last known heartbeat when the resync read fails */
+        }
+      })
       .then(() => {
         heartbeatInFlight = null;
       });

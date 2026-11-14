@@ -93,6 +93,11 @@ export function sanitizeConfidence(value: string | null | undefined): string | n
   return value === "low" || value === "medium" || value === "high" ? value : null;
 }
 
+/** Strip attacker markdown (links/images) from stored decision/citation text before it is rendered in the trusted bot comment. */
+export function sanitizeDecisionForComment(value: string | null | undefined): string {
+  return sanitizeJudgeText(value);
+}
+
 /** Map a verdict to the GitHub commit-status to publish (status_check mode). */
 export function statusForVerdict(
   verdict: CheckPrResult["verdict"],
@@ -152,6 +157,37 @@ export function isCheckInsertWinner(
   inserted: { id: string } | null | undefined,
 ): boolean {
   return inserted != null;
+}
+
+/**
+ * Whether the PR head moved while the judge was running. Bot comments are
+ * per-PR (not per-SHA), so a stale run must not touch the comment.
+ */
+export function hasHeadChanged(
+  originalHeadSha: string,
+  currentHeadSha: string | null | undefined,
+): boolean {
+  if (!currentHeadSha) return false;
+  return originalHeadSha !== currentHeadSha;
+}
+
+export const WINNER_RESTORE_MAX_ATTEMPTS = 3;
+
+/**
+ * Re-apply the winner's GitHub gate after a lost conditional-insert race.
+ * Transient GitHub/API failures are retried and then propagated so a stale
+ * loser status is never left as the final gate while the DB records conflict.
+ */
+export async function runWinnerRestore<T>(fn: () => Promise<T>): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < WINNER_RESTORE_MAX_ATTEMPTS; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError;
 }
 
 /**
@@ -309,6 +345,18 @@ export async function checkPr(params: CheckPrParams): Promise<CheckPrResult> {
     return { verdict: "skipped", posted: false, reason: "already-checked", checkId: rechecked[0]!.id };
   }
 
+  // Stale-head guard: the judge can take a while, and the author may have
+  // force-pushed meanwhile. Bot comments are per-PR (not per-SHA), so a stale
+  // clear run must not resolve a warning posted for the newer head.
+  try {
+    const latest = await fetchPrForCheck(octokit, params.owner, params.name, params.prNumber);
+    if (hasHeadChanged(pr.headSha, latest.headSha)) {
+      return { verdict: "skipped", posted: false, reason: "head-changed" };
+    }
+  } catch {
+    // Re-verify is best-effort; if GitHub is unreachable, proceed with this run.
+  }
+
   // Surface the result. comment mode posts a single cited comment, only on a
   // conflict. status_check mode always sets a commit status — failure on a
   // conflict, success on a clear PR — so it works as a required merge gate
@@ -345,8 +393,8 @@ export async function checkPr(params: CheckPrParams): Promise<CheckPrResult> {
     } else if (verdict === "conflict" && matchedDecisionText) {
       const body = buildComment({
         explanation: explanation ?? "",
-        decision: matchedDecisionText,
-        citation: citation ?? "",
+        decision: sanitizeDecisionForComment(matchedDecisionText),
+        citation: sanitizeDecisionForComment(citation ?? ""),
         confidence: confidence ?? "",
         severity: severity ?? undefined,
         suggestedFix: suggestedFix ?? undefined,
@@ -446,7 +494,7 @@ export async function checkPr(params: CheckPrParams): Promise<CheckPrResult> {
     if (winner) {
       const winnerVerdict = winner.verdict as CheckPrResult["verdict"];
       if (postingAllowed(params.fullName)) {
-        try {
+        await runWinnerRestore(async () => {
           if (settings.mode === "status_check") {
             if (winnerVerdict === "conflict" || winnerVerdict === "clear") {
               const s = statusForVerdict(winnerVerdict, winner.explanation);
@@ -468,8 +516,8 @@ export async function checkPr(params: CheckPrParams): Promise<CheckPrResult> {
             if (d) {
               const body = buildComment({
                 explanation: winner.explanation ?? "",
-                decision: d.decision,
-                citation: d.evidence.join(", "),
+                decision: sanitizeDecisionForComment(d.decision),
+                citation: sanitizeDecisionForComment(d.evidence.join(", ")),
                 confidence: winner.confidence ?? "",
                 severity: winner.severity ?? undefined,
                 suggestedFix: winner.suggestedFix ?? undefined,
@@ -509,9 +557,7 @@ export async function checkPr(params: CheckPrParams): Promise<CheckPrResult> {
               );
             }
           }
-        } catch {
-          // best-effort; the recorded winner verdict is authoritative
-        }
+        });
       }
       await logAudit({
         repoId: params.repoId,

@@ -125,7 +125,17 @@ export async function runRemotePreflight(repoId: string, payload: RemotePrefligh
   if (config.secretScan.enabled) {
     const start = Date.now();
     const scanTargets = [...files];
-    if (payload.diff?.trim()) scanTargets.push({ path: "diff.patch", content: diff });
+    if (payload.diff?.trim()) {
+      // Secret-scan must cover the full diff (up to the 1M payload cap), not
+      // the 200k slice used for LLM/decision checks. Chunk with a small
+      // overlap so a secret straddling a chunk boundary is still seen whole.
+      const CHUNK = 100_000;
+      const OVERLAP = 2048;
+      for (let offset = 0; offset < rawDiff.length; offset += CHUNK - OVERLAP) {
+        scanTargets.push({ path: "diff.patch", content: rawDiff.slice(offset, offset + CHUNK) });
+        if (offset + CHUNK >= rawDiff.length) break;
+      }
+    }
     if (scanTargets.some((t) => t.content?.trim())) {
       const errors = scanForSecrets(scanTargets);
       checks.push({ name: "secret-scan", agent: "security", command: "", durationMs: Date.now() - start, blocking: true, status: errors.length ? "fail" : "pass", errors });
@@ -155,7 +165,7 @@ export async function runRemotePreflight(repoId: string, payload: RemotePrefligh
 
   // decision-check on the supplied diff.
   const startDec = Date.now();
-  const decisionResult = await runDecisionCheck(repoId, diff, changed);
+  const decisionResult = await runDecisionCheck(repoId, rawDiff, changed);
   const { blocking: violations, warnings: overrideWarnings } = applyOverrides(decisionResult.violations, overrides);
   const note = decisionResult.note;
   const blockingViolations = violations.filter(

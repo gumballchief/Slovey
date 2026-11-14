@@ -71,7 +71,11 @@ export async function fetchClosedPRs(
 }
 
 function sanitizePrText(s: string): string {
-  return (s ?? "").replace(/<\/?untrusted-pr-content>/g, "");
+  let out = s ?? "";
+  while (/<\/?untrusted-pr-content>/.test(out)) {
+    out = out.replace(/<\/?untrusted-pr-content>/g, "");
+  }
+  return out;
 }
 
 /** Format closed PRs into the text block the extraction prompt consumes.

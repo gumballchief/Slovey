@@ -562,7 +562,8 @@ export async function listPRChecks(repoId: string, scope?: RepoScope): Promise<A
     .select()
     .from(prChecks)
     .where(eq(prChecks.repoId, repoId))
-    .orderBy(desc(prChecks.checkedAt));
+    .orderBy(desc(prChecks.checkedAt))
+    .limit(100);
   return rows.map((c) => toApiCheck(c));
 }
 
@@ -617,7 +618,8 @@ export const PLAN_LIMITS: Record<OrgPlan, { repos: number; decisions: number }> 
 };
 
 /** Plan + real current usage for an org (drives the Billing page). */
-export async function getBilling(orgId: string): Promise<ApiBilling> {
+export async function getBilling(orgId: string, scope?: RepoScope): Promise<ApiBilling> {
+  await requireOrgScope(orgId, scope);
   const db = getDb();
   // One parallel wave (was 6 sequential round-trips — the slowest route under
   // load). Per-repo scoping happens via joins so nothing depends on a prior
