@@ -136,10 +136,11 @@ interface SynthOutput {
 
 export function sanitizePlanningText(s: string | null | undefined): string {
   // Truncate first to bound regex work on untrusted text, then strip
-  // fence/tag sequences with a bounded number of passes (a nested pattern
-  // like "<sy<system>stem>" recreates one outer tag per pass).
+  // fence/tag sequences to fixpoint (a nested pattern like
+  // "<sy<system>stem>" recreates one outer tag per pass, and removing a tag
+  // can join surrounding quotes into a new fence) with a bounded cap.
   let out = (s ?? "").slice(0, 2000);
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 10; i++) {
     const next = out.replace(/```|"""|<\/?(?:system|instructions?|prompt)>/gi, "");
     if (next === out) break;
     out = next;
@@ -153,10 +154,10 @@ async function synthesisePlan(input: SynthInput): Promise<SynthOutput | null> {
   const clean = sanitizePlanningText;
   const safeRequest = clean(input.request).replace(/["\r\n]+/g, " ").slice(0, 500);
   const constraintBlock = input.constraints.length
-    ? input.constraints.map((c, i) => `[C${i + 1}] ${clean(c)}`).join("\n")
+    ? input.constraints.map((c, i) => `[C${i + 1}] ${clean(c).replace(/["\r\n]+/g, " ")}`).join("\n")
     : "(none recorded)";
   const rejectedBlock = input.rejected.length
-    ? input.rejected.map((r, i) => `[R${i + 1}] ${clean(r)}`).join("\n")
+    ? input.rejected.map((r, i) => `[R${i + 1}] ${clean(r).replace(/["\r\n]+/g, " ")}`).join("\n")
     : "(none)";
 
   const prompt = `You are an engineering architect planning work BEFORE any code is written. Produce a concise implementation plan for the request, RESPECTING the team's recorded decisions. Do not invent company-specific facts, services, or decisions beyond those listed. If the request was disallowed or previously rejected, the plan must lead with that and pivot to the allowed alternative.

@@ -18,6 +18,7 @@ export interface ImportResult {
 
 const MAX_DOCS = 30;
 const MAX_CHARS = 16_000; // bound prompt size per doc
+const MAX_RAW_CHARS = 200_000; // bound splitDocs work for pasted blobs
 
 function uniq(arr: string[]): string[] {
   return [...new Set(arr.filter(Boolean))];
@@ -46,7 +47,8 @@ export function normalizeEvidence(ev: unknown, fallback: string): string[] {
  * document per section. Pure + testable. No heading ⇒ a single doc.
  */
 export function splitDocs(raw: string, fallbackPath = "pasted-doc"): ImportDoc[] {
-  const text = (raw ?? "").replace(/\r\n/g, "\n").trim();
+  const capped = (raw ?? "").slice(0, MAX_RAW_CHARS);
+  const text = capped.replace(/\r\n/g, "\n").trim();
   if (!text) return [];
   const lines = text.split("\n");
   const hasH1 = lines.some((l) => /^#\s+\S/.test(l));
@@ -56,23 +58,33 @@ export function splitDocs(raw: string, fallbackPath = "pasted-doc"): ImportDoc[]
   let title = "";
   let buf: string[] = [];
   const used = new Set<string>();
+  const nextSuffix = new Map<string, number>();
   const uniquePath = (base: string): string => {
     if (!used.has(base)) {
       used.add(base);
+      nextSuffix.set(base, 2);
       return base;
     }
     const dot = base.lastIndexOf(".");
     const stem = dot > 0 ? base.slice(0, dot) : base;
     const ext = dot > 0 ? base.slice(dot) : "";
-    let n = 2;
-    while (used.has(`${stem}-${n}${ext}`)) n++;
-    const dup = `${stem}-${n}${ext}`;
+    let n = nextSuffix.get(base) ?? 2;
+    let dup = `${stem}-${n}${ext}`;
+    while (used.has(dup)) {
+      n++;
+      dup = `${stem}-${n}${ext}`;
+    }
     used.add(dup);
+    nextSuffix.set(base, n + 1);
     return dup;
   };
   const flush = () => {
     const content = buf.join("\n").trim();
     if (!content) {
+      buf = [];
+      return;
+    }
+    if (docs.length >= MAX_DOCS) {
       buf = [];
       return;
     }
@@ -87,6 +99,7 @@ export function splitDocs(raw: string, fallbackPath = "pasted-doc"): ImportDoc[]
   };
   let inFence = false;
   for (const line of lines) {
+    if (docs.length >= MAX_DOCS) break;
     if (/^\s*(```|~~~)/.test(line)) inFence = !inFence;
     const m = !inFence ? line.match(/^#\s+(.+?)\s*$/) : null;
     if (m) {

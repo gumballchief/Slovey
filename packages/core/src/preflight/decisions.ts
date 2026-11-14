@@ -156,7 +156,7 @@ export async function runDecisionCheck(
     rawViolations.push(...raw.violations);
   }
 
-  if (judgeFailed) return { violations: keywordFallback(list, diff, changedFiles), note: combineNotes("Decision check ran in keyword-only mode (AI unavailable).", truncationNote) };
+  if (judgeFailed) return { violations: keywordFallback(list, diff, changedFiles), note: combineNotes("Decision check ran in keyword-only mode (AI unavailable).", truncationNote, retrievalFailed ? "Decision store unavailable — decision check unverified." : undefined) };
 
   const violations: DecisionViolation[] = [];
   const seen = new Set<string>();
@@ -171,7 +171,8 @@ export async function runDecisionCheck(
   for (const v of keywordFallback(list, diff, changedFiles)) {
     if (!seen.has(v.decisionId)) violations.push(v);
   }
-  return truncationNote ? { violations, note: truncationNote } : { violations };
+  const finalNote = combineNotes(truncationNote, retrievalFailed ? "Decision store unavailable — decision check unverified." : undefined);
+  return finalNote ? { violations, note: finalNote } : { violations };
 }
 
 function sanitizeViolationText(raw: string): string {

@@ -99,8 +99,8 @@ export async function fetchClosedPRs(
 
 function sanitizePrText(s: string): string {
   let out = s ?? "";
-  while (/<\/?\s*untrusted-pr-content\s*>/i.test(out)) {
-    out = out.replace(/<\/?\s*untrusted-pr-content\s*>/gi, "");
+  while (/<\/?\s*untrusted-pr-content\b[^>]*>/i.test(out)) {
+    out = out.replace(/<\/?\s*untrusted-pr-content\b[^>]*>/gi, "");
   }
   return out;
 }

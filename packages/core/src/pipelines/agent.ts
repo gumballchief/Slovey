@@ -56,6 +56,13 @@ interface PlanFile {
 const MAX_FILES = 3;
 const MAX_REVISE_ROUNDS = 2;
 
+/** Max intent chars fed to AI prompts and PR text; member-supplied intent is otherwise unbounded. */
+export const MAX_INTENT_CHARS = 4000;
+
+export function capAgentIntent(intent: string): string {
+  return intent.slice(0, MAX_INTENT_CHARS);
+}
+
 /** Existing files larger than this cannot be safely rewritten via full-file output (maxTokens 4000). */
 export const MAX_EXISTING_FILE_CHARS = 12000;
 /** Generated replacement shorter than this fraction of a non-trivial original is treated as truncated. */
@@ -78,6 +85,23 @@ export function capCurrentForPrompt(content: string): string {
 
 // Never let the agent touch CI, secrets, deps, or migrations.
 export const PROTECTED_PATH = /(^|\/)(\.github\/(workflows|actions)[^\/]*|node_modules|migrations?|Jenkinsfile[^\/]*|\.gitlab-ci[^\/]*|\.circleci|\.buildkite|azure-pipelines[^\/]*|\.travis[^\/]*|bitbucket-pipelines[^\/]*|appveyor[^\/]*|\.?drone\.yml|\.cirrus\.yml)(\/|$)|(^|\/)\.env[^\s\/]*($|\/)|(^|\/)(package\.json|yarn\.lock)$|package-lock|pnpm-lock/i;
+
+/**
+ * POSIX-normalize a model-supplied path before the protected-path check and
+ * before GitHub tree calls (which collapse // and resolve ./). Returns null
+ * when the path tries to escape with .. so the caller can refuse it.
+ */
+export function normalizeAgentPath(path: string): string | null {
+  const stripped = path.trim().replace(/^\/+/, "");
+  const parts = stripped.split("/");
+  const out: string[] = [];
+  for (const part of parts) {
+    if (part === "" || part === ".") continue;
+    if (part === "..") return null;
+    out.push(part);
+  }
+  return out.join("/");
+}
 
 export type AgentTargetKind = "text" | "binary" | "directory" | "submodule";
 
@@ -182,7 +206,8 @@ function otherFilesBlock(files: FileChange[], except: string): string {
  * conflict, revise the branch until clean (bounded) → read the repo's CI signal.
  */
 export async function runAgentTask(params: AgentParams): Promise<AgentResult> {
-  const { repoId, installationId, owner, name, fullName, defaultBranch, intent } = params;
+  const { repoId, installationId, owner, name, fullName, defaultBranch } = params;
+  const intent = capAgentIntent(params.intent);
 
   const gate = await isRepoWithinPlan(repoId);
   if (!gate.ok) {
@@ -216,7 +241,10 @@ Choose the SMALLEST set of files (1 to ${MAX_FILES}) to create or modify. Prefer
     throw new Error(`agent: planning returned no usable file targets (raw: ${planRaw.slice(0, 160)})`);
   }
   for (const f of plan) {
-    if (PROTECTED_PATH.test(f.path)) throw new Error(`agent: refusing to edit protected path: ${f.path}`);
+    const normalized = normalizeAgentPath(f.path);
+    if (normalized === null || normalized === "" || PROTECTED_PATH.test(normalized))
+      throw new Error(`agent: refusing to edit protected path: ${f.path}`);
+    f.path = normalized;
   }
 
   const octokit = await getInstallationOctokit(installationId);
@@ -361,7 +389,10 @@ Output the COMPLETE new contents of ${target.path} and NOTHING else — no prose
         files[i] = { path: files[i]!.path, content: await generate(target, files, feedback) };
       }
       for (const f of files) {
-        if (PROTECTED_PATH.test(f.path)) throw new Error(`agent: refusing to edit protected path: ${f.path}`);
+        const normalized = normalizeAgentPath(f.path);
+        if (normalized === null || normalized === "" || PROTECTED_PATH.test(normalized))
+          throw new Error(`agent: refusing to edit protected path: ${f.path}`);
+        f.path = normalized as string;
       }
       const stillBlocked = await gateAll(files);
       if (stillBlocked.size > 0) break; // don't push a revision that fails the knowledge gate

@@ -499,6 +499,16 @@ export async function activeDecisionsForScope(
   return scored.map((x) => x.r);
 }
 
+function canonicalScopePath(s: string): string {
+  let v = s.normalize("NFC").toLowerCase().replace(/\\/g, "/");
+  for (;;) {
+    if (v.startsWith("./")) { v = v.slice(2); continue; }
+    if (v.startsWith("/")) { v = v.slice(1); continue; }
+    break;
+  }
+  return v.replace(/\/+$/, "");
+}
+
 /** Pure: how strongly a decision's scope matches a query (0 = no match). */
 export function scopeScore(
   d: Pick<DecisionRow, "services" | "domains" | "languages" | "frameworks" | "directories">,
@@ -525,9 +535,9 @@ export function scopeScore(
   score += overlap(d.directories, scope.directories) * 2;
   // directory-prefix match against changed paths
   for (const dir of d.directories) {
-    const norm = dir.normalize("NFC").toLowerCase().replace(/\/+$/, "");
+    const norm = canonicalScopePath(dir);
     if ((norm === "" || norm === ".") && paths.length > 0) { score += 2; continue; }
-    if (norm && paths.some((p) => { const lp = p.normalize("NFC").toLowerCase(); return lp === norm || lp.startsWith(norm + "/"); })) score += 2;
+    if (norm && paths.some((p) => { const lp = canonicalScopePath(p); return lp === norm || lp.startsWith(norm + "/"); })) score += 2;
   }
   return score;
 }

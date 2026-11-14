@@ -110,14 +110,15 @@ export function mergeRemote(
   // Fold remote's derived architecture-rule hits into the local architecture-check.
   // Clone rather than mutate — `local` is the caller's object and must be left intact.
   const remoteArch = remoteByName("architecture-check");
-  if (remoteArch?.errors.length) {
+  if (remoteArch && remoteArch.status !== "pass") {
     const idx = checks.findIndex((c) => c.name === "architecture-check");
     if (idx >= 0) {
       const localArch = checks[idx]!;
       const seen = new Set(localArch.errors.map((e) => `${e.file}:${e.message}`));
       const extra = remoteArch.errors.filter((e) => !seen.has(`${e.file}:${e.message}`));
       const errors = [...localArch.errors, ...extra];
-      checks[idx] = { ...localArch, errors, status: errors.length ? "fail" : localArch.status };
+      const mergedStatus = errors.length ? "fail" : localArch.status !== "pass" ? localArch.status : remoteArch.status;
+      checks[idx] = { ...localArch, errors, status: mergedStatus };
     } else {
       checks.push({ ...remoteArch });
     }
@@ -132,13 +133,23 @@ export function mergeRemote(
   );
 
   // Same gate as the local engine: a blocking check that errored, or was skipped
-  // without allowSkippedChecks, cannot count as a pass.
+  // without allowSkippedChecks, cannot count as a pass. Remote fail/unverified
+  // verdicts arrive as the merged knowledge checks above, judged under the
+  // repo's own gate settings.
   const blocked =
     checks.some(
       (c) =>
         c.blocking &&
         (c.status === "fail" || c.status === "error" || (c.status === "skipped" && !gate.allowSkippedChecks)),
     ) || decisionViolations.length > 0;
+  // A hosted run that errored is treated like hosted downtime: fail open (our
+  // uptime must not block a commit) but never silently. The GitHub App
+  // re-checks the decision graph at PR time.
+  if (remote.status === "error") {
+    warnings.push(
+      "Slovey hosted checks errored. The decision graph was NOT verified for this change (it will be re-checked on your PR).",
+    );
+  }
   const anyFailure = checks.some((c) => c.status === "fail") || decisionViolations.length > 0;
   // Same resolver as the local engine so the two can't drift.
   const status = resolveStatus({ checks, blocked, anyFailure, blockingViolations: decisionViolations.length });

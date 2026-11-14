@@ -10,7 +10,7 @@ const log = logger.child({ component: "stripe-webhook" });
 const MAX_WEBHOOK_BYTES = 1_000_000; // Stripe events are small; cap before buffering.
 
 // Serialize webhook processing so concurrent/out-of-order events for the
-// same subscription cannot both pass the live-status checks before either
+// same customer/org cannot both pass the live-status checks before either
 // writes: inside the queue the live check + setOrgPlan are atomic, so the
 // final plan follows Stripe's live state, not webhook write order.
 const webhookChains = new Map<string, Promise<unknown>>();
@@ -43,13 +43,19 @@ function runSerialized<T>(key: string | null, fn: () => Promise<T>): Promise<T> 
   return run;
 }
 
-// Newest Stripe `created` applied per subscription; an older event that
-// arrives (or is retried) after a newer one for the same subscription is
+// Newest Stripe `created` applied per customer/org; an older event that
+// arrives (or is retried) after a newer one for the same customer is
 // dropped instead of resurrecting the old plan.
 const lastEventBySubscription = new Map<string, number>();
 
 function subscriptionKey(event: Stripe.Event): string | null {
-  const obj = event.data.object as unknown as { id?: unknown; subscription?: unknown };
+  const obj = event.data.object as unknown as { id?: unknown; subscription?: unknown; customer?: unknown };
+  const customer = obj.customer;
+  if (typeof customer === "string" && customer) return customer;
+  if (customer && typeof customer === "object") {
+    const id = (customer as { id?: unknown }).id;
+    if (typeof id === "string" && id) return id;
+  }
   if (event.type === "checkout.session.completed") {
     if (typeof obj.subscription === "string") return obj.subscription;
     if (obj.subscription && typeof obj.subscription === "object") {

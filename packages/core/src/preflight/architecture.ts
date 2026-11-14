@@ -50,15 +50,16 @@ export function architectureCheckContents(
     }
   }
 
+  let contentTruncated = false;
   if (contentRules.length > 0) {
     let filesScanned = 0;
     let charsScanned = 0;
     for (const { path, content } of files) {
       if (errors.length >= MAX_ARCHITECTURE_ERRORS) break;
-      if (filesScanned >= MAX_CONTENTS_FILES) break;
+      if (filesScanned >= MAX_CONTENTS_FILES) { contentTruncated = true; break; }
       // Mirror readChanged: skip oversized or binary-ish files before split/lineStarts.
       if (content.length > 512_000 || content.includes("\u0000")) continue;
-      if (charsScanned + content.length > MAX_CONTENTS_TOTAL_CHARS) break;
+      if (charsScanned + content.length > MAX_CONTENTS_TOTAL_CHARS) { contentTruncated = true; break; }
       filesScanned++;
       charsScanned += content.length;
       // Content rules without an explicit `in` scope apply to CODE files only —
@@ -105,6 +106,9 @@ export function architectureCheckContents(
     }
   }
 
+  if (contentTruncated) {
+    return { name: "architecture-check", command: "", durationMs: Date.now() - start, status: errors.length ? "fail" : "skipped", errors, skippedReason: "Architecture check hit its scan cap; not all changed files were verified." };
+  }
   return { name: "architecture-check", command: "", durationMs: Date.now() - start, status: errors.length ? "fail" : "pass", errors };
 }
 

@@ -91,6 +91,10 @@ export async function upsertDecisions(
         examples: decisions.examples,
         review: decisions.review,
         source: decisions.source,
+        domains: decisions.domains,
+        services: decisions.services,
+        languages: decisions.languages,
+        frameworks: decisions.frameworks,
         distance: sql<number>`(${decisions.embedding} <=> ${lit}::vector)`,
       })
       .from(decisions)
@@ -118,10 +122,10 @@ export async function upsertDecisions(
                 ...(Object.keys(scope).length === 0
                   ? {}
                   : {
-                      domains: scope.domains ?? [],
-                      services: scope.services ?? [],
-                      languages: scope.languages ?? [],
-                      frameworks: scope.frameworks ?? [],
+                      domains: scope.domains ?? near.domains ?? [],
+                      services: scope.services ?? near.services ?? [],
+                      languages: scope.languages ?? near.languages ?? [],
+                      frameworks: scope.frameworks ?? near.frameworks ?? [],
                     }),
               }),
           examples: uniq([...(near.examples ?? []), ...(d.examples ?? [])]),

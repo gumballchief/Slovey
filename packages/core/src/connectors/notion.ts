@@ -64,8 +64,9 @@ export class NotionConnector implements ConnectorClient {
     };
   }
 
-  private async listChildren(blockId: string): Promise<Array<Record<string, unknown>>> {
+  private async listChildren(blockId: string, budget: number): Promise<Array<Record<string, unknown>>> {
     const out: Array<Record<string, unknown>> = [];
+    if (budget <= 0) return out;
     let cursor: string | undefined;
     do {
       const url =
@@ -78,7 +79,8 @@ export class NotionConnector implements ConnectorClient {
         has_more?: boolean;
         next_cursor?: string | null;
       };
-      out.push(...(json.results ?? []));
+      out.push(...(json.results ?? []).slice(0, budget - out.length));
+      if (out.length >= budget) break;
       cursor = json.has_more ? (json.next_cursor ?? undefined) : undefined;
     } while (cursor);
     return out;
@@ -104,7 +106,7 @@ export class NotionConnector implements ConnectorClient {
       const allBlocks: Array<Record<string, unknown>> = [];
       let content = "";
       try {
-        allBlocks.push(...(await this.listChildren(page.id)));
+        allBlocks.push(...(await this.listChildren(page.id, MAX_BLOCKS_PER_DOC)));
         const queue: Array<{ id: string; depth: number }> = allBlocks
           .filter((b) => b.has_children === true && typeof b.id === "string")
           .map((b) => ({ id: b.id as string, depth: 0 }));
@@ -113,7 +115,7 @@ export class NotionConnector implements ConnectorClient {
           const next = queue.shift();
           if (!next || seen.has(next.id)) continue;
           seen.add(next.id);
-          const children = await this.listChildren(next.id);
+          const children = await this.listChildren(next.id, MAX_BLOCKS_PER_DOC - allBlocks.length);
           for (const child of children) {
             if (allBlocks.length >= MAX_BLOCKS_PER_DOC) break;
             allBlocks.push(child);
