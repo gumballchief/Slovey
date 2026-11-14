@@ -22,15 +22,21 @@ type Repo = { id: number; owner: { login: string; id: number }; name: string; fu
 const gh = vi.hoisted(() => ({
   accounts: new Map<number, { id: number; login: string; type: string }>(),
   reposByInstall: new Map<number, unknown[]>(),
+  suspended: new Set<number>(),
+  listFails: false,
 }));
 
 vi.mock("../src/github/app", () => ({
   getApp: () => ({
     octokit: {
-      request: async (_route: string, p: { installation_id: number }) => {
+      request: async (route: string, p: { installation_id: number }) => {
+        if (route === "GET /app/installations") {
+          if (gh.listFails) throw Object.assign(new Error("Bad credentials"), { status: 401 });
+          return { data: [...gh.accounts.keys()].map((id) => ({ id })) };
+        }
         const account = gh.accounts.get(p.installation_id);
         if (!account) throw Object.assign(new Error("Not Found"), { status: 404 });
-        return { data: { account } };
+        return { data: { account, suspended_at: gh.suspended.has(p.installation_id) ? "2026-11-14T00:00:00Z" : null } };
       },
     },
   }),
@@ -45,14 +51,21 @@ vi.mock("../src/github/app", () => ({
   }),
 }));
 
-import { syncInstallation } from "../src/services/sync";
+import { listAllRepos, reconcileInstallations, syncInstallation } from "../src/services/sync";
 import { linkUserMemberships } from "../src/services/orgs";
 
 // Ids far from anything real so a shared dev DB is safe; cleaned up after.
 const B = 880_000_000;
-const INSTALLS = [B + 1, B + 2, B + 3, B + 4, B + 5, B + 6, B + 7, B + 8];
-const ACCOUNTS = [B + 100, B + 200, B + 300, B + 301, B + 400, B + 666, B + 667, B + 900];
-const SLUGS = ["zz-acme", "zz-acmeco", "zz-victim", "zz-legacy1", "zz-oldname", "zz-newname", "zz-preset", "zz-other"];
+const INSTALLS = [B + 1, B + 2, B + 3, B + 4, B + 5, B + 6, B + 7, B + 8, B + 20, B + 21, B + 22, B + 23];
+const ACCOUNTS = [B + 100, B + 200, B + 300, B + 301, B + 400, B + 666, B + 667, B + 900, B + 500, B + 501, B + 502, B + 503];
+const SLUGS = ["zz-acme", "zz-acmeco", "zz-victim", "zz-legacy1", "zz-oldname", "zz-newname", "zz-preset", "zz-other", "zz-gone", "zz-susp", "zz-missed", "zz-stale"];
+// The reconcile test touches EVERY active installation, so it only runs on a
+// throwaway local database, never on a shared dev one.
+const THROWAWAY = /@(127\.0\.0\.1|localhost)[:/]/.test(process.env.DATABASE_URL ?? "");
+async function installRow(installationId: number) {
+  const [row] = await getDb().select().from(installations).where(eq(installations.githubInstallationId, installationId));
+  return row;
+}
 
 function install(installationId: number, account: Account, repoList: Repo[] = []) {
   gh.accounts.set(installationId, account);
@@ -99,6 +112,8 @@ describe.skipIf(!RUN)("identity by immutable GitHub ids (migration 0020)", () =>
   beforeEach(() => {
     gh.accounts.clear();
     gh.reposByInstall.clear();
+    gh.suspended.clear();
+    gh.listFails = false;
   });
 
   it("a renamed account keeps its org, and a renamed repo keeps its row", async () => {
@@ -217,5 +232,54 @@ describe.skipIf(!RUN)("identity by immutable GitHub ids (migration 0020)", () =>
       (await db.select({ role: memberships.role }).from(memberships).where(and(eq(memberships.orgId, org.id), eq(memberships.userId, userId))))[0]?.role;
     expect(await roleOf(realOwner!.id)).toBe("owner");
     expect(await roleOf(impostor!.id)).toBe("member");
+  });
+
+  it("an uninstall marks the install inactive, keeps its data, and a reinstall brings it back", async () => {
+    const acct: Account = { id: B + 500, login: "zz-gone", type: "Organization" };
+    await install(B + 20, acct, [repo(B + 7100, acct, "kept")]);
+    const org = await orgOf(B + 20);
+    expect((await listAllRepos()).some((r) => r.fullName === "zz-gone/kept")).toBe(true);
+
+    gh.accounts.delete(B + 20); // uninstalled on GitHub: lookups now 404
+    expect(await syncInstallation(B + 20)).toBeNull(); // what the `deleted` webhook's job runs
+    expect((await installRow(B + 20))!.suspendedAt).not.toBeNull();
+    expect((await listAllRepos()).some((r) => r.fullName === "zz-gone/kept")).toBe(false); // no more failing rescans
+    expect(await getDb().select().from(repos).where(eq(repos.githubRepoId, B + 7100))).toHaveLength(1); // nothing deleted
+
+    await install(B + 20, acct, [repo(B + 7100, acct, "kept")]); // reinstall
+    expect((await installRow(B + 20))!.suspendedAt).toBeNull();
+    expect((await orgOf(B + 20)).id).toBe(org.id);
+    expect((await listAllRepos()).some((r) => r.fullName === "zz-gone/kept")).toBe(true);
+  });
+
+  it("a suspended install is marked inactive", async () => {
+    const acct: Account = { id: B + 501, login: "zz-susp", type: "User" };
+    await install(B + 21, acct);
+    gh.suspended.add(B + 21);
+    expect(await syncInstallation(B + 21)).toBeNull();
+    expect((await installRow(B + 21))!.suspendedAt).not.toBeNull();
+  });
+
+  it.skipIf(!THROWAWAY)("the nightly reconcile records a missed install and retires a vanished one, but never acts if GitHub's list fails", async () => {
+    // We never heard about B+22 (missed `created` webhook).
+    gh.accounts.set(B + 22, { id: B + 502, login: "zz-missed", type: "User" });
+    gh.reposByInstall.set(B + 22, []);
+    // We think B+23 is active, but it was uninstalled (missed `deleted` webhook).
+    await install(B + 23, { id: B + 503, login: "zz-stale", type: "Organization" });
+    gh.accounts.delete(B + 23);
+
+    gh.listFails = true;
+    await expect(reconcileInstallations()).rejects.toThrow();
+    expect((await installRow(B + 23))!.suspendedAt).toBeNull(); // an outage changes nothing
+    expect(await installRow(B + 22)).toBeUndefined();
+
+    gh.listFails = false;
+    const r = await reconcileInstallations();
+    expect((await installRow(B + 22))!.suspendedAt).toBeNull();
+    expect((await installRow(B + 23))!.suspendedAt).not.toBeNull();
+    expect(r.live).toBe(1);
+    expect(r.synced).toBe(1);
+    expect(r.deactivated).toBeGreaterThanOrEqual(1);
+    expect(r.failed).toBe(0);
   });
 });

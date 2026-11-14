@@ -12,6 +12,7 @@ import {
   runIngestConnector,
   runRefreshMemory,
   runRescanPrs,
+  reconcileInstallations,
   syncInstallation,
   type AgentTaskJob,
   type CheckPrJob,
@@ -137,6 +138,16 @@ async function main() {
 
   await boss.work<RefreshMemoryJob>(JOBS.refreshMemory, async ([job]) => {
     if (!job) return;
+    // The nightly sweep (no repoId) first reconciles installations with GitHub,
+    // so a missed install/uninstall webhook is fixed within a day. Best-effort:
+    // a failure here must not skip the memory refresh.
+    if (!job.data.repoId) {
+      try {
+        log.info("reconcile installations done", { ...(await reconcileInstallations()) });
+      } catch (err) {
+        log.warn("reconcile installations failed", { err });
+      }
+    }
     log.info("refresh start", { repoId: job.data.repoId ?? "all" });
     const r = await runRefreshMemory(job.data.repoId);
     log.info("refresh done", { ...r });

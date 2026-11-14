@@ -47,17 +47,67 @@ async function accountOwnsLegacyOrg(
   return false;
 }
 
+function httpStatus(err: unknown): number | undefined {
+  if (typeof err !== "object" || err === null || !("status" in err)) return undefined;
+  const s = Number((err as { status?: unknown }).status);
+  return Number.isFinite(s) ? s : undefined;
+}
+
+/**
+ * Mark an installation inactive: the App was uninstalled or suspended on
+ * GitHub. Its org, repos and learned decisions are kept (a reinstall picks
+ * them straight back up, since syncInstallation clears suspendedAt), but
+ * scheduled sweeps skip it, so it stops failing every rescan. Returns whether
+ * an active row was changed.
+ */
+export async function deactivateInstallation(installationId: number, at: Date = new Date()): Promise<boolean> {
+  const db = getDb();
+  const rows = await db
+    .update(installations)
+    .set({ suspendedAt: at })
+    .where(and(eq(installations.githubInstallationId, installationId), isNull(installations.suspendedAt)))
+    .returning({ orgId: installations.orgId });
+  if (rows[0]) {
+    await logAudit({
+      orgId: rows[0].orgId ?? undefined,
+      action: "installation.deactivated",
+      actorUser: "system",
+      metadata: { installationId },
+    });
+  }
+  return rows.length > 0;
+}
+
 /**
  * Upsert an installation and all repos it can access, with default settings.
- * Runs on install and on `installation_repositories` changes.
+ * Runs on every `installation` event (created, deleted, suspend, unsuspend…)
+ * and on `installation_repositories` changes. An installation GitHub no longer
+ * has (uninstalled) or has suspended is marked inactive instead; returns null then.
  */
 export async function syncInstallation(installationId: number) {
   const db = getDb();
   const app = getApp();
 
-  const meta = await app.octokit.request("GET /app/installations/{installation_id}", {
-    installation_id: installationId,
-  });
+  let meta: Awaited<ReturnType<typeof app.octokit.request<"GET /app/installations/{installation_id}">>>;
+  try {
+    meta = await app.octokit.request("GET /app/installations/{installation_id}", {
+      installation_id: installationId,
+    });
+  } catch (err) {
+    // 404: uninstalled. Without this the `deleted` webhook's job just failed
+    // and the install stayed "active" forever, failing every scheduled rescan.
+    if (httpStatus(err) === 404) {
+      await deactivateInstallation(installationId);
+      return null;
+    }
+    throw err;
+  }
+  // Suspended on GitHub: no tokens can be minted, so don't try to list repos.
+  const suspendedAt = (meta.data as { suspended_at?: string | null }).suspended_at;
+  if (suspendedAt) {
+    await deactivateInstallation(installationId, new Date(suspendedAt));
+    return null;
+  }
   const account = meta.data.account as
     | { id?: number; login?: string; slug?: string; type?: string }
     | null;
@@ -160,6 +210,53 @@ export async function syncInstallation(installationId: number) {
   // partial GitHub response must never wipe a customer's memory.
   await logAudit({ orgId, action: "installation.synced", actorUser: "system", metadata: { installationId, repos: allRepos.length } });
   return inst;
+}
+
+export interface ReconcileResult {
+  /** Installations GitHub lists right now. */
+  live: number;
+  synced: number;
+  deactivated: number;
+  failed: number;
+}
+
+/**
+ * Daily safety net for missed webhooks: make the installations table match
+ * what GitHub actually has. Every installation GitHub lists is synced (a
+ * missed `created` event gets recorded), and every one we think is active but
+ * GitHub no longer lists is re-checked one by one, which marks it inactive
+ * only when GitHub itself answers 404. If GitHub's listing fails, this throws
+ * before touching anything, so an outage can never deactivate installs.
+ */
+export async function reconcileInstallations(): Promise<ReconcileResult> {
+  const db = getDb();
+  const app = getApp();
+  const live = new Set<number>();
+  for (let page = 1; ; page++) {
+    const { data } = await app.octokit.request("GET /app/installations", { per_page: 100, page });
+    for (const i of data) live.add(i.id);
+    if (data.length < 100) break;
+  }
+
+  const known = await db
+    .select({ id: installations.githubInstallationId })
+    .from(installations)
+    .where(isNull(installations.suspendedAt));
+  // Ids <= 0 are local seed/demo rows, never real GitHub installations.
+  const missing = known.map((k) => k.id).filter((id) => id > 0 && !live.has(id));
+
+  const result: ReconcileResult = { live: live.size, synced: 0, deactivated: 0, failed: 0 };
+  for (const id of [...live, ...missing]) {
+    try {
+      const row = await syncInstallation(id);
+      if (row) result.synced++;
+      else result.deactivated++;
+    } catch {
+      // One bad installation (rate limit, transient error) must not stop the rest.
+      result.failed++;
+    }
+  }
+  return result;
 }
 
 export interface ResolvedRepo {
