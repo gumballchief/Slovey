@@ -1,5 +1,5 @@
 import { getAI } from "../ai";
-import { fingerprint } from "./parse";
+import { fingerprint, redactSecrets } from "./parse";
 import type { RawCheck } from "./checks";
 import type { PreflightError } from "./types";
 
@@ -27,7 +27,7 @@ export async function securityReviewCheck(diff: string, changedFiles: string[]):
     };
   }
 
-  const safeFiles = changedFiles.map((f) => f.replace(/[\x00-\x1F\x7F]/g, "").slice(0, 200)).slice(0, 100);
+  const safeFiles = changedFiles.map((f) => f.replace(/[\x00-\x1F\x7F]/g, "").replace(/<\/FILES>/gi, "</ FILES>").slice(0, 200)).slice(0, 100);
   let findings: RawFinding[] | null = null;
   try {
     const r = await getAI().completeJSON<{ findings: RawFinding[] }>(
@@ -70,10 +70,10 @@ Return ONLY JSON: {"findings":[{"file":"path","line":123,"issue":"one precise se
     .slice(0, 20)
     .map((f) => {
       const e = {
-        file: f.file ?? "",
+        file: redactSecrets(f.file ?? ""),
         line: typeof f.line === "number" ? f.line : undefined,
         code: `sec-${f.severity ?? "high"}`,
-        message: f.issue,
+        message: redactSecrets(f.issue),
       };
       return { ...e, id: fingerprint(e), category: "security" as const };
     });

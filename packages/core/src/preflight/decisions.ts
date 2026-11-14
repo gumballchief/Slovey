@@ -54,11 +54,12 @@ export async function runDecisionCheck(
   if (!diff.trim() && changedFiles.length === 0) {
     return { violations: [], note: "No changes to check against the decision graph." };
   }
+  const cappedDiff = diff.slice(0, 20000);
   const db = getDb();
   const [relevant, rejected] = await Promise.all([
     retrieveDecisions(
       repoId,
-      { title: "preflight change", body: diff || changedFiles.join("\n"), changedFiles },
+      { title: "preflight change", body: cappedDiff || changedFiles.join("\n"), changedFiles },
       { topK: 10 },
     ).catch(() => []),
     db
@@ -92,18 +93,18 @@ export async function runDecisionCheck(
   const list = [...catalog.values()];
   let raw: { violations?: RawViolation[] } | null = null;
   try {
-    raw = await getAI().completeJSON<{ violations: RawViolation[] }>(buildPrompt(list, diff), { tier: "premium", maxTokens: 900 });
+    raw = await getAI().completeJSON<{ violations: RawViolation[] }>(buildPrompt(list, cappedDiff), { tier: "premium", maxTokens: 900 });
   } catch {
     raw = null;
   }
 
-  if (!raw) return { violations: keywordFallback(list, diff), note: "Decision check ran in keyword-only mode (AI unavailable)." };
+  if (!raw) return { violations: keywordFallback(list, cappedDiff), note: "Decision check ran in keyword-only mode (AI unavailable)." };
 
   if (
     !Array.isArray(raw.violations) ||
     raw.violations.some((v) => !v || typeof v !== "object" || typeof v.decisionId !== "string")
   ) {
-    return { violations: keywordFallback(list, diff), note: "Decision check ran in keyword-only mode (AI unavailable)." };
+    return { violations: keywordFallback(list, cappedDiff), note: "Decision check ran in keyword-only mode (AI unavailable)." };
   }
 
   const violations: DecisionViolation[] = [];
@@ -116,7 +117,7 @@ export async function runDecisionCheck(
     seen.add(v.decisionId);
     violations.push(toViolation(d, typeof v.violation === "string" ? v.violation : "", clamp(v.confidence)));
   }
-  for (const v of keywordFallback(list, diff)) {
+  for (const v of keywordFallback(list, cappedDiff)) {
     if (!seen.has(v.decisionId)) violations.push(v);
   }
   return { violations };

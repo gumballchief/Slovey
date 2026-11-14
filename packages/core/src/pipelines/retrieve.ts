@@ -1,5 +1,5 @@
 import { getDb, decisions } from "@company-brain/db";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { getAI } from "../ai";
 import { CATEGORIES, categorizePrompt, type Category } from "../ai/prompts";
 import type { JudgePrInput } from "../ai/prompts";
@@ -27,6 +27,62 @@ export async function categorizePr(pr: JudgePrInput): Promise<Category | null> {
 
 function toVectorLiteral(vec: number[]): string {
   return `[${vec.join(",")}]`;
+}
+
+const KEYWORD_STOPWORDS = new Set([
+  "with",
+  "from",
+  "this",
+  "that",
+  "have",
+  "will",
+  "your",
+  "about",
+  "into",
+  "update",
+  "change",
+  "files",
+  "added",
+  "docs",
+  "test",
+  "tests",
+]);
+
+/** Distinctive alphanumeric terms from untrusted PR text for keyword backstop. */
+export function extractQueryKeywords(pr: JudgePrInput, maxTerms = 10): string[] {
+  const text = [
+    pr.title,
+    pr.body,
+    (pr.changedFiles ?? []).join(" "),
+    pr.diffSummary ?? "",
+  ]
+    .filter(Boolean)
+    .join("\n")
+    .toLowerCase();
+  const tokens = text
+    .split(/[^a-z0-9]+/)
+    .filter((t) => t.length >= 4 && !KEYWORD_STOPWORDS.has(t));
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const t of tokens) {
+    if (!seen.has(t)) {
+      seen.add(t);
+      out.push(t);
+      if (out.length >= maxTerms) break;
+    }
+  }
+  return out;
+}
+
+/** Union pools deduped by id, keeping the first (closest) copy. */
+export function unionDecisionPools<T extends { id: string }>(...pools: T[][]): T[] {
+  const byId = new Map<string, T>();
+  for (const pool of pools) {
+    for (const r of pool) {
+      if (!byId.has(r.id)) byId.set(r.id, r);
+    }
+  }
+  return [...byId.values()];
 }
 
 /**
@@ -79,8 +135,70 @@ export async function retrieveDecisions(
     .orderBy(sql`${decisions.embedding} <=> ${lit}::vector`)
     .limit(pool);
 
+  const extraPools: (typeof rows)[] = [];
+
+  // Per-category backstop: same-category nearest neighbours cannot be evicted
+  // by benign-topic dilution in the global cosine pool.
+  if (pr.category) {
+    const catRows = await db
+      .select({
+        id: decisions.id,
+        decision: decisions.decision,
+        why: decisions.why,
+        examples: decisions.examples,
+        evidence: decisions.evidence,
+        category: decisions.category,
+        distance: sql<number>`(${decisions.embedding} <=> ${lit}::vector)`,
+      })
+      .from(decisions)
+      .where(
+        and(
+          eq(decisions.repoId, repoId),
+          inArray(decisions.status, ["approved", "proposed"]),
+          sql`${decisions.embedding} is not null`,
+          eq(decisions.category, pr.category),
+        ),
+      )
+      .orderBy(sql`${decisions.embedding} <=> ${lit}::vector`)
+      .limit(topK);
+    extraPools.push(catRows);
+  }
+
+  // Keyword / file-overlap backstop: terms from the (untrusted) PR text matched
+  // against stored decision text, so stuffing cannot evict the true match.
+  const keywords = extractQueryKeywords(pr);
+  if (keywords.length > 0) {
+    const kwFilter = or(...keywords.map((k) => ilike(decisions.decision, `%${k}%`)));
+    if (kwFilter !== undefined) {
+      const kwRows = await db
+        .select({
+          id: decisions.id,
+          decision: decisions.decision,
+          why: decisions.why,
+          examples: decisions.examples,
+          evidence: decisions.evidence,
+          category: decisions.category,
+          distance: sql<number>`(${decisions.embedding} <=> ${lit}::vector)`,
+        })
+        .from(decisions)
+        .where(
+          and(
+            eq(decisions.repoId, repoId),
+            inArray(decisions.status, ["approved", "proposed"]),
+            sql`${decisions.embedding} is not null`,
+            kwFilter,
+          ),
+        )
+        .orderBy(sql`${decisions.embedding} <=> ${lit}::vector`)
+        .limit(Math.max(topK, 10));
+      extraPools.push(kwRows);
+    }
+  }
+
+  const all = unionDecisionPools(rows, ...extraPools);
+
   // Category boost: nudge same-category decisions up, then take top-K.
-  const boosted = rows
+  const boosted = all
     .map((r) => ({
       ...r,
       examples: r.examples ?? [],

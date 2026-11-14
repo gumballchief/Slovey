@@ -73,6 +73,7 @@ export function sanitizeJudgeText(value: string | null | undefined, maxLength = 
   s = s.replace(/`[^`]*`/g, " ");
   s = s.replace(/https?:\/\/\S+/gi, " ");
   s = s.replace(/www\.\S+/gi, " ");
+  s = s.replace(/\s+/g, " ");
   s = s.replace(/\b(?:maintainer|reviewer|admin|owner)\s+approved\b[^.;\n]*/gi, " ");
   s = s.replace(/\bmerge immediately\b[^.;\n]*/gi, " ");
   s = s.replace(/\bdisable\b[^.;\n]*\bcompany-brain\b[^.;\n]*/gi, " ");

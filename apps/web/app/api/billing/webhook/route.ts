@@ -68,16 +68,21 @@ export async function POST(req: Request): Promise<Response> {
         const session = event.data.object;
         const orgId = session.metadata?.orgId;
         if (!orgId) break;
-        await dashboard.setOrgStripe(orgId, {
-          stripeCustomerId: typeof session.customer === "string" ? session.customer : null,
-          stripeSubscriptionId: typeof session.subscription === "string" ? session.subscription : null,
-        });
+        const stripeCustomerId = typeof session.customer === "string" ? session.customer : null;
+        if (stripeCustomerId) {
+          await dashboard.setOrgStripe(orgId, {
+            stripeCustomerId,
+          });
+        }
         // Only grant Pro once payment has succeeded — checkout.session.completed
         // fires even when payment is still pending/failed (payment_status != paid).
+        // Do not touch stripeSubscriptionId until paid is verified: overwriting it
+        // with an unpaid/incomplete subscription would make later cancellations
+        // of the real subscription look stale and be ignored.
         let paid = session.payment_status === "paid";
+        const subRef = session.subscription;
+        const subId = typeof subRef === "string" ? subRef : subRef?.id;
         if (!paid) {
-          const subRef = session.subscription;
-          const subId = typeof subRef === "string" ? subRef : subRef?.id;
           if (subId) {
             try {
               const sub = await getStripe().subscriptions.retrieve(subId);
@@ -91,6 +96,32 @@ export async function POST(req: Request): Promise<Response> {
           log.info("checkout completed without payment, waiting for payment", { orgId });
           break;
         }
+        // A replayed/out-of-order checkout event still reports its historical
+        // paid status even after the subscription was canceled/downgraded, so
+        // never grant Pro from the event alone: confirm the live subscription
+        // is still current before touching stripeSubscriptionId or the plan.
+        if (!subId) {
+          log.info("ignoring checkout completion without subscription", { orgId });
+          break;
+        }
+        if (await isStaleSubscriptionEvent(session.customer, subId)) {
+          log.info("ignoring stale checkout completion", { orgId, subId });
+          break;
+        }
+        try {
+          const live = await getStripe().subscriptions.retrieve(subId);
+          if (live.status !== "active" && live.status !== "trialing" && live.status !== "past_due") {
+            log.info("ignoring stale checkout completion", { orgId, subId });
+            break;
+          }
+        } catch (e) {
+          // Can't confirm right now (Stripe API hiccup): fail the request so
+          // Stripe retries this event, instead of acking it and losing a real upgrade.
+          throw e;
+        }
+        await dashboard.setOrgStripe(orgId, {
+          stripeSubscriptionId: subId,
+        });
         await dashboard.setOrgPlan(orgId, "pro");
         await logAudit({ orgId, action: "billing.subscribed", actorUser: "stripe", metadata: { plan: "pro" } });
         log.info("org upgraded to pro", { orgId });
@@ -125,6 +156,15 @@ export async function POST(req: Request): Promise<Response> {
             log.info("ignoring stale subscription update", { orgId, subId: sub.id });
             break;
           }
+          try {
+            const live = await getStripe().subscriptions.retrieve(sub.id);
+            if (live.status === "active" || live.status === "trialing" || live.status === "past_due") {
+              log.info("ignoring stale subscription update", { orgId, subId: sub.id });
+              break;
+            }
+          } catch {
+            // Live check failed (e.g. genuinely deleted) — fall through and apply the event.
+          }
           await dashboard.setOrgPlan(orgId, "free");
           await logAudit({ orgId, action: "billing.downgraded", actorUser: "stripe", metadata: { status: sub.status } });
         }
@@ -137,6 +177,15 @@ export async function POST(req: Request): Promise<Response> {
         if (await isStaleSubscriptionEvent(sub.customer, sub.id)) {
           log.info("ignoring stale subscription deleted", { orgId, subId: sub.id });
           break;
+        }
+        try {
+          const live = await getStripe().subscriptions.retrieve(sub.id);
+          if (live.status === "active" || live.status === "trialing" || live.status === "past_due") {
+            log.info("ignoring stale subscription deleted", { orgId, subId: sub.id });
+            break;
+          }
+        } catch {
+          // Live check failed (e.g. genuinely deleted) — fall through and apply the event.
         }
         await dashboard.setOrgPlan(orgId, "free");
         await dashboard.setOrgStripe(orgId, { stripeSubscriptionId: null });

@@ -1,6 +1,7 @@
 import { JOBS, createAgentRun, dashboard, enqueue, listAgentRuns } from "@company-brain/core";
 import { assertRepoAccess, assertRepoWrite, requireViewer } from "@/lib/server/auth";
 import { HttpError, handle, ok, readJsonBody } from "@/lib/server/respond";
+import { rateLimit } from "@/lib/server/ratelimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -57,6 +58,14 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     // The persisted run is counted by countAgentRunsThisMonth once created,
     // so the next lock holder sees it. Enqueue stays after the lock.
     const run = await withOrgRunLock(org.id, async () => {
+      // Per-org/repo flood control: applies to all plans (incl. unlimited).
+      rateLimit(`agent-tasks:org:${org.id}`, 20, 60_000);
+      rateLimit(`agent-tasks:repo:${id}`, 10, 60_000);
+      const recent = await listAgentRuns(id, 10);
+      const pending = recent.filter((r) => r.status === "queued" || r.status === "running").length;
+      if (pending >= 5) {
+        throw new HttpError(429, "Too many pending agent tasks for this repo. Wait for existing runs to finish.");
+      }
       if (limit >= 0) {
         const used = await dashboard.countAgentRunsThisMonth(org.id);
         if (used >= limit) {

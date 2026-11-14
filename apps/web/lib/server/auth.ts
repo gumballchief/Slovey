@@ -45,6 +45,8 @@ interface GhMeta {
   preferred_username?: string;
   provider_id?: string | number;
   avatar_url?: string;
+  email?: string;
+  email_verified?: boolean;
 }
 
 /**
@@ -66,7 +68,8 @@ export async function getViewer(): Promise<Viewer | null> {
       // Prefer the GitHub identity from `identities` so repo access works whether
       // GitHub is the primary login OR was linked onto a Google (etc.) account.
       const identities = (user.identities ?? []) as Array<{ provider: string; identity_data?: GhMeta }>;
-      const ghData = (identities.find((i) => i.provider === "github")?.identity_data ?? {}) as GhMeta;
+      const ghIdentity = identities.find((i) => i.provider === "github");
+      const ghData = (ghIdentity?.identity_data ?? {}) as GhMeta;
       const login =
         ghData.user_name || ghData.preferred_username || user.email?.split("@")[0] || "user";
       const githubId = ghData.provider_id ? Number(ghData.provider_id) : undefined;
@@ -81,7 +84,16 @@ export async function getViewer(): Promise<Viewer | null> {
         });
         userId = row?.id;
       }
-      const email = user.email_confirmed_at ? (user.email ?? undefined) : undefined;
+      // The email only counts (it grants superadmin) when a sign-in provider says it
+      // verified that exact address. Supabase marks OAuth emails confirmed even when
+      // the provider never verified them, so email_confirmed_at alone is not enough.
+      const vouched = identities.some(
+        (i) =>
+          i.identity_data?.email_verified === true &&
+          typeof i.identity_data.email === "string" &&
+          i.identity_data.email.toLowerCase() === (user.email ?? "").toLowerCase(),
+      );
+      const email = user.email_confirmed_at && vouched ? (user.email ?? undefined) : undefined;
       return { login, githubId, userId, email, isDev: false };
     }
     if (process.env.NODE_ENV === "production") return null;

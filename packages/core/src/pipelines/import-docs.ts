@@ -104,6 +104,7 @@ export async function importDocs(
     else reservedByRepo.delete(reservationKey);
   };
   try {
+  if (effectiveMaxNew === 0) return { docs: docs.length, extracted: 0, inserted: 0, updated: 0 };
   const items: { d: ExtractedDecision; source: "doc" }[] = [];
   let extracted = 0;
 

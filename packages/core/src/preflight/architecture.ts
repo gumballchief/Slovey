@@ -116,7 +116,11 @@ const CODE_FILE = /\.(c|m)?(t|j)sx?$|\.(py|rb|go|rs|java|kt|swift|cs|php|sql|sh|
 /** Matches ESM imports (incl. side-effect), re-exports, dynamic import(), and require() of a module (or subpath). */
 function importRegex(module: string): RegExp {
   const m = escapeRegex(module);
-  return new RegExp(`(?:from\\s*|import\\s+|import\\s*\\(\\s*|require\\s*\\(\\s*)['"]${m}(?:/[^'"]*)?['"]`);
+  return new RegExp(
+    `(?:from\\s*|import\\s+|import\\s*\\(\\s*|require\\s*\\(\\s*)['"]${m}(?:/[^'"]*)?['"]` +
+      `|(?:from\\s+[^\\n'"]*\\b${m}\\b|import\\s+[^\\n'"]*\\b${m}\\b)` +
+      `|require(?:_relative)?\\s*\\(?\\s*['"]${m}(?:/[^'"]*)?['"]`,
+  );
 }
 
 /** User-supplied regex; a bad pattern or flags disables the rule instead of crashing the gate. */

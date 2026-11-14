@@ -433,7 +433,7 @@ export async function createDecision(
 export async function updateDecision(
   repoId: string,
   id: string,
-  patch: { decision?: string; why?: string; examples?: string[]; evidence?: string[]; status?: "approved" | "suggested" | "removed" },
+  patch: { decision?: string; why?: string; examples?: string[]; evidence?: string[]; status?: "approved" | "proposed" | "suggested" | "removed" },
   scope?: RepoScope,
 ): Promise<ApiDecision | null> {
   await requireRepoScope(repoId, scope);
@@ -444,12 +444,13 @@ export async function updateDecision(
     .where(and(eq(decisions.id, id), eq(decisions.repoId, repoId)))
     .limit(1);
   if (!current) return null;
-  if (
-    current.status === "removed" &&
-    (patch.status === "approved" || patch.status === "suggested")
-  ) {
+  const isRestore =
+    current.status === "removed" && !!patch.status && patch.status !== "removed";
+  let restoreOrgId: string | null = null;
+  if (isRestore) {
     const org = await getOrgForRepo(repoId);
     if (org) {
+      restoreOrgId = org.id;
       const billing = await getBilling(org.id);
       const limit = PLAN_LIMITS[billing.plan].decisions;
       if (limit !== -1 && billing.usage.decisions >= limit) {
@@ -471,6 +472,36 @@ export async function updateDecision(
   if (textChanged) {
     const text = [next.decision, next.why, (next.examples ?? []).join(" ")].join("\n");
     set.embedding = await getEmbeddings().embedOne(text);
+  }
+  if (isRestore && restoreOrgId && typeof db.transaction === "function") {
+    const orgId = restoreOrgId;
+    const row = await db.transaction(async (tx) => {
+      const [locked] = await tx
+        .select({ plan: organizations.plan })
+        .from(organizations)
+        .where(eq(organizations.id, orgId))
+        .for("update");
+      const plan = ((locked?.plan ?? "free") as OrgPlan);
+      const limit = PLAN_LIMITS[plan].decisions;
+      if (limit !== -1) {
+        const [c] = await tx
+          .select({ n: sql<number>`count(*)::int` })
+          .from(decisions)
+          .innerJoin(repos, eq(decisions.repoId, repos.id))
+          .innerJoin(installations, eq(repos.installationId, installations.id))
+          .where(and(eq(installations.orgId, orgId), ne(decisions.status, "removed")));
+        if ((c?.n ?? 0) >= limit) {
+          throw new Error(`Decision limit reached for ${plan} plan (${limit})`);
+        }
+      }
+      const [updated] = await tx
+        .update(decisions)
+        .set(set)
+        .where(and(eq(decisions.id, id), eq(decisions.repoId, repoId)))
+        .returning();
+      return updated;
+    });
+    return row ? toApiDecision(row) : null;
   }
   const [row] = await db
     .update(decisions)
@@ -895,10 +926,16 @@ export async function enqueueRebuild(repoId: string, scope?: RepoScope): Promise
     .where(eq(repos.id, repoId))
     .limit(1);
   if (!r) throw new Error("repo not found");
-  const jobId = await enqueue(JOBS.extract, {
-    installationId: r.instGh,
-    fullName: r.fullName,
-  });
+  // Dedup floods: one pending/cooldown rebuild per repo so a loop cannot
+  // saturate the shared extract queue ahead of other tenants.
+  const jobId = await enqueue(
+    JOBS.extract,
+    {
+      installationId: r.instGh,
+      fullName: r.fullName,
+    },
+    { singletonKey: `extract:${repoId}`, singletonHours: 1 },
+  );
   return { jobId };
 }
 

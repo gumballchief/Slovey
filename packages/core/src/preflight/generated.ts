@@ -1,7 +1,7 @@
 import { architectureCheckContents, rulesFromRejectedDecisions } from "./architecture";
 import { loadPreflightConfig } from "./config";
 import { fetchRejectedDecisions, runDecisionCheck } from "./decisions";
-import { scanForSecrets } from "./redact";
+import { redact, scanForSecrets } from "./redact";
 import type { DecisionViolation } from "./types";
 
 export interface GeneratedGateVerdict {
@@ -49,7 +49,7 @@ export async function checkGeneratedFile(
   // 3. Decision graph on a pseudo-diff of the new file.
   let decisionViolations: DecisionViolation[] = [];
   if (config.decisionChecks.enabled) {
-    const diff = `+++ b/${path} (new file)\n${content.split("\n").map((l) => `+${l}`).join("\n")}`.slice(0, 12_000);
+    const diff = `+++ b/${path} (new file)\n${redact(content).split("\n").map((l) => `+${l}`).join("\n")}`.slice(0, 12_000);
     const { violations } = await runDecisionCheck(repoId, diff, [path]);
     decisionViolations = violations;
     for (const v of violations) {

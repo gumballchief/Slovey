@@ -192,8 +192,8 @@ export async function fetchPrForCheck(
   let patchTruncated = false;
   for (const f of ordered) {
     const header = `${f.filename} (+${f.additions}/-${f.deletions})\n`;
-    const rawPatch = f.patch ?? "";
-    if (rawPatch.length > PER_FILE_PATCH_CAP) patchTruncated = true;
+    const rawPatch = f.patch ?? "[patch unavailable: binary/large file]";
+    if (f.patch == null || rawPatch.length > PER_FILE_PATCH_CAP) patchTruncated = true;
     const entry = `${header}${truncate(rawPatch, PER_FILE_PATCH_CAP)}`;
     const sep = parts.length > 0 ? 2 : 0;
     if (used + sep + entry.length > DIFF_SUMMARY_CAP) continue;
