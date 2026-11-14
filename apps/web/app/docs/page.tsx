@@ -32,15 +32,18 @@ export default function DocsPage() {
             </p>
           </div>
           <div className="st-card">
-            <h3>Install the CLI</h3>
-            <p>Node 18 or newer. Then make a token in Settings, under CLI and agents.</p>
-            <pre className="ui-code" style={{ fontSize: 12.5 }}>{`npm install -g slovey
-slovey doctor`}</pre>
+            <h3>Connect your agent</h3>
+            <p>
+              In the dashboard, open Connect, pick Claude Code, Cursor, Claude Desktop or VS Code, and follow the steps.
+              Nothing to install: agents reach Slovey at one address with a key.
+            </p>
+            <pre className="ui-code" style={{ fontSize: 12.5 }}>{"claude mcp add --transport http slovey \\\n  https://slovey.ai/api/mcp \\\n  --header \"Authorization: Bearer cb_…\""}</pre>
           </div>
           <div className="st-card">
-            <h3>Run the gate</h3>
+            <h3>Turn on the commit gate</h3>
             <p>Before a commit, locally or in CI: your build and tests, then every check against your team&apos;s decisions.</p>
-            <pre className="ui-code" style={{ fontSize: 12.5 }}>{`SLOVEY_TOKEN=cb_… slovey preflight --mode commit`}</pre>
+            <pre className="ui-code" style={{ fontSize: 12.5 }}>{`npm install -g slovey
+SLOVEY_TOKEN=cb_… slovey preflight --install-hooks`}</pre>
           </div>
         </div>
       </div>

@@ -4,7 +4,6 @@ import "./preflight.css";
 import {
   CheckCircleIcon,
   CircleDashedIcon,
-  CopyIcon,
   ListChecksIcon,
   PlayIcon,
   TerminalWindowIcon,
@@ -352,19 +351,3 @@ function CheckChange({
   );
 }
 
-export function CopyLine({ text }: { text: string }) {
-  return (
-    <div className="pf-copy">
-      <code>{text}</code>
-      <button
-        type="button"
-        aria-label="Copy"
-        onClick={() => {
-          void navigator.clipboard.writeText(text).then(() => toast.success("Copied"));
-        }}
-      >
-        <CopyIcon size={15} />
-      </button>
-    </div>
-  );
-}

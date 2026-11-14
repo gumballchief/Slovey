@@ -26,6 +26,7 @@ import { prUrl } from "@/features/refs";
 import { NeedsRepo } from "@/features/shell/Page";
 import { useRepo } from "@/features/shell/RepoProvider";
 import { useData } from "@/features/use-data";
+import { GettingStarted } from "./GettingStarted";
 import { Badge, Button, Chip, ErrorState, Ref, RowsSkeleton, Sheet, Stat, errorMessage, feedTime } from "@/ui/kit";
 
 type Overview = {
@@ -89,7 +90,7 @@ function TodayFor({ repoId }: { repoId: string }) {
       ...changes.filter((c) => c.isNew).slice(0, 12).map((change) => ({ kind: "learned" as const, at: change.updatedAt, change })),
       ...agents.slice(0, 8).map((run) => ({ kind: "agent" as const, at: run.updatedAt, run })),
     ].sort((a, b) => b.at.localeCompare(a.at));
-    return { overview, items };
+    return { overview, items, gateRuns: preflight.runs.length };
   });
 
   const items = feed.data?.items ?? [];
@@ -125,6 +126,16 @@ function TodayFor({ repoId }: { repoId: string }) {
           </div>
         )}
       </div>
+
+      {feed.data && (
+        <GettingStarted
+          repoId={repoId}
+          repoName={repo?.name ?? "your repository"}
+          decisions={feed.data.overview.stats.decisionsCount}
+          reviewCount={reviewCount}
+          gateRuns={feed.data.gateRuns}
+        />
+      )}
 
       <hr className="ui-hr" style={{ margin: "30px 0 22px" }} />
 

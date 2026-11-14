@@ -4,8 +4,9 @@ import * as Dialog from "@radix-ui/react-dialog";
 import * as Menu from "@radix-ui/react-dropdown-menu";
 import * as SwitchPrimitive from "@radix-ui/react-switch";
 import * as Tooltip from "@radix-ui/react-tooltip";
-import { ArrowClockwiseIcon, CircleNotchIcon, WarningCircleIcon, XIcon } from "@phosphor-icons/react";
+import { ArrowClockwiseIcon, CircleNotchIcon, CopyIcon, WarningCircleIcon, XIcon } from "@phosphor-icons/react";
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { toast } from "sonner";
 
 /* The Slovey product kit. Thin wrappers that give Radix primitives our look (ui.css) and keep
    every screen's loading, empty and error states consistent. */
@@ -452,4 +453,40 @@ export function feedTime(iso: string | null | undefined): string {
     return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false });
   }
   return timeAgo(iso);
+}
+
+/* ───────────── copy ───────────── */
+
+export function copyText(text: string) {
+  void navigator.clipboard.writeText(text).then(
+    () => toast.success("Copied"),
+    () => toast.error("Couldn't copy. Select the text and copy it instead."),
+  );
+}
+
+/** One command or value on a line, with a copy button. */
+export function CopyLine({ text, label = "Copy" }: { text: string; label?: string }) {
+  return (
+    <div className="ui-copy">
+      <code>{text}</code>
+      <button type="button" aria-label={label} onClick={() => copyText(text)}>
+        <CopyIcon size={15} />
+      </button>
+    </div>
+  );
+}
+
+/** A multi-line snippet (a config file, a script) with a copy button. */
+export function CodeBlock({ code, title }: { code: string; title?: string }) {
+  return (
+    <div className="ui-codeblock">
+      <div className="ui-codeblock-head">
+        <span>{title ?? ""}</span>
+        <button type="button" onClick={() => copyText(code)}>
+          <CopyIcon size={14} /> Copy
+        </button>
+      </div>
+      <pre className="ui-code">{code}</pre>
+    </div>
+  );
 }

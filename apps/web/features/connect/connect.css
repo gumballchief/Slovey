@@ -1,0 +1,192 @@
+/* Connect: plug Slovey into a coding agent, then the commit gate. */
+
+.cn-tools {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+.cn-tool {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line-2);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.18s, background 0.18s, color 0.18s;
+}
+.cn-tool:hover {
+  border-color: var(--line-3);
+  color: var(--ink);
+}
+.cn-tool[aria-pressed="true"] {
+  border-color: var(--blue);
+  color: var(--ink);
+  background: linear-gradient(180deg, rgba(61, 123, 255, 0.16), var(--panel));
+}
+.cn-tool-mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  border: 1px solid var(--line-2);
+  background: var(--panel-3);
+  color: var(--ink);
+}
+.cn-tool-mark img {
+  display: block;
+}
+
+.cn-panel {
+  padding: 26px 26px 10px;
+}
+.cn-step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 16px;
+  padding-bottom: 26px;
+}
+/* the thread between steps */
+.cn-step:not(.cn-step--last)::before {
+  content: "";
+  position: absolute;
+  left: 10px;
+  top: 26px;
+  bottom: 4px;
+  width: 1px;
+  background: var(--line-2);
+}
+.cn-step-dot {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  border-radius: 999px;
+  border: 1px solid var(--line-3);
+  background: var(--bg);
+  color: var(--green);
+}
+.cn-step[data-done="true"] .cn-step-dot {
+  border-color: transparent;
+  background: transparent;
+}
+.cn-step-body {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.cn-step-body > .ui-btn {
+  justify-self: start;
+}
+.cn-oneclick {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.cn-oneclick [data-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.cn-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line-2);
+  background: var(--bg-2);
+  font-size: 14.5px;
+  color: var(--text);
+}
+.cn-status[data-state="ok"] {
+  border-color: rgba(61, 220, 151, 0.35);
+  background: rgba(61, 220, 151, 0.08);
+  color: var(--ink);
+}
+.cn-status[data-state="ok"] svg {
+  color: var(--green);
+  flex: none;
+}
+.cn-status[data-state="wait"] svg {
+  color: var(--ice);
+  flex: none;
+}
+.cn-spin {
+  animation: cn-spin 1.1s linear infinite;
+}
+@keyframes cn-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cn-spin {
+    animation: none;
+  }
+}
+
+.cn-prompts {
+  display: grid;
+  gap: 8px;
+}
+.cn-prompts .ui-copy {
+  font-family: var(--sans);
+  font-size: 14.5px;
+  color: var(--text);
+}
+.cn-prompts .ui-copy code {
+  font-family: inherit;
+}
+
+.cn-lede {
+  color: var(--text);
+  max-width: 640px;
+}
+.cn-gate {
+  display: grid;
+  gap: 18px;
+}
+.cn-gate-row {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.cn-gate-label {
+  padding-top: 11px;
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 14.5px;
+}
+.cn-gate-body {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+@media (max-width: 860px) {
+  .cn-panel {
+    padding: 20px 16px 4px;
+  }
+  .cn-gate-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+  .cn-gate-label {
+    padding-top: 0;
+  }
+}

@@ -1,4 +1,5 @@
-import { dashboard, decisionApi, resolveRepoById, verifyApiToken, getUserGithubIdentity, isRepoOwnerByIdentity } from "@company-brain/core";
+import { decisionApi } from "@company-brain/core";
+import { authorizeCliToken } from "@/lib/server/cli-auth";
 import { HttpError, handle, ok, readJsonBody } from "@/lib/server/respond";
 import { clientIp, rateLimit } from "@/lib/server/ratelimit";
 
@@ -91,34 +92,7 @@ export async function POST(req_: Request): Promise<Response> {
       throw new HttpError(429, "Rate limited — slow down and retry shortly.");
     }
 
-    const auth = req_.headers.get("authorization") ?? "";
-    const token = auth.toLowerCase().startsWith("bearer ") ? auth.slice(7).trim() : null;
-    const verified = await verifyApiToken(token);
-    if (!verified) {
-      throw new HttpError(401, "Invalid or missing API token. Create one in the dashboard and set SLOVEY_TOKEN.");
-    }
-
-    const repo = await resolveRepoById(verified.repoId);
-    if (!repo) throw new HttpError(404, "The repository this token was issued for no longer exists.");
-
-    // Authorize owner-first, mirroring how the token was minted (resolveAccess in
-    // lib/server/auth.ts): a personal-account owner is authorized by matching
-    // GitHub id, even with no membership row. Without this the routes diverged
-    // from minting — an owner could mint a token that then 403'd as falsely
-    // "revoked" whenever their membership row was missing (Google-only sign-in,
-    // install-before-signup, or a pruned membership). Non-owners still go through
-    // org membership, which is refreshed + pruned at each GitHub sign-in.
-    const caller = await getUserGithubIdentity(verified.userId);
-    const isOwner = isRepoOwnerByIdentity(repo, caller);
-    if (!isOwner) {
-      if (!repo.orgId) {
-        throw new HttpError(403, "Your access to this repository has been revoked.");
-      }
-      const orgIds = await dashboard.listUserOrgIds(verified.userId);
-      if (!orgIds.includes(repo.orgId)) {
-        throw new HttpError(403, "Your access to this repository has been revoked.");
-      }
-    }
+    const caller = await authorizeCliToken(req_);
 
     const body = await readJsonBody<{ op?: string; args?: Args }>(req_, 1_000_000);
     const op = body.op as OpName | undefined;
@@ -126,7 +100,7 @@ export async function POST(req_: Request): Promise<Response> {
       throw new HttpError(400, `Unknown operation. Expected one of: ${Object.keys(OPS).join(", ")}.`);
     }
 
-    const result = await OPS[op](verified.repoId, body.args ?? {});
-    return ok({ repo: repo.fullName, op, result });
+    const result = await OPS[op](caller.repoId, body.args ?? {});
+    return ok({ repo: caller.repoFullName, op, result });
   });
 }

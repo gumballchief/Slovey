@@ -23,10 +23,10 @@ export default function ApiReferencePage() {
       eyebrow="API"
       title={
         <>
-          Two endpoints. <span className="dim">The whole memory.</span>
+          Three endpoints. <span className="dim">The whole memory.</span>
         </>
       }
-      lede="Agents and CI talk to Slovey with a repository-scoped token. Create one in the dashboard under Settings, CLI and agents, and send it as a Bearer header."
+      lede="Agents and CI talk to Slovey with a repository-scoped token. Create one in the dashboard under Connect and send it as a Bearer header."
       art="/art/tile-repo.webp"
     >
       <article className="st-prose">
@@ -84,6 +84,17 @@ export default function ApiReferencePage() {
           </tbody>
         </table>
       </div>
+      <article className="st-prose" style={{ marginTop: 46 }}>
+        <h2 className="st-endpoint">
+          POST <code>/api/mcp</code>
+        </h2>
+        <p>
+          The same memory as a remote MCP server (Streamable HTTP, stateless, JSON responses). Point any MCP client at{" "}
+          <code>https://slovey.ai/api/mcp</code> with the Bearer header above. Tools: <code>what_applies_here</code>,{" "}
+          <code>plan</code>, <code>can_i</code>, <code>ask</code>, <code>get_rejected</code> and <code>check_change</code>,
+          which takes a unified diff and says whether it is safe to commit.
+        </p>
+      </article>
       <p className="ui-small" style={{ marginTop: 24 }}>
         New here? Start with the <Link href="/docs" style={{ color: "var(--ice)" }}>docs</Link>.
       </p>

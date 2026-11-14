@@ -15,6 +15,7 @@ import {
   GraphIcon,
   ListChecksIcon,
   MagnifyingGlassIcon,
+  PlugIcon,
   PlugsConnectedIcon,
   PlusIcon,
   RobotIcon,
@@ -38,20 +39,22 @@ import { Kbd, Mark, MenuContent, MenuItem, MenuLabel, MenuRoot, MenuSep, MenuTri
 import { RepoProvider, repoShortName, useRepo } from "./RepoProvider";
 
 type IconT = ComponentType<{ size?: number; weight?: "regular" | "fill" | "bold" }>;
-type NavItem = { href: string; label: string; icon: IconT; key?: string };
+/** wide: shown in the top bar on wide screens only; on phones it moves into the More menu. */
+type NavItem = { href: string; label: string; icon: IconT; key?: string; wide?: boolean };
 
 export const PRIMARY: NavItem[] = [
   { href: "/app", label: "Today", icon: SunHorizonIcon, key: "t" },
   { href: "/app/memory", label: "Memory", icon: GraphIcon, key: "m" },
   { href: "/app/review", label: "Reviews", icon: StackIcon, key: "r" },
   { href: "/app/ask", label: "Ask", icon: ChatCircleIcon, key: "a" },
+  { href: "/app/connect", label: "Connect", icon: PlugIcon, key: "c", wide: true },
 ];
 export const MORE: NavItem[] = [
   { href: "/app/pull-requests", label: "Pull requests", icon: GitPullRequestIcon, key: "p" },
   { href: "/app/preflight", label: "Preflight", icon: ListChecksIcon, key: "f" },
   { href: "/app/tasks", label: "Agent tasks", icon: RobotIcon, key: "k" },
   { href: "/app/architecture", label: "Architecture", icon: TreeStructureIcon },
-  { href: "/app/connectors", label: "Connectors", icon: PlugsConnectedIcon, key: "c" },
+  { href: "/app/connectors", label: "Sources", icon: PlugsConnectedIcon, key: "o" },
 ];
 export const ACCOUNT: NavItem[] = [
   { href: "/app/profile", label: "Profile", icon: UserIcon },
@@ -138,10 +141,12 @@ function Frame({ children }: { children: React.ReactNode }) {
 
 function TopNav({ pathname, className, compact }: { pathname: string; className: string; compact?: boolean }) {
   const { reviewCount } = useRepo();
-  const moreOn = MORE.some((m) => isActive(pathname, m.href));
+  const shown = compact ? PRIMARY.filter((n) => !n.wide) : PRIMARY;
+  const more = compact ? [...PRIMARY.filter((n) => n.wide), ...MORE] : MORE;
+  const moreOn = more.some((m) => isActive(pathname, m.href));
   return (
     <nav className={className} aria-label="Main">
-      {PRIMARY.map((n) => {
+      {shown.map((n) => {
         const on = isActive(pathname, n.href);
         const Icon = n.icon;
         return (
@@ -160,7 +165,7 @@ function TopNav({ pathname, className, compact }: { pathname: string; className:
           </button>
         </MenuTrigger>
         <MenuContent align="center">
-          {MORE.map((m) => {
+          {more.map((m) => {
             const Icon = m.icon;
             return (
               <MenuItem key={m.href} href={m.href} icon={<Icon size={16} />}>

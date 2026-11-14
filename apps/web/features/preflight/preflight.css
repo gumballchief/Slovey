@@ -167,34 +167,6 @@
   color: var(--ice);
   font-size: 12.5px;
 }
-.pf-copy {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 10px 10px 14px;
-  border-radius: 12px;
-  border: 1px solid var(--line-2);
-  background: #03040a;
-  font-family: var(--mono);
-  font-size: 13px;
-  color: var(--ice);
-}
-.pf-copy code {
-  flex: 1;
-  overflow-x: auto;
-  white-space: nowrap;
-}
-.pf-copy button {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  border: 1px solid var(--line-2);
-  background: var(--panel);
-  color: var(--text);
-  cursor: pointer;
-}
 @media (max-width: 960px) {
   .pf {
     grid-template-columns: minmax(0, 1fr);

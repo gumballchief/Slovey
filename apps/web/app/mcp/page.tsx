@@ -46,23 +46,19 @@ export default function McpPage() {
         <h2>Set it up</h2>
         <article className="st-prose" style={{ maxWidth: 760 }}>
           <p>
-            Install the CLI, create a token in your dashboard (Settings, then CLI and agents), and add Slovey to your
-            agent&apos;s MCP config. There&apos;s no database to run: the server reads your decisions over the hosted API.
-            Each token is scoped to one repository, so an agent can only ever see that repository&apos;s decisions.
+            Open Connect in your dashboard, create a key and pick your agent. There is nothing to install or run: Slovey
+            serves MCP at one address, and each key is scoped to one repository, so an agent only ever sees that
+            repository&apos;s decisions. Cursor and VS Code get a one-click install; Claude Code is one command:
           </p>
           <pre>
-            <code>{`npm i -g slovey   # includes the slovey-mcp server
-
-# .mcp.json  (Claude Code, Cursor, ...)
-{
-  "mcpServers": {
-    "slovey": {
-      "command": "slovey-mcp",
-      "env": { "SLOVEY_TOKEN": "cb_…" }
-    }
-  }
-}`}</code>
+            <code>{"claude mcp add --transport http slovey https://slovey.ai/api/mcp \\\n  --header \"Authorization: Bearer cb_…\""}</code>
           </pre>
+          <p>
+            Your agent then gets six tools: <code>what_applies_here</code>, <code>plan</code>, <code>can_i</code>,{" "}
+            <code>ask</code>, <code>get_rejected</code> and <code>check_change</code>, which checks a diff before it is
+            committed. Prefer a local server? <code>npm i -g slovey</code> ships <code>slovey-mcp</code>, which also
+            runs Preflight against your working tree.
+          </p>
           <p>
             Prefer HTTP? The same answers are on the <Link href="/api-reference">API</Link>. Running Slovey yourself? Set{" "}
             <code>DATABASE_URL</code> and <code>SLOVEY_REPO</code> instead of a token; see{" "}

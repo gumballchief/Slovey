@@ -67,6 +67,9 @@ importers:
       '@company-brain/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@modelcontextprotocol/sdk':
+        specifier: 1.29.0
+        version: 1.29.0(zod@3.25.76)
       '@phosphor-icons/react':
         specifier: ^2.1.10
         version: 2.1.10(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -121,6 +124,9 @@ importers:
       stripe:
         specifier: ^22.3.0
         version: 22.3.0(@types/node@20.19.43)
+      zod:
+        specifier: 3.25.76
+        version: 3.25.76
     devDependencies:
       '@types/node':
         specifier: ^20

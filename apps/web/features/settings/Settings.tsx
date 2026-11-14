@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowsClockwiseIcon, KeyIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react";
+import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
@@ -13,11 +14,10 @@ import {
   type CliToken,
   type RepoSettings,
 } from "@/lib/api-client";
-import { CopyLine } from "@/features/preflight/Preflight";
 import { NeedsRepo, Page } from "@/features/shell/Page";
 import { useRepo } from "@/features/shell/RepoProvider";
 import { useData } from "@/features/use-data";
-import { Button, Empty, ErrorState, IconButton, Modal, Segmented, Skeleton, Switch, errorMessage, timeAgo } from "@/ui/kit";
+import { Button, CopyLine, Empty, ErrorState, IconButton, Modal, Segmented, Skeleton, Switch, errorMessage, timeAgo } from "@/ui/kit";
 
 export function Settings() {
   return (
@@ -172,15 +172,16 @@ function CliTokens({ repoId, repoName }: { repoId: string; repoName?: string }) 
 
   return (
     <section className="ui-section" id="cli">
-      <h2 className="ui-title ui-title--sm">CLI and agents</h2>
+      <h2 className="ui-title ui-title--sm">API keys</h2>
       <p className="ui-small" style={{ color: "var(--text)" }}>
-        Give your coding agent a token and it runs Preflight before every commit, checking each change against this
-        repository&apos;s decisions.
+        Keys let your coding agents and the commit gate read {repoName ?? "this repository"}&apos;s decisions. To plug
+        Slovey into Claude Code, Cursor or another agent step by step, use{" "}
+        <Link href="/app/connect" className="ui-link">
+          Connect
+        </Link>
+        .
       </p>
       <div className="ui-card ui-card--pad" style={{ display: "grid", gap: 14 }}>
-        <div className="ui-label">1 · Install</div>
-        <CopyLine text="npm i -g slovey" />
-        <div className="ui-label">2 · Create a token</div>
         <form
           style={{ display: "flex", gap: 8, flexWrap: "wrap" }}
           onSubmit={async (e) => {
@@ -207,16 +208,14 @@ function CliTokens({ repoId, repoName }: { repoId: string; repoName?: string }) 
             maxLength={60}
           />
           <Button type="submit" variant="light" loading={busy} icon={<PlusIcon size={15} />}>
-            Create token
+            Create key
           </Button>
         </form>
-        <div className="ui-label">3 · Run it in {repoName ?? "the repository"}</div>
-        <CopyLine text="SLOVEY_TOKEN=cb_… slovey preflight" />
 
         {tokens.loading && <Skeleton h={60} />}
-        {tokens.error != null && <ErrorState error={tokens.error} onRetry={tokens.reload} title="Tokens didn't load" />}
+        {tokens.error != null && <ErrorState error={tokens.error} onRetry={tokens.reload} title="Keys didn't load" />}
         {tokens.data && tokens.data.length === 0 && (
-          <Empty icon={<KeyIcon size={20} />} title="No tokens yet">Create one above. You see it once, so copy it right away.</Empty>
+          <Empty icon={<KeyIcon size={20} />} title="No keys yet">Create one above. You see it once, so copy it right away.</Empty>
         )}
         {tokens.data && tokens.data.length > 0 && (
           <div className="ui-table-wrap">
@@ -224,7 +223,7 @@ function CliTokens({ repoId, repoName }: { repoId: string; repoName?: string }) 
               <thead>
                 <tr>
                   <th>Name</th>
-                  <th>Token</th>
+                  <th>Key</th>
                   <th>Last used</th>
                   <th />
                 </tr>
@@ -251,7 +250,7 @@ function CliTokens({ repoId, repoName }: { repoId: string; repoName?: string }) 
       <Modal
         open={fresh != null}
         onOpenChange={(v) => !v && setFresh(null)}
-        title="Your new token"
+        title="Your new key"
         description="Copy it now. For your security it won't be shown again."
         actions={<Button variant="light" onClick={() => setFresh(null)}>Done</Button>}
       >
@@ -261,7 +260,7 @@ function CliTokens({ repoId, repoName }: { repoId: string; repoName?: string }) 
         open={revoking != null}
         onOpenChange={(v) => !v && setRevoking(null)}
         title={`Revoke “${revoking?.name ?? ""}”?`}
-        description="Anything using it stops passing Preflight until it gets a new token."
+        description="Agents and the commit gate using it lose access until they get a new key."
         actions={
           <>
             <Button onClick={() => setRevoking(null)}>Cancel</Button>

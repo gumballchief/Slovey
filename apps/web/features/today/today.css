@@ -14,3 +14,75 @@
   background: linear-gradient(180deg, rgba(61, 123, 255, 0.1), rgba(14, 17, 34, 0.9));
   border-color: rgba(61, 123, 255, 0.28);
 }
+
+/* first-run list */
+.gs {
+  margin-top: 30px;
+  padding: 22px 24px 10px;
+}
+.gs-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+.gs-head .ui-h3 {
+  margin-bottom: 2px;
+}
+.gs-hide {
+  border: 0;
+  background: none;
+  color: var(--mute);
+  font: inherit;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+.gs-hide:hover {
+  color: var(--ink);
+}
+.gs-steps {
+  display: grid;
+}
+.gs-step {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+}
+.gs-step:first-child {
+  border-top: 0;
+}
+.gs-mark {
+  display: grid;
+  color: var(--mute-2);
+}
+.gs-step[data-done="true"] .gs-mark {
+  color: var(--green);
+}
+.gs-title {
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 15px;
+}
+.gs-step[data-done="true"] .gs-title {
+  color: var(--text);
+}
+.gs-text .ui-small {
+  margin-top: 2px;
+  max-width: 620px;
+}
+@media (max-width: 860px) {
+  .gs {
+    padding: 18px 16px 6px;
+  }
+  .gs-step {
+    grid-template-columns: 22px minmax(0, 1fr);
+  }
+  .gs-step .ui-btn {
+    grid-column: 2;
+    justify-self: start;
+  }
+}

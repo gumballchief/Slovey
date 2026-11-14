@@ -62,7 +62,7 @@ const LAYERS: Record<number, { title: string; desc: string }> = {
 export function Connectors() {
   return (
     <Page
-      eyebrow="Connectors"
+      eyebrow="Sources"
       title={
         <>
           Where your decisions <span className="dim">get made.</span>

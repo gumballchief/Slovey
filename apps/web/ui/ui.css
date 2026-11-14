@@ -941,6 +941,92 @@ a.ui-ref:hover {
   overflow-x: auto;
   white-space: pre;
 }
+.ui-link {
+  color: var(--ice);
+  text-decoration: underline;
+  text-decoration-color: rgba(166, 217, 255, 0.4);
+  text-underline-offset: 3px;
+}
+.ui-link:hover {
+  text-decoration-color: var(--ice);
+}
+.ui-copy {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 10px 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line-2);
+  background: #03040a;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--ice);
+}
+.ui-copy code {
+  flex: 1;
+  min-width: 0;
+  /* long commands wrap instead of hiding behind a scrollbar */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.55;
+}
+.ui-copy button {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--line-2);
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+}
+.ui-copy button:hover {
+  color: var(--ink);
+  border-color: var(--line-3);
+}
+.ui-codeblock {
+  min-width: 0;
+  border-radius: 12px;
+  border: 1px solid var(--line-2);
+  background: #03040a;
+  overflow: hidden;
+}
+.ui-codeblock-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px 8px 14px;
+  border-bottom: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--mute);
+}
+.ui-codeblock-head button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line-2);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.ui-codeblock-head button:hover {
+  color: var(--ink);
+  border-color: var(--line-3);
+}
+.ui-codeblock .ui-code {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
 .ui-diff {
   border-radius: 12px;
   border: 1px solid var(--line);
