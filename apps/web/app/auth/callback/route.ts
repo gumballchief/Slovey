@@ -34,8 +34,11 @@ export async function GET(req: Request): Promise<Response> {
       type GhIdentityData = { user_name?: string; preferred_username?: string; provider_id?: string | number; avatar_url?: string };
       const identities = (user.identities ?? []) as Array<{ provider: string; identity_data?: GhIdentityData }>;
       const ghData = (identities.find((i) => i.provider === "github")?.identity_data ?? {}) as GhIdentityData;
-      const githubId = ghData.provider_id ? Number(ghData.provider_id) : meta.provider_id ? Number(meta.provider_id) : undefined;
-      const login = ghData.user_name || ghData.preferred_username || meta.user_name || meta.preferred_username;
+      // The GitHub id and login come ONLY from the verified identity. user_metadata
+      // is editable by the user themselves (supabase.auth.updateUser), so a Google
+      // account could otherwise claim any GitHub id and overwrite that user's row.
+      const githubId = ghData.provider_id ? Number(ghData.provider_id) : undefined;
+      const login = ghData.user_name || ghData.preferred_username;
       if (githubId && login) {
         try {
           await upsertUser({
@@ -63,6 +66,14 @@ export async function GET(req: Request): Promise<Response> {
   const fwdHost = req.headers.get("x-forwarded-host");
   const fwdProto = req.headers.get("x-forwarded-proto") ?? "https";
   const base = fwdHost ? `${fwdProto}://${fwdHost}` : process.env.APP_BASE_URL || url.origin;
-  const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/app";
-  return NextResponse.redirect(new URL(safeNext, base));
+  // Only same-site paths: "/\evil.com" is read by browsers as "//evil.com", so
+  // backslashes and control characters are refused too, and the final URL must
+  // stay on the base origin.
+  const looksLocal = /^\/(?![/\\])/.test(next) && !/[\\\u0000-\u001f]/.test(next);
+  let target = new URL("/app", base);
+  if (looksLocal) {
+    const candidate = new URL(next, base);
+    if (candidate.origin === target.origin) target = candidate;
+  }
+  return NextResponse.redirect(target);
 }

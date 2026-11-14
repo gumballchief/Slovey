@@ -92,7 +92,7 @@ Respond ONLY with JSON: {"verdict":"allowed|disallowed|unclear","rationale":"<1-
       ? res.verdict
       : "unclear";
   const usedIdx = (Array.isArray(res?.used) ? res.used : []).filter(
-    (n) => typeof n === "number" && n >= 1 && n <= considered.length,
+    (n) => typeof n === "number" && Number.isInteger(n) && n >= 1 && n <= considered.length,
   );
   const citations: Citation[] = (usedIdx.length ? usedIdx.map((n) => considered[n - 1]!) : []).map(
     toCitation,
