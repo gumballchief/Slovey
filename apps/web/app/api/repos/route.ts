@@ -13,6 +13,6 @@ export async function GET(): Promise<Response> {
     // owned repos + org memberships so one tenant never sees another's repos.
     if (viewer.isDev) return ok(await dashboard.listRepos());
     const orgIds = viewer.userId ? await dashboard.listUserOrgIds(viewer.userId) : [];
-    return ok(await dashboard.listRepos({ githubId: viewer.githubId, login: viewer.login, orgIds }));
+    return ok(await dashboard.listRepos({ githubId: viewer.githubId, login: viewer.githubId != null ? viewer.login : "", orgIds }));
   });
 }

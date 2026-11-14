@@ -21,9 +21,37 @@ export async function POST(req: Request): Promise<Response> {
   }
   let event: Stripe.Event;
   try {
-    const raw = await req.text();
-    if (raw.length > MAX_WEBHOOK_BYTES) {
-      return new Response("payload too large", { status: 413 });
+    let raw: string;
+    if (!req.body) {
+      raw = await req.text();
+      if (raw.length > MAX_WEBHOOK_BYTES) {
+        return new Response("payload too large", { status: 413 });
+      }
+    } else {
+      const reader = req.body.getReader();
+      const decoder = new TextDecoder();
+      let seen = 0;
+      raw = "";
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (!value) break;
+          seen += value.byteLength;
+          if (seen > MAX_WEBHOOK_BYTES) {
+            await reader.cancel();
+            return new Response("payload too large", { status: 413 });
+          }
+          raw += decoder.decode(value, { stream: true });
+          if (raw.length > MAX_WEBHOOK_BYTES) {
+            await reader.cancel();
+            return new Response("payload too large", { status: 413 });
+          }
+        }
+        raw += decoder.decode();
+      } finally {
+        reader.releaseLock();
+      }
     }
     const signature = req.headers.get("stripe-signature") ?? "";
     event = await getStripe().webhooks.constructEventAsync(raw, signature, webhookSecret());
@@ -75,6 +103,22 @@ export async function POST(req: Request): Promise<Response> {
         // active/trialing → pro; anything terminal → free. past_due keeps access
         // while Stripe retries payment (their dunning handles the nagging).
         if (sub.status === "active" || sub.status === "trialing" || sub.status === "past_due") {
+          if (await isStaleSubscriptionEvent(sub.customer, sub.id)) {
+            log.info("ignoring stale subscription update", { orgId, subId: sub.id });
+            break;
+          }
+          try {
+            const live = await getStripe().subscriptions.retrieve(sub.id);
+            if (live.status !== "active" && live.status !== "trialing" && live.status !== "past_due") {
+              log.info("ignoring stale subscription update", { orgId, subId: sub.id });
+              break;
+            }
+          } catch {
+            // Fail closed: without live confirmation never (re-)grant Pro from
+            // a replayable event; a genuine upgrade will arrive/retry later.
+            log.info("ignoring unverifiable subscription update", { orgId, subId: sub.id });
+            break;
+          }
           await dashboard.setOrgPlan(orgId, "pro");
         } else if (["canceled", "unpaid", "incomplete_expired"].includes(sub.status)) {
           if (await isStaleSubscriptionEvent(sub.customer, sub.id)) {

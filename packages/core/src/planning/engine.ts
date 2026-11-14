@@ -122,8 +122,15 @@ interface SynthOutput {
 async function synthesisePlan(input: SynthInput): Promise<SynthOutput | null> {
   // Decision/request text is untrusted (extracted from external PRs/docs).
   // Strip fence/tag sequences so it can't break out of its block (as in can-i.ts).
-  const clean = (s: string | null | undefined) =>
-    (s ?? "").replace(/```|"""|<\/?(?:system|instructions?|prompt)>/gi, "");
+  const clean = (s: string | null | undefined) => {
+    let out = s ?? "";
+    let prev: string;
+    do {
+      prev = out;
+      out = out.replace(/```|"""|<\/?(?:system|instructions?|prompt)>/gi, "");
+    } while (out !== prev);
+    return out;
+  };
   const safeRequest = clean(input.request).replace(/["\r\n]+/g, " ").slice(0, 500);
   const constraintBlock = input.constraints.length
     ? input.constraints.map((c, i) => `[C${i + 1}] ${clean(c)}`).join("\n")

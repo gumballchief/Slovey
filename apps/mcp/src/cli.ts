@@ -271,7 +271,8 @@ async function recordOverride(cwd: string, args: string[]): Promise<void> {
     reason,
     grantedBy,
     branch,
-    hours: Number.isFinite(hours) ? hours : 168,
+    // Time-boxed: at most one week, whatever --hours says.
+    hours: Number.isFinite(hours) && hours > 0 ? Math.min(hours, 168) : 168,
   });
   console.log(`override recorded by ${grantedBy}`);
   console.log(`  decision: ${r.decisionId.slice(0, 8)} — ${r.decision.slice(0, 90)}…`);

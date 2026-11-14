@@ -25,11 +25,11 @@ export const dynamic = "force-dynamic";
 const OPS = {
   what_applies_here: (repoId: string, a: Args) =>
     decisionApi.whatAppliesHere(repoId, {
-      paths: a.paths,
-      services: a.services,
-      domains: a.domains,
-      languages: a.languages,
-      frameworks: a.frameworks,
+      paths: arr(a.paths, "paths"),
+      services: arr(a.services, "services"),
+      domains: arr(a.domains, "domains"),
+      languages: arr(a.languages, "languages"),
+      frameworks: arr(a.frameworks, "frameworks"),
     }),
   can_i: (repoId: string, a: Args) => decisionApi.canI(repoId, req(a.intent, "intent")),
   ask: (repoId: string, a: Args) => decisionApi.ask(repoId, req(a.question, "question")),
@@ -60,6 +60,19 @@ function req(value: string | undefined, name: string): string {
   if (!trimmed) throw new HttpError(400, `"${name}" is required for this operation.`);
   if (trimmed.length > 4000) throw new HttpError(413, `"${name}" is too long (max 4000 characters).`);
   return trimmed;
+}
+
+/** An optional string array, capped so a huge filter set can't exhaust the DB. */
+function arr(value: unknown, name: string): string[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) throw new HttpError(400, `"${name}" must be an array.`);
+  if (value.length > 100) throw new HttpError(413, `"${name}" has too many items (max 100).`);
+  return value.map((v) => {
+    if (typeof v !== "string") throw new HttpError(400, `"${name}" must be an array of strings.`);
+    const trimmed = v.trim();
+    if (trimmed.length > 500) throw new HttpError(413, `"${name}" item is too long (max 500 characters).`);
+    return trimmed;
+  });
 }
 
 function clampLimit(n: number | undefined): number {
@@ -97,7 +110,10 @@ export async function POST(req_: Request): Promise<Response> {
       repo.ownerGithubId != null &&
       callerGithubId != null &&
       repo.ownerGithubId === callerGithubId;
-    if (!isOwner && repo.orgId) {
+    if (!isOwner) {
+      if (!repo.orgId) {
+        throw new HttpError(403, "Your access to this repository has been revoked.");
+      }
       const orgIds = await dashboard.listUserOrgIds(verified.userId);
       if (!orgIds.includes(repo.orgId)) {
         throw new HttpError(403, "Your access to this repository has been revoked.");

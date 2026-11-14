@@ -34,6 +34,9 @@ export async function getBoss(): Promise<PgBoss> {
   _started = boss.start().then(() => {
     _boss = boss;
     return boss;
+  }).catch((err) => {
+    _started = null;
+    throw err;
   });
   return _started;
 }

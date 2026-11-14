@@ -50,7 +50,10 @@ function redactSecrets(value: string): string {
   return value
     .replace(/\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|amqp):\/\/[^\s'")\]]+/gi, "[REDACTED]")
     .replace(/\b([A-Za-z][\w.-]*:\/\/)[^\s/:@'"]+:[^\s/@'"]+@/g, "$1[REDACTED]@")
-    .replace(/\bAKIA[0-9A-Z]{16}\b/g, "[REDACTED]")
+    .replace(/\bA[SKS]IA[0-9A-Z]{16}\b/g, "[REDACTED]")
+    .replace(/\bAIza[0-9A-Za-z-_]{35}\b/g, "[REDACTED]")
+    .replace(/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----(?:[\s\S]*?-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----)?/g, "[REDACTED]")
+    .replace(/\b[A-Za-z0-9/+=]{40}\b/g, "[REDACTED]")
     .replace(/\bgithub_pat_[A-Za-z0-9_]{20,}\b/g, "[REDACTED]")
     .replace(/\bgh[pousr]_[A-Za-z0-9_]{20,}\b/g, "[REDACTED]")
     .replace(/\b(?:sk|rk)_(?:live|test)_[A-Za-z0-9_-]{10,}\b/g, "[REDACTED]")
@@ -58,7 +61,10 @@ function redactSecrets(value: string): string {
     .replace(/\bxox[baprs]-[A-Za-z0-9-]{10,}\b/g, "[REDACTED]")
     .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[REDACTED]")
     .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]{8,}/gi, "Bearer [REDACTED]")
-    .replace(/(\b[A-Z0-9_.-]*(?:SECRET|TOKEN|PASSWORD|PASSWD|API[_-]?KEY|PRIVATE[_-]?KEY|DATABASE_URL|AUTHORIZATION)[A-Z0-9_.-]*["']?\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi, "$1[REDACTED]");
+    .replace(/(\bAuthorization\s*[:=]\s*)(Basic|Bearer)\s+[A-Za-z0-9._~+/=-]+/gi, "$1$2 [REDACTED]")
+    .replace(/\bBasic\s+[A-Za-z0-9+/_=-]{8,}/gi, "Basic [REDACTED]")
+    .replace(/(\bAuthorization\s*[:=]\s*)(?!(?:Basic|Bearer)\b|\[REDACTED\])[^\s,;]+/gi, "$1[REDACTED]")
+    .replace(/(\b[A-Z0-9_.-]*(?:SECRET|TOKEN|PASSWORD|PASSWD|API[_-]?KEY|PRIVATE[_-]?KEY|DATABASE_URL)[A-Z0-9_.-]*["']?\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi, "$1[REDACTED]");
 }
 
 /** Parse a check's combined output into structured errors grouped by file. */

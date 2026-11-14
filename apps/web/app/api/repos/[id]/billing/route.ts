@@ -1,6 +1,6 @@
 import { dashboard, logAudit } from "@company-brain/core";
 import { assertRepoAccessWithRole, requireViewer } from "@/lib/server/auth";
-import { HttpError, handle, ok } from "@/lib/server/respond";
+import { HttpError, handle, ok, readJsonBody } from "@/lib/server/respond";
 import { isBillingConfigured } from "@/lib/server/stripe";
 
 export const runtime = "nodejs";
@@ -35,7 +35,7 @@ export async function PATCH(
     if (role !== "owner" && role !== "admin") {
       throw new HttpError(403, "Only owners or admins can change the plan");
     }
-    const body = (await req.json()) as { plan?: string };
+    const body = (await readJsonBody(req)) as { plan?: string };
     if (!body.plan || !PLANS.has(body.plan)) throw new HttpError(400, "invalid plan");
     // Enterprise (unlimited repos/decisions/agent-runs) is sales-led — it must
     // NEVER be self-assignable through this dashboard PATCH, or any owner/admin

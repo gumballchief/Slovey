@@ -40,7 +40,12 @@ export async function canI(repoId: string, intent: string): Promise<CanIResult> 
     };
   }
 
-  const consideredAll = ranked.slice(0, 6);
+  const consideredAll = [
+    ...ranked.slice(0, 6),
+    ...ranked.slice(6).filter(
+      (r) => r.row.status === "rejected" || r.distance <= SILENCE_DISTANCE || r.distance === nearestDist,
+    ),
+  ];
   const rejectedPrecedent: RejectedPrecedent[] = consideredAll
     .filter((r) => r.row.status === "rejected")
     .map((r) => ({
@@ -57,7 +62,11 @@ export async function canI(repoId: string, intent: string): Promise<CanIResult> 
   // tag sequences so it can't break out of the DECISIONS block and inject
   // instructions; the prompt also tells the model to treat it as data only.
   const clean = (s: string | null | undefined) =>
-    (s ?? "").replace(/```|"""|<\/?(?:system|instructions?|prompt)>/gi, "");
+    (s ?? "")
+      .replace(/```|"""|<\/?(?:system|instructions?|prompt)>/gi, "")
+      .replace(/[\r\n]+/g, " ")
+      .replace(/["']+/g, " ")
+      .replace(/\[(\d+)\]/g, "($1)");
   const numbered = considered
     .map((r, i) => {
       const rej =
@@ -117,12 +126,21 @@ Respond ONLY with JSON: {"verdict":"allowed|disallowed|unclear","rationale":"<1-
   );
 
   // Deterministic verdict-vs-citation check: a non-unclear verdict is only
-  // trusted when grounded in at least one valid citation.
+  // trusted when grounded in at least one valid citation, and an "allowed"
+  // verdict must not cite a rejected decision (semantic injection can force
+  // {verdict:allowed,used:[1]} even when [1] forbids the change).
+  const citesRejected = usedIdx.some((n) => considered[n - 1]!.row.status === "rejected");
   const checkedVerdict: CanIResult["verdict"] =
-    verdict !== "unclear" && !citations.length ? "unclear" : verdict;
+    verdict !== "unclear" && !citations.length
+      ? "unclear"
+      : verdict === "allowed" && citesRejected
+        ? "disallowed"
+        : verdict;
   const checkedRationale =
     checkedVerdict !== verdict
-      ? "The verdict was not grounded in a cited decision, so it cannot be trusted."
+      ? citesRejected && verdict === "allowed"
+        ? "A cited decision rejects this change, so it cannot be allowed."
+        : "The verdict was not grounded in a cited decision, so it cannot be trusted."
       : (res?.rationale ?? "Unable to determine from recorded decisions.");
 
   return {

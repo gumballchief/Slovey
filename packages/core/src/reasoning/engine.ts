@@ -112,7 +112,7 @@ export async function reason(repoId: string, question: string): Promise<Reasoned
   const esc = (s: string) => s.replace(/<\/(decisions|untrusted-data)>/gi, "<\\/$1>");
   const numbered = considered
     .map((r, i) => {
-      const meta = `status=${r.row.status}, importance=${r.row.importance}, freshness=${r.freshness.toFixed(2)}, evidence=${(r.row.evidence ?? []).join(", ") || "—"}`;
+      const meta = `status=${r.row.status}, importance=${r.row.importance}, freshness=${r.freshness.toFixed(2)}, evidence=${esc((r.row.evidence ?? []).join(", ")) || "—"}`;
       const extra =
         r.row.status === "rejected" && r.row.rejectionReason
           ? `\n   rejected because: ${esc(r.row.rejectionReason)}` +
@@ -224,7 +224,7 @@ export async function* reasonStream(
   const escStream = (s: string) => s.replace(/<\/(decisions|untrusted-data)>/gi, "<\\/$1>");
   const numbered = considered
     .map((r, i) => {
-      const meta = `status=${r.row.status}, importance=${r.row.importance}, freshness=${r.freshness.toFixed(2)}, evidence=${(r.row.evidence ?? []).join(", ") || "—"}`;
+      const meta = `status=${r.row.status}, importance=${r.row.importance}, freshness=${r.freshness.toFixed(2)}, evidence=${escStream((r.row.evidence ?? []).join(", ")) || "—"}`;
       const extra =
         r.row.status === "rejected" && r.row.rejectionReason
           ? `\n   rejected because: ${escStream(r.row.rejectionReason)}` +

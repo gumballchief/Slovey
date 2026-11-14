@@ -11,6 +11,7 @@ import {
   type FileChange,
 } from "../github/write";
 import { checkGeneratedFile } from "../preflight/generated";
+import { isRepoWithinPlan } from "../services/plan-guard";
 import { checkPr } from "./check";
 import { retrieveDecisions, type RetrievedDecision } from "./retrieve";
 
@@ -57,7 +58,7 @@ const MAX_FILES = 3;
 const MAX_REVISE_ROUNDS = 2;
 
 // Never let the agent touch CI, secrets, deps, or migrations.
-const PROTECTED_PATH = /(^|\/)(\.github\/workflows[^\/]*|node_modules|migrations?)(\/|$)|(^|\/)\.env[^\s\/]*($|\/)|(^|\/)(package\.json|yarn\.lock)$|package-lock|pnpm-lock/i;
+export const PROTECTED_PATH = /(^|\/)(\.github\/(workflows|actions)[^\/]*|node_modules|migrations?)(\/|$)|(^|\/)\.env[^\s\/]*($|\/)|(^|\/)(package\.json|yarn\.lock)$|package-lock|pnpm-lock/i;
 
 function stripFence(s: string): string {
   const t = s.trim();
@@ -98,7 +99,7 @@ export function decisionsBlock(decisions: RetrievedDecision[]): string {
     .join("\n");
 }
 
-function sanitizeForPrompt(s: string): string {
+export function sanitizeForPrompt(s: string): string {
   return s.replace(/[\r\n]+/g, " ").replace(/"/g, "'").slice(0, 500);
 }
 
@@ -113,10 +114,10 @@ async function getArchitectureContext(repoId: string): Promise<string> {
     | undefined;
   if (!arch) return "(no architecture index available — run index-repo first)";
   return [
-    arch.summary && `Summary: ${arch.summary}`,
-    arch.frameworks?.length && `Frameworks: ${arch.frameworks.join(", ")}`,
-    arch.topLevelDirs?.length && `Top-level dirs: ${arch.topLevelDirs.join(", ")}`,
-    arch.apiRoutes?.length && `Existing API routes (sample):\n${arch.apiRoutes.slice(0, 40).join("\n")}`,
+    arch.summary && `Summary: ${sanitizeForPrompt(arch.summary)}`,
+    arch.frameworks?.length && `Frameworks: ${arch.frameworks.map((f) => sanitizeForPrompt(f)).join(", ")}`,
+    arch.topLevelDirs?.length && `Top-level dirs: ${arch.topLevelDirs.map((d) => sanitizeForPrompt(d)).join(", ")}`,
+    arch.apiRoutes?.length && `Existing API routes (sample):\n${arch.apiRoutes.slice(0, 40).map((r) => sanitizeForPrompt(r)).join("\n")}`,
   ]
     .filter(Boolean)
     .join("\n");
@@ -139,6 +140,11 @@ function otherFilesBlock(files: FileChange[], except: string): string {
  */
 export async function runAgentTask(params: AgentParams): Promise<AgentResult> {
   const { repoId, installationId, owner, name, fullName, defaultBranch, intent } = params;
+
+  const gate = await isRepoWithinPlan(repoId);
+  if (!gate.ok) {
+    throw new Error(`agent: repository is outside plan limits (${gate.plan}: ${gate.limit} repos)`);
+  }
 
   const [decisions, architecture] = await Promise.all([
     retrieveDecisions(repoId, { title: intent, body: intent }, { topK: 8 }),

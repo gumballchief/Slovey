@@ -49,9 +49,14 @@ export async function syncInstallation(installationId: number) {
   if (!inst) throw new Error("Failed to upsert installation");
 
   const octokit = await getInstallationOctokit(installationId);
-  const list = await octokit.rest.apps.listReposAccessibleToInstallation({ per_page: 100 });
+  const allRepos: Array<Awaited<ReturnType<typeof octokit.rest.apps.listReposAccessibleToInstallation>>["data"]["repositories"][number]> = [];
+  for (let page = 1; ; page++) {
+    const list = await octokit.rest.apps.listReposAccessibleToInstallation({ per_page: 100, page });
+    allRepos.push(...list.data.repositories);
+    if (list.data.repositories.length < 100) break;
+  }
 
-  for (const r of list.data.repositories) {
+  for (const r of allRepos) {
     const [repoRow] = await db
       .insert(repos)
       .values({
@@ -79,7 +84,7 @@ export async function syncInstallation(installationId: number) {
       await db.insert(repoSettings).values({ repoId: repoRow.id }).onConflictDoNothing();
     }
   }
-  await logAudit({ orgId, action: "installation.synced", actorUser: "system", metadata: { installationId, repos: list.data.repositories.length } });
+  await logAudit({ orgId, action: "installation.synced", actorUser: "system", metadata: { installationId, repos: allRepos.length } });
   return inst;
 }
 

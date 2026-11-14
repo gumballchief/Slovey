@@ -87,18 +87,21 @@ export async function importDocs(
   docs: ImportDoc[],
   /** Plan headroom: never upsert more than this many decisions (undefined = unlimited). */
   maxNew?: number,
+  /** Org scope for plan headroom: reservations are keyed here so concurrent imports across repos share the org cap. */
+  orgId?: string,
 ): Promise<ImportResult> {
   const ai = getAI();
   // Reserve headroom synchronously (before any await) so concurrent imports
-  // for the same repo cannot all slice against the same stale maxNew.
-  const alreadyReserved = maxNew !== undefined ? reservedByRepo.get(repoId) ?? 0 : 0;
+  // for the same org cannot all slice against the same stale maxNew.
+  const reservationKey = orgId ?? repoId;
+  const alreadyReserved = maxNew !== undefined ? reservedByRepo.get(reservationKey) ?? 0 : 0;
   const effectiveMaxNew = maxNew !== undefined ? Math.max(0, maxNew - alreadyReserved) : undefined;
-  if (effectiveMaxNew) reservedByRepo.set(repoId, alreadyReserved + effectiveMaxNew);
+  if (effectiveMaxNew) reservedByRepo.set(reservationKey, alreadyReserved + effectiveMaxNew);
   const releaseReservation = () => {
     if (!effectiveMaxNew) return;
-    const remaining = (reservedByRepo.get(repoId) ?? 0) - effectiveMaxNew;
-    if (remaining > 0) reservedByRepo.set(repoId, remaining);
-    else reservedByRepo.delete(repoId);
+    const remaining = (reservedByRepo.get(reservationKey) ?? 0) - effectiveMaxNew;
+    if (remaining > 0) reservedByRepo.set(reservationKey, remaining);
+    else reservedByRepo.delete(reservationKey);
   };
   try {
   const items: { d: ExtractedDecision; source: "doc" }[] = [];

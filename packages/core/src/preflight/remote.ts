@@ -49,7 +49,7 @@ export async function runRemotePreflight(repoId: string, payload: RemotePrefligh
   if (config.secretScan.enabled && files.length) {
     const start = Date.now();
     const errors = scanForSecrets(files);
-    checks.push({ name: "secret-scan", agent: "security", command: "", durationMs: Date.now() - start, blocking: false, status: errors.length ? "fail" : "pass", errors });
+    checks.push({ name: "secret-scan", agent: "security", command: "", durationMs: Date.now() - start, blocking: true, status: errors.length ? "fail" : "pass", errors });
   }
 
   // AI security pass on the supplied diff.

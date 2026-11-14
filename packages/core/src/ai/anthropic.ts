@@ -4,6 +4,20 @@ import type { AICompleteOptions, AIProvider } from "./types";
 const ENDPOINT = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
 
+async function bodyWithTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`Anthropic timed out after ${ms}ms`)), Math.max(1, ms));
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
 export interface AnthropicConfig {
   apiKey: string;
   /** model id per tier */
@@ -55,11 +69,11 @@ export class AnthropicProvider implements AIProvider {
           "Anthropic",
         );
         if (!res.ok) {
-          lastErr = new Error(`Anthropic ${res.status}: ${await res.text()}`);
+          lastErr = new Error(`Anthropic ${res.status}: ${await bodyWithTimeout(res.text(), remaining())}`);
           continue;
         }
-        const data = (await res.json()) as {
-          content?: Array<{ text?: string }>;
+        const data = (await bodyWithTimeout(res.json(), remaining())) as {
+          content?: Array<{ text?: string }>; 
         };
         if (!data.content) {
           lastErr = new Error(`Anthropic empty response (attempt ${attempt})`);

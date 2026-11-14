@@ -82,6 +82,16 @@ export function sanitizeJudgeText(value: string | null | undefined, maxLength = 
   return s.replace(/\s+/g, " ").trim().slice(0, maxLength);
 }
 
+/** Allow-list judge severity so untrusted LLM output cannot inject markdown/links. */
+export function sanitizeSeverity(value: string | null | undefined): string | null {
+  return value === "low" || value === "medium" || value === "high" || value === "critical" ? value : null;
+}
+
+/** Allow-list judge confidence so untrusted LLM output cannot inject markdown/links. */
+export function sanitizeConfidence(value: string | null | undefined): string | null {
+  return value === "low" || value === "medium" || value === "high" ? value : null;
+}
+
 /** Map a verdict to the GitHub commit-status to publish (status_check mode). */
 export function statusForVerdict(
   verdict: CheckPrResult["verdict"],
@@ -215,9 +225,9 @@ export async function checkPr(params: CheckPrParams): Promise<CheckPrResult> {
       verdict = "skipped";
       reason = "judge-failed";
     } else {
-      confidence = result.confidence;
+      confidence = sanitizeConfidence(result.confidence);
       explanation = sanitizeJudgeText(result.explanation);
-      severity = result.severity ?? null;
+      severity = sanitizeSeverity(result.severity);
       suggestedFix = result.suggestedFix ? sanitizeJudgeText(result.suggestedFix) : null;
       const citable: CitableDecision[] = retrieved.map((d) => ({
         id: d.id,
@@ -238,7 +248,7 @@ export async function checkPr(params: CheckPrParams): Promise<CheckPrResult> {
           verdict = "conflict";
           matchedDecisionId = guard.matched.id;
           matchedDecisionText = guard.matched.decision;
-          citation = result.evidence;
+          citation = guard.matched.evidence.join(", ");
         }
       }
     }

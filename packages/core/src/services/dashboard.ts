@@ -157,6 +157,35 @@ export interface RepoScope {
   orgIds: string[];
 }
 
+/** Pure visibility check mirroring listRepos(): owner (id or login) or org membership. */
+export function isRepoVisible(
+  repo: { ownerGithubId?: number | null; owner?: string | null; orgId?: string | null },
+  scope?: RepoScope,
+): boolean {
+  if (!scope) return true;
+  if (scope.githubId != null && repo.ownerGithubId === scope.githubId) return true;
+  if (
+    typeof repo.owner === "string" &&
+    repo.owner.toLowerCase() === (scope.login ?? "").toLowerCase()
+  )
+    return true;
+  if (repo.orgId && scope.orgIds.includes(repo.orgId)) return true;
+  return false;
+}
+
+/** Reject repos outside the caller's tenancy. No scope = dev/local (allow). */
+export async function requireRepoScope(repoId: string, scope?: RepoScope): Promise<void> {
+  if (!scope) return;
+  const db = getDb();
+  const [r] = await db
+    .select({ ownerGithubId: repos.ownerGithubId, owner: repos.owner, orgId: installations.orgId })
+    .from(repos)
+    .innerJoin(installations, eq(repos.installationId, installations.id))
+    .where(eq(repos.id, repoId))
+    .limit(1);
+  if (!r || !isRepoVisible(r, scope)) throw new Error("repo not visible to caller");
+}
+
 export async function listRepos(scope?: RepoScope): Promise<ApiRepo[]> {
   const db = getDb();
   // TENANCY: without scoping, this returned EVERY tenant's repos (names + metrics)
@@ -244,7 +273,8 @@ export async function listUserOrgIds(userId: string): Promise<string[]> {
   return rows.map((r) => r.orgId);
 }
 
-export async function getOverview(repoId: string) {
+export async function getOverview(repoId: string, scope?: RepoScope) {
+  await requireRepoScope(repoId, scope);
   const db = getDb();
   const [stats, trend, recentRows] = await Promise.all([
     repoStats(repoId),
@@ -264,7 +294,7 @@ export async function getOverview(repoId: string) {
     const ds = await db
       .select({ id: decisions.id, decision: decisions.decision })
       .from(decisions)
-      .where(inArray(decisions.id, matchedIds));
+      .where(and(inArray(decisions.id, matchedIds), eq(decisions.repoId, repoId)));
     for (const d of ds) textById.set(d.id, d.decision);
   }
   const recent: ApiCheckedPR[] = recentRows.map((c) =>
@@ -276,7 +306,9 @@ export async function getOverview(repoId: string) {
 export async function listDecisions(
   repoId: string,
   filter: { query?: string; source?: string } = {},
+  scope?: RepoScope,
 ): Promise<ApiDecision[]> {
+  await requireRepoScope(repoId, scope);
   const db = getDb();
   const conds = [eq(decisions.repoId, repoId), sql`${decisions.status} <> 'removed'`];
   if (filter.source) conds.push(eq(decisions.source, filter.source as ApiDecision["source"]));
@@ -300,9 +332,11 @@ export async function searchDecisions(
   repoId: string,
   query: string,
   limit = 8,
+  scope?: RepoScope,
 ): Promise<ApiDecision[]> {
+  await requireRepoScope(repoId, scope);
   const q = query.trim();
-  if (!q) return listDecisions(repoId);
+  if (!q) return listDecisions(repoId, {}, scope);
   const vec = await getEmbeddings().embedOne(q);
   const lit = `[${vec.join(",")}]`;
   const db = getDb();
@@ -337,7 +371,9 @@ export async function createDecision(
     /** What to use instead of the rejected approach. */
     alternatives?: string[];
   },
+  scope?: RepoScope,
 ): Promise<ApiDecision> {
+  await requireRepoScope(repoId, scope);
   const org = await getOrgForRepo(repoId);
   if (org) {
     const billing = await getBilling(org.id);
@@ -349,22 +385,47 @@ export async function createDecision(
   const db = getDb();
   const text = [input.decision, input.why ?? "", (input.examples ?? []).join(" ")].join("\n");
   const embedding = await getEmbeddings().embedOne(text);
+  const values = {
+    repoId,
+    decision: input.decision,
+    why: input.why ?? "",
+    examples: input.examples ?? [],
+    evidence: input.evidence,
+    source: input.source ?? "github_pr",
+    category: input.category ?? null,
+    status: input.status ?? "approved",
+    rejectionReason: input.rejectionReason ?? null,
+    alternatives: input.alternatives ?? [],
+    embedding,
+    createdBy: input.createdBy ?? "dashboard",
+  };
+  if (org) {
+    const [row] = await db.transaction(async (tx) => {
+      const [locked] = await tx
+        .select({ plan: organizations.plan })
+        .from(organizations)
+        .where(eq(organizations.id, org.id))
+        .for("update");
+      const plan = ((locked?.plan ?? "free") as OrgPlan);
+      const limit = PLAN_LIMITS[plan].decisions;
+      if (limit !== -1) {
+        const [c] = await tx
+          .select({ n: sql<number>`count(*)::int` })
+          .from(decisions)
+          .innerJoin(repos, eq(decisions.repoId, repos.id))
+          .innerJoin(installations, eq(repos.installationId, installations.id))
+          .where(and(eq(installations.orgId, org.id), ne(decisions.status, "removed")));
+        if ((c?.n ?? 0) >= limit) {
+          throw new Error(`Decision limit reached for ${plan} plan (${limit})`);
+        }
+      }
+      return tx.insert(decisions).values(values).returning();
+    });
+    return toApiDecision(row!);
+  }
   const [row] = await db
     .insert(decisions)
-    .values({
-      repoId,
-      decision: input.decision,
-      why: input.why ?? "",
-      examples: input.examples ?? [],
-      evidence: input.evidence,
-      source: input.source ?? "github_pr",
-      category: input.category ?? null,
-      status: input.status ?? "approved",
-      rejectionReason: input.rejectionReason ?? null,
-      alternatives: input.alternatives ?? [],
-      embedding,
-      createdBy: input.createdBy ?? "dashboard",
-    })
+    .values(values)
     .returning();
   return toApiDecision(row!);
 }
@@ -373,7 +434,9 @@ export async function updateDecision(
   repoId: string,
   id: string,
   patch: { decision?: string; why?: string; examples?: string[]; evidence?: string[]; status?: "approved" | "suggested" | "removed" },
+  scope?: RepoScope,
 ): Promise<ApiDecision | null> {
+  await requireRepoScope(repoId, scope);
   const db = getDb();
   const [current] = await db
     .select()
@@ -381,6 +444,19 @@ export async function updateDecision(
     .where(and(eq(decisions.id, id), eq(decisions.repoId, repoId)))
     .limit(1);
   if (!current) return null;
+  if (
+    current.status === "removed" &&
+    (patch.status === "approved" || patch.status === "suggested")
+  ) {
+    const org = await getOrgForRepo(repoId);
+    if (org) {
+      const billing = await getBilling(org.id);
+      const limit = PLAN_LIMITS[billing.plan].decisions;
+      if (limit !== -1 && billing.usage.decisions >= limit) {
+        throw new Error(`Decision limit reached for ${billing.plan} plan (${limit})`);
+      }
+    }
+  }
 
   const next = {
     decision: patch.decision ?? current.decision,
@@ -405,7 +481,8 @@ export async function updateDecision(
 }
 
 /** Soft-delete (status='removed') so retrieval excludes it but history is kept. */
-export async function removeDecision(repoId: string, id: string): Promise<boolean> {
+export async function removeDecision(repoId: string, id: string, scope?: RepoScope): Promise<boolean> {
+  await requireRepoScope(repoId, scope);
   const db = getDb();
   const rows = await db
     .update(decisions)
@@ -415,7 +492,8 @@ export async function removeDecision(repoId: string, id: string): Promise<boolea
   return rows.length > 0;
 }
 
-export async function listPRChecks(repoId: string): Promise<ApiCheckedPR[]> {
+export async function listPRChecks(repoId: string, scope?: RepoScope): Promise<ApiCheckedPR[]> {
+  await requireRepoScope(repoId, scope);
   const db = getDb();
   const rows = await db
     .select()
@@ -726,7 +804,9 @@ export async function listAuditLog(orgId: string, limit = 50): Promise<ApiAuditE
 export async function getPRCheck(
   repoId: string,
   prNumber: number,
+  scope?: RepoScope,
 ): Promise<(ApiCheckedPR & { decision?: ApiDecision }) | null> {
+  await requireRepoScope(repoId, scope);
   const db = getDb();
   const [c] = await db
     .select()
@@ -742,7 +822,7 @@ export async function getPRCheck(
     const [d] = await db
       .select()
       .from(decisions)
-      .where(eq(decisions.id, c.matchedDecisionId))
+      .where(and(eq(decisions.id, c.matchedDecisionId), eq(decisions.repoId, repoId)))
       .limit(1);
     if (d) {
       decision = toApiDecision(d);
@@ -754,7 +834,8 @@ export async function getPRCheck(
 }
 
 /** Structured repo knowledge (architecture + dependency graph) for the Architecture view. */
-export async function getRepoKnowledge(repoId: string) {
+export async function getRepoKnowledge(repoId: string, scope?: RepoScope) {
+  await requireRepoScope(repoId, scope);
   const db = getDb();
   const rows = await db
     .select()
@@ -768,7 +849,8 @@ export async function getRepoKnowledge(repoId: string) {
   };
 }
 
-export async function getSettings(repoId: string) {
+export async function getSettings(repoId: string, scope?: RepoScope) {
+  await requireRepoScope(repoId, scope);
   const db = getDb();
   const [row] = await db
     .select()
@@ -789,9 +871,11 @@ export async function updateSettings(
     mode: "comment" | "status_check";
     learnFromDismissals: boolean;
   }>,
+  scope?: RepoScope,
 ) {
+  await requireRepoScope(repoId, scope);
   const db = getDb();
-  await getSettings(repoId); // ensure row exists
+  await getSettings(repoId, scope); // ensure row exists
   const [row] = await db
     .update(repoSettings)
     .set({ ...patch, updatedAt: new Date() })
@@ -801,7 +885,8 @@ export async function updateSettings(
 }
 
 /** Enqueue a memory rebuild for a repo. Returns the job id. */
-export async function enqueueRebuild(repoId: string): Promise<{ jobId: string | null }> {
+export async function enqueueRebuild(repoId: string, scope?: RepoScope): Promise<{ jobId: string | null }> {
+  await requireRepoScope(repoId, scope);
   const db = getDb();
   const [r] = await db
     .select({ fullName: repos.fullName, instGh: installations.githubInstallationId })
@@ -820,7 +905,9 @@ export async function enqueueRebuild(repoId: string): Promise<{ jobId: string | 
 export async function dashboardFeedback(
   repoId: string,
   input: { prNumber?: number; decisionId?: string; action: "dismiss" | "confirm"; byUser?: string; reason?: string },
+  scope?: RepoScope,
 ) {
+  await requireRepoScope(repoId, scope);
   const db = getDb();
   const [row] = await db
     .insert(feedbackTable)
