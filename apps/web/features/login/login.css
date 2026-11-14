@@ -1,0 +1,150 @@
+/* Login: the closing scene from the landing (monitor catching the bug over the lake) as the
+   whole backdrop, with the sign-in card sitting in the dark sky on the left. */
+
+.lg {
+  position: relative;
+  min-height: 100dvh;
+  overflow: hidden;
+  display: grid;
+  align-items: center;
+  background: #01010a;
+}
+.lg-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 62% 60%;
+  animation: lg-drift 26s var(--ease) infinite alternate;
+}
+@keyframes lg-drift {
+  from {
+    transform: scale(1.04) translate3d(0, 0, 0);
+  }
+  to {
+    transform: scale(1.1) translate3d(-1.5%, -1%, 0);
+  }
+}
+.lg-shade {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(1, 1, 10, 0.94) 0%, rgba(1, 1, 10, 0.78) 34%, rgba(1, 1, 10, 0.12) 64%, rgba(1, 1, 10, 0) 100%),
+    linear-gradient(0deg, rgba(1, 1, 10, 0.55), transparent 40%);
+}
+.lg-top {
+  position: absolute;
+  top: 22px;
+  left: 28px;
+  z-index: 2;
+}
+.lg-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 17px;
+}
+.lg-card {
+  position: relative;
+  z-index: 2;
+  width: min(430px, calc(100vw - 32px));
+  margin-left: clamp(16px, 8vw, 128px);
+  display: grid;
+  gap: 20px;
+  padding: 40px 0;
+}
+.lg-title {
+  font-size: clamp(40px, 5vw, 60px);
+}
+.lg-primary {
+  display: grid;
+  gap: 10px;
+  margin-top: 6px;
+}
+.lg-more {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--mute);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 0;
+}
+.lg-more:hover {
+  color: var(--ink);
+}
+.lg-others {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border-radius: 16px;
+  border: 1px solid var(--line-2);
+  background: rgba(10, 12, 24, 0.82);
+  backdrop-filter: blur(10px);
+  animation: ui-fade 0.25s var(--ease);
+}
+.lg-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 4px;
+}
+.lg-switch {
+  justify-self: center;
+  border: 0;
+  background: transparent;
+  color: var(--ice);
+  font-size: 13.5px;
+  cursor: pointer;
+}
+.lg-msg {
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(61, 123, 255, 0.3);
+  background: rgba(14, 30, 70, 0.6);
+  color: var(--ink);
+  font-size: 14px;
+}
+.lg-msg--err {
+  border-color: rgba(255, 75, 75, 0.35);
+  background: rgba(60, 10, 14, 0.7);
+  color: var(--red-ink);
+}
+.lg-dev {
+  display: grid;
+  gap: 12px;
+}
+.lg-fine {
+  font-size: 12.5px;
+  color: var(--mute);
+}
+.lg-fine a {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+@media (max-width: 760px) {
+  .lg {
+    align-items: end;
+  }
+  .lg-art {
+    object-position: 70% 40%;
+  }
+  .lg-shade {
+    background: linear-gradient(0deg, rgba(1, 1, 10, 0.97) 0%, rgba(1, 1, 10, 0.86) 52%, rgba(1, 1, 10, 0.15) 100%);
+  }
+  .lg-card {
+    margin: 0 auto;
+    padding: 120px 0 36px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lg-art {
+    animation: none;
+  }
+}

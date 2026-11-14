@@ -1,0 +1,327 @@
+/* Ask: a centred thread (user bubble right, Slovey's answer left with the mark), sources as
+   cards, and a floating composer at the bottom. */
+
+.ask {
+  position: relative;
+  min-height: calc(100dvh - 76px);
+  padding: 20px 20px 200px;
+}
+.ask-thread {
+  width: min(740px, 100%);
+  margin: 0 auto;
+  display: grid;
+  gap: 22px;
+}
+.ask-hello {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  gap: 16px;
+  padding-top: 8vh;
+}
+.ask-hello p {
+  max-width: 480px;
+}
+.ask-starters {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+  max-width: 640px;
+}
+.ask-q {
+  justify-self: end;
+  max-width: 78%;
+  padding: 12px 18px;
+  border-radius: 16px;
+  background: var(--panel-2);
+  border: 1px solid var(--line-2);
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 600;
+}
+.ask-a {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 18px;
+  align-items: start;
+}
+.ask-a > .ui-mark {
+  margin-top: 2px;
+}
+.ask-a-body {
+  min-width: 0;
+}
+.ask-prose p {
+  font-size: 16.5px;
+  line-height: 1.65;
+  color: var(--text);
+}
+.ask-prose p + p {
+  margin-top: 12px;
+}
+.ask-prose strong {
+  color: var(--ink);
+}
+.ask-cite {
+  display: inline-grid;
+  place-items: center;
+  min-width: 17px;
+  height: 17px;
+  margin: 0 1px;
+  padding: 0 4px;
+  border-radius: 5px;
+  background: var(--blue-soft);
+  color: var(--ice);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  vertical-align: 5px;
+}
+.ask-caret {
+  display: inline-block;
+  width: 8px;
+  height: 17px;
+  margin-left: 2px;
+  vertical-align: -3px;
+  background: var(--ice);
+  animation: ask-blink 1s steps(2) infinite;
+}
+@keyframes ask-blink {
+  50% {
+    opacity: 0;
+  }
+}
+.ask-typing {
+  display: inline-flex;
+  gap: 5px;
+  padding: 10px 0;
+}
+.ask-typing i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--mute);
+  animation: ask-dot 1.2s var(--ease) infinite;
+}
+.ask-typing i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.ask-typing i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes ask-dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+.ask-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--red-ink);
+  font-size: 14.5px;
+}
+.ask-verdict {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.ask-verdict .ui-badge {
+  text-transform: capitalize;
+}
+.ask-sources {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+  margin-top: 18px;
+}
+.ask-source {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  padding: 13px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line-2);
+  background: var(--panel);
+  transition: border-color 0.18s, background 0.18s;
+}
+.ask-source:hover {
+  border-color: var(--line-3);
+  background: var(--panel-2);
+}
+.ask-source-k {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--mute);
+}
+.ask-source-t {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.ask-follow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+.ask-block {
+  display: grid;
+  gap: 8px;
+  margin-top: 18px;
+}
+.ask-block .ui-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ask-reject {
+  display: grid;
+  gap: 3px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  font-size: 14px;
+}
+.ask-reject strong {
+  color: var(--ink);
+}
+.ask-reject span {
+  color: var(--mute);
+}
+.ask-steps {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+.ask-steps li {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+.ask-steps .n {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--blue-soft);
+  color: var(--ice);
+  font-family: var(--mono);
+  font-size: 12.5px;
+}
+.ask-steps strong {
+  color: var(--ink);
+}
+.ask-steps p {
+  color: var(--mute);
+  font-size: 14px;
+  margin-top: 2px;
+}
+
+/* composer */
+.ask-composer {
+  position: fixed;
+  z-index: 30;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  width: min(760px, calc(100vw - 32px));
+  padding: 14px 14px 12px 20px;
+  border-radius: 20px;
+  border: 1px solid var(--line-2);
+  background: rgba(14, 17, 34, 0.94);
+  backdrop-filter: blur(14px);
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 10px;
+}
+.ask-input {
+  width: 100%;
+  min-height: 28px;
+  max-height: 180px;
+  resize: none;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--ink);
+  font-size: 16px;
+  line-height: 1.5;
+  field-sizing: content;
+}
+.ask-input::placeholder {
+  color: var(--mute);
+}
+.ask-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ask-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  color: var(--mute);
+  font-size: 13px;
+}
+.ask-send {
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--ink);
+  color: var(--bg);
+  cursor: pointer;
+  transition: opacity 0.18s, transform 0.18s var(--ease);
+}
+.ask-send:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.ask-send:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+@media (max-width: 860px) {
+  .ask-composer {
+    bottom: 84px;
+  }
+  .ask {
+    padding-bottom: 260px;
+  }
+  .ask-chip {
+    display: none;
+  }
+  .ask-q {
+    max-width: 92%;
+  }
+}

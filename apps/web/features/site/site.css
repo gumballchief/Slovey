@@ -1,0 +1,415 @@
+/* Public pages beyond the landing: art-backed hero band, a calm reading column, the
+   same footer everywhere. */
+
+.st {
+  background: #01010a;
+}
+.st-nav {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 16px;
+  height: 70px;
+  padding: 0 28px;
+  background: linear-gradient(180deg, rgba(1, 1, 10, 0.92) 60%, rgba(1, 1, 10, 0));
+}
+.st-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 16.5px;
+}
+.st-links {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(14, 17, 34, 0.7);
+  backdrop-filter: blur(12px);
+}
+.st-links a {
+  padding: 7px 14px;
+  border-radius: 999px;
+  color: var(--mute);
+  font-size: 14px;
+  transition: color 0.18s, background 0.18s;
+}
+.st-links a:hover {
+  color: var(--ink);
+  background: var(--panel-2);
+}
+.st-actions {
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.st-signin {
+  color: var(--text);
+  font-size: 14px;
+}
+.st-signin:hover {
+  color: var(--ink);
+}
+
+.st-hero {
+  position: relative;
+  margin-top: -70px;
+  min-height: 430px;
+  display: grid;
+  align-items: end;
+  overflow: hidden;
+}
+.st-hero-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 45%;
+  opacity: 0.85;
+}
+.st-hero-shade {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(1, 1, 10, 0.78) 0%, rgba(1, 1, 10, 0.42) 40%, rgba(1, 1, 10, 0.96) 100%),
+    linear-gradient(90deg, rgba(1, 1, 10, 0.75), transparent 70%);
+}
+.st-hero-in {
+  position: relative;
+  width: min(1080px, 100%);
+  margin: 0 auto;
+  padding: 130px 28px 52px;
+  display: grid;
+  gap: 14px;
+}
+.st-title {
+  font-size: clamp(42px, 6.4vw, 82px);
+  max-width: 900px;
+}
+.st-lede {
+  max-width: 640px;
+  font-size: 18px;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+.st-body {
+  width: min(780px, 100%);
+  margin: 0 auto;
+  padding: 40px 28px 90px;
+}
+.st-body--wide {
+  width: min(1080px, 100%);
+}
+
+/* prose for docs + legal */
+.st-prose {
+  color: var(--text);
+  font-size: 16.5px;
+  line-height: 1.7;
+}
+.st-prose > * + * {
+  margin-top: 16px;
+}
+.st-prose h2 {
+  margin-top: 46px;
+  font-family: var(--serif);
+  font-weight: 400;
+  text-transform: uppercase;
+  font-size: 28px;
+  line-height: 1.05;
+  color: var(--ink);
+}
+.st-prose h3 {
+  margin-top: 28px;
+  color: var(--ink);
+  font-size: 17px;
+}
+.st-prose ul,
+.st-prose ol {
+  padding-left: 20px;
+  list-style: disc;
+  display: grid;
+  gap: 8px;
+}
+.st-prose ol {
+  list-style: decimal;
+}
+.st-prose li::marker {
+  color: var(--blue-2);
+}
+.st-prose strong {
+  color: var(--ink);
+}
+.st-prose a {
+  color: var(--ice);
+  text-decoration: underline;
+  text-decoration-color: rgba(166, 217, 255, 0.4);
+  text-underline-offset: 3px;
+}
+.st-prose code {
+  font-family: var(--mono);
+  font-size: 0.86em;
+  color: var(--ice);
+  background: var(--ice-soft);
+  border-radius: 6px;
+  padding: 1px 6px;
+}
+.st-prose pre {
+  margin-top: 16px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: #03040a;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--text);
+}
+.st-prose pre code {
+  background: none;
+  padding: 0;
+  color: inherit;
+}
+
+/* grids of cards on docs-like pages */
+.st-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+.st-card {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  padding: 22px;
+  border-radius: 16px;
+  border: 1px solid var(--line-2);
+  background: linear-gradient(180deg, rgba(20, 24, 50, 0.75), rgba(10, 12, 24, 0.9));
+  color: var(--text);
+  transition: border-color 0.2s, transform 0.2s var(--ease);
+}
+a.st-card:hover {
+  border-color: var(--line-3);
+  transform: translateY(-2px);
+}
+.st-card h3 {
+  color: var(--ink);
+  font-size: 17px;
+}
+.st-card p {
+  font-size: 14.5px;
+  color: var(--mute);
+}
+.st-num {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ice);
+}
+.st-section + .st-section {
+  margin-top: 64px;
+}
+.st-section h2 {
+  font-family: var(--serif);
+  font-weight: 400;
+  text-transform: uppercase;
+  font-size: 32px;
+  color: var(--ink);
+  line-height: 1.02;
+  margin-bottom: 18px;
+}
+
+/* demo */
+.dm {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+}
+.dm-list {
+  display: grid;
+  gap: 8px;
+}
+.dm-pr {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  width: 100%;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.18s, background 0.18s;
+}
+.dm-pr strong {
+  display: block;
+  color: var(--ink);
+  font-size: 14.5px;
+  line-height: 1.35;
+  margin-bottom: 3px;
+}
+.dm-pr:hover {
+  border-color: var(--line-2);
+}
+.dm-pr[data-on="true"] {
+  border-color: var(--blue);
+  background: linear-gradient(180deg, rgba(61, 123, 255, 0.14), var(--panel));
+}
+.dm-view {
+  display: grid;
+  gap: 16px;
+}
+.dm-verdict {
+  display: grid;
+  gap: 12px;
+  padding: 22px;
+  border-radius: 16px;
+  border: 1px solid rgba(61, 220, 151, 0.26);
+  background: linear-gradient(180deg, rgba(61, 220, 151, 0.07), var(--panel));
+}
+.dm-verdict[data-blocked="true"] {
+  border-color: rgba(255, 75, 75, 0.3);
+  background: linear-gradient(180deg, rgba(255, 75, 75, 0.08), var(--panel));
+}
+.dm-verdict-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+@media (max-width: 860px) {
+  .dm {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* closing call to action */
+.st-cta {
+  width: min(1080px, calc(100% - 56px));
+  margin: 0 auto 70px;
+  padding: 56px 40px;
+  border-radius: 24px;
+  border: 1px solid var(--line-2);
+  background:
+    linear-gradient(90deg, rgba(1, 1, 10, 0.9) 0%, rgba(1, 1, 10, 0.55) 60%, rgba(1, 1, 10, 0.2) 100%),
+    url("/art/hero.webp") 70% 45% / cover;
+  display: grid;
+  gap: 24px;
+}
+.st-cta-title {
+  font-size: clamp(32px, 4.4vw, 54px);
+  max-width: 640px;
+}
+.st-cta-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.st-foot {
+  border-top: 1px solid var(--line);
+  padding: 56px 28px 34px;
+}
+.st-foot-top {
+  width: min(1080px, 100%);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1.6fr repeat(3, 1fr);
+  gap: 32px;
+}
+.st-foot-brand {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+.st-foot-brand p {
+  color: var(--mute);
+  font-size: 14px;
+  max-width: 280px;
+}
+.st-gh {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  justify-self: start;
+  color: var(--text);
+  font-size: 14px;
+}
+.st-gh:hover {
+  color: var(--ink);
+}
+.st-foot-col {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+.st-foot-col a {
+  color: var(--mute);
+  font-size: 14px;
+}
+.st-foot-col a:hover {
+  color: var(--ink);
+}
+.st-foot-bottom {
+  width: min(1080px, 100%);
+  margin: 46px auto 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--mute-2);
+}
+
+@media (max-width: 860px) {
+  .st-release {
+    grid-template-columns: 1fr !important;
+    gap: 6px !important;
+  }
+  .st-nav {
+    grid-template-columns: 1fr auto;
+    padding: 0 16px;
+  }
+  .st-links {
+    display: none;
+  }
+  .st-hero-in {
+    padding: 110px 16px 40px;
+  }
+  .st-body {
+    padding: 28px 16px 70px;
+  }
+  .st-cta {
+    width: calc(100% - 32px);
+    padding: 36px 22px;
+  }
+  .st-foot-top {
+    grid-template-columns: 1fr 1fr;
+  }
+  .st-foot-brand {
+    grid-column: 1 / -1;
+  }
+}
+
+/* endpoint headings: method in the serif, path kept in its real case */
+.st-prose h2.st-endpoint {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.st-prose h2.st-endpoint code {
+  text-transform: none;
+  font-size: 19px;
+  padding: 3px 10px;
+}

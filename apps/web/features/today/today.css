@@ -1,0 +1,16 @@
+.today-head {
+  display: grid;
+  gap: 14px;
+  max-width: 820px;
+}
+.today-title {
+  font-size: clamp(34px, 5.2vw, 58px);
+  line-height: 0.96;
+}
+.today-feed {
+  max-width: 820px;
+}
+.today-decision {
+  background: linear-gradient(180deg, rgba(61, 123, 255, 0.1), rgba(14, 17, 34, 0.9));
+  border-color: rgba(61, 123, 255, 0.28);
+}

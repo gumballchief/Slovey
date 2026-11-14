@@ -1,0 +1,193 @@
+/* Checkout: a calm two-column page. Order on the left, the card form on the right. */
+
+.co-shell {
+  min-height: 100dvh;
+  background:
+    radial-gradient(900px 480px at 80% -120px, rgba(61, 123, 255, 0.1), transparent 70%),
+    var(--bg);
+}
+.co-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  height: 72px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--line);
+}
+.co-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 16px;
+}
+.co-secure {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--mute);
+}
+.co-main {
+  width: min(1080px, 100%);
+  margin: 0 auto;
+  padding: 48px 24px 80px;
+}
+.co {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 460px);
+  gap: 56px;
+  align-items: start;
+}
+.co-summary {
+  display: grid;
+  gap: 18px;
+  align-content: start;
+}
+.co-plan {
+  font-size: clamp(52px, 7vw, 84px);
+}
+.co-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+  color: var(--ink);
+  font-weight: 600;
+}
+.co-row em {
+  display: block;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 13px;
+  color: var(--mute);
+}
+.co-seats {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+}
+.co-seats output {
+  min-width: 28px;
+  text-align: center;
+  font-family: var(--serif);
+  font-size: 30px;
+  color: var(--ink);
+}
+.co-lines {
+  margin: 0;
+  display: grid;
+  gap: 10px;
+  padding: 18px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.co-lines > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+.co-lines dt {
+  color: var(--mute);
+}
+.co-lines dd {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 14px;
+}
+.co-total dt {
+  color: var(--ink);
+  font-weight: 600;
+}
+.co-total dd {
+  display: grid;
+  justify-items: end;
+  font-family: var(--serif);
+  font-size: 30px;
+  line-height: 1;
+}
+.co-total small {
+  margin-top: 6px;
+  font-family: var(--sans);
+  font-size: 12.5px;
+  color: var(--mute);
+}
+.co-features {
+  display: grid;
+  gap: 9px;
+  color: var(--text);
+  font-size: 14.5px;
+}
+.co-features li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.co-features svg {
+  color: var(--ice);
+  flex: none;
+}
+.co-pay {
+  padding: 24px;
+  border-radius: 18px;
+  position: sticky;
+  top: 24px;
+}
+.co-form {
+  display: grid;
+  gap: 16px;
+}
+.co-el {
+  min-height: 44px;
+}
+.co-msg {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--red-soft);
+  border: 1px solid rgba(255, 75, 75, 0.3);
+  color: var(--red-ink);
+  font-size: 14px;
+}
+.co-fine {
+  display: block;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--mute);
+}
+.co-fine svg {
+  vertical-align: -2px;
+  margin-right: 4px;
+}
+.co-off {
+  display: grid;
+  gap: 8px;
+  padding: 8px 0;
+}
+.co-done {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  gap: 18px;
+  padding: 10vh 0;
+}
+.co-done p {
+  max-width: 460px;
+}
+@media (max-width: 900px) {
+  .co {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 36px;
+  }
+  .co-pay {
+    position: static;
+  }
+  .co-main {
+    padding: 28px 16px 64px;
+  }
+}

@@ -22,15 +22,19 @@ const DEFAULT_SETTINGS: RepoSettings = {
   learnFromDismissals: true,
 };
 
-async function getJSON<T>(url: string, fallback: () => T): Promise<T> {
-  try {
-    // Dynamic data — never serve a cached/stale response.
-    const res = await fetch(url, { headers: { accept: "application/json" }, cache: "no-store" });
-    if (!res.ok) throw new Error(String(res.status));
-    return (await res.json()) as T;
-  } catch {
-    return fallback();
+/**
+ * Read JSON from an API route. Throws on any failure so the screen shows a real
+ * error state with a retry, never an empty page that looks like "no data".
+ * (`_fallback` is kept for call-site compatibility; it is no longer used.)
+ */
+async function getJSON<T>(url: string, _fallback?: () => T): Promise<T> {
+  // Dynamic data — never serve a cached/stale response.
+  const res = await fetch(url, { headers: { accept: "application/json" }, cache: "no-store" });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`${res.status} ${text}`.trim());
   }
+  return (await res.json()) as T;
 }
 
 async function send<T>(url: string, method: string, body?: unknown): Promise<T> {
@@ -187,8 +191,23 @@ export function createAgentTask(repoId: string, intent: string): Promise<AgentRu
 }
 
 // ── Stripe billing ──
-export function startCheckout(repoId: string, interval: "annual" | "monthly" = "annual"): Promise<{ url: string }> {
-  return send<{ url: string }>(`/api/repos/${repoId}/billing/checkout`, "POST", { interval });
+/** Creates a Team-plan checkout for Slovey's own checkout page; returns Stripe's client secret. */
+export function startCheckout(
+  repoId: string,
+  interval: "annual" | "monthly",
+  seats: number,
+): Promise<{ clientSecret: string; sessionId: string }> {
+  return send(`/api/repos/${repoId}/billing/checkout`, "POST", { interval, seats });
+}
+export interface CheckoutStatus {
+  status: "open" | "complete" | "expired" | null;
+  paymentStatus: "paid" | "unpaid" | "no_payment_required";
+  amountTotal: number | null;
+  currency: string | null;
+  plan: OrgPlan;
+}
+export function fetchCheckoutStatus(repoId: string, sessionId: string): Promise<CheckoutStatus> {
+  return getJSON<CheckoutStatus>(`/api/repos/${repoId}/billing/session?session_id=${encodeURIComponent(sessionId)}`);
 }
 export function openBillingPortal(repoId: string): Promise<{ url: string }> {
   return send<{ url: string }>(`/api/repos/${repoId}/billing/portal`, "POST");
