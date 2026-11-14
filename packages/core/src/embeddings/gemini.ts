@@ -17,21 +17,36 @@ export class GeminiEmbeddingProvider implements EmbeddingProvider {
   async embed(texts: string[]): Promise<number[][]> {
     if (texts.length === 0) return [];
     const url = `${BASE}/${this.model}:batchEmbedContents?key=${this.apiKey}`;
-    const requests = texts.map((t) => ({
-      model: `models/${this.model}`,
-      content: { parts: [{ text: t }] },
-      outputDimensionality: this.dimensions,
-    }));
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ requests }),
-    });
-    if (!res.ok) {
-      throw new Error(`Gemini embeddings ${res.status}: ${await res.text()}`);
+    const out: number[][] = [];
+    for (let i = 0; i < texts.length; i += 100) {
+      const chunk = texts.slice(i, i + 100);
+      const requests = chunk.map((t) => ({
+        model: `models/${this.model}`,
+        content: { parts: [{ text: t }] },
+        outputDimensionality: this.dimensions,
+      }));
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ requests }),
+      });
+      if (!res.ok) {
+        throw new Error(`Gemini embeddings ${res.status}: ${await res.text()}`);
+      }
+      const data = (await res.json()) as { embeddings: Array<{ values: number[] }> };
+      if (!Array.isArray(data.embeddings) || data.embeddings.length !== chunk.length) {
+        throw new Error(
+          `Gemini embeddings returned ${data.embeddings?.length ?? 0} embeddings for ${chunk.length} texts`,
+        );
+      }
+      for (const e of data.embeddings) {
+        if (!e || !Array.isArray(e.values) || e.values.length === 0) {
+          throw new Error("Gemini embeddings returned an entry without values");
+        }
+        out.push(e.values);
+      }
     }
-    const data = (await res.json()) as { embeddings: Array<{ values: number[] }> };
-    return data.embeddings.map((e) => e.values);
+    return out;
   }
 
   async embedOne(text: string): Promise<number[]> {

@@ -1,6 +1,6 @@
 import { decisionApi, logAudit } from "@company-brain/core";
 import { assertRepoWrite, requireViewer } from "@/lib/server/auth";
-import { HttpError, handle, ok } from "@/lib/server/respond";
+import { HttpError, handle, ok, readJsonBody } from "@/lib/server/respond";
 import { rateLimit } from "@/lib/server/ratelimit";
 
 export const runtime = "nodejs";
@@ -19,7 +19,7 @@ export async function POST(
     const { id, decisionId } = await ctx.params;
     await assertRepoWrite(id, viewer);
     rateLimit(`review:${viewer.userId ?? viewer.login}`, 60, 60_000);
-    const body = (await req.json().catch(() => ({}))) as { action?: string; reason?: string };
+    const body = await readJsonBody<{ action?: string; reason?: string }>(req);
     if (body.action !== "approve" && body.action !== "reject") {
       throw new HttpError(400, "action must be 'approve' or 'reject'");
     }

@@ -39,7 +39,7 @@ describe("parseWebhook", () => {
       ...base,
       action: "created",
       issue: { number: 7, pull_request: {} },
-      comment: { body: "/brain dismiss not relevant here", user: { login: "alice" } },
+      comment: { body: "/brain dismiss not relevant here", user: { login: "alice" }, author_association: "MEMBER" },
     });
     expect(intents[0]).toMatchObject({ type: "feedback", action: "dismiss", byUser: "alice" });
   });

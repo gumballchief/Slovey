@@ -216,10 +216,16 @@ export function deriveConventions(
 
   // 3. Test-runner convention.
   if (arch.testStrategy.runners.length > 0) {
-    const runner = arch.testStrategy.runners[0]!;
     const configFile = paths.find((p) => /(vitest|jest|playwright)\.config\.[tj]s$/.test(p));
+    const configRunner = configFile
+      ? arch.testStrategy.runners.find((r) => configFile.toLowerCase().includes(r.toLowerCase()))
+      : undefined;
+    const runner = configRunner ?? arch.testStrategy.runners[0]!;
+    const runnerConfigFile = configRunner
+      ? configFile
+      : paths.find((p) => p.toLowerCase().includes(`${runner.toLowerCase()}.config.`));
     const sampleTest = paths.find((p) => /\.(test|spec)\.[tj]sx?$/.test(p));
-    const evidence = [configFile, sampleTest].filter((p): p is string => Boolean(p));
+    const evidence = [runnerConfigFile, sampleTest].filter((p): p is string => Boolean(p));
     if (evidence.length > 0) {
       out.push({
         decision: `Automated tests use ${runner}. New tests should be written for ${runner}, not a different test runner.`,
@@ -267,6 +273,33 @@ export function deriveConventions(
   return out.filter((d) => d.evidence.length > 0);
 }
 
+/**
+ * True when GitHub's recursive getTree response was truncated and the path
+ * list is only partial. Conventions derived from a partial tree can misfire,
+ * so callers must skip deriveConventions/upsert when this is true.
+ */
+export function isGitTreeTruncated(
+  tree: { truncated?: boolean } | null | undefined,
+): boolean {
+  return tree?.truncated === true;
+}
+
+/** Maximum package.json blob size to fetch/decode (1 MiB). Larger manifests are skipped. */
+export const MAX_MANIFEST_BYTES = 1_048_576;
+
+/**
+ * True when manifests could not be loaded at all (e.g. transient blob fetch /
+ * parse failures) even though package.json files exist. Persisting the derived
+ * empty frameworks/dependency graph would overwrite the prior correct snapshot,
+ * so callers must skip the delete+insert like the truncated-tree case.
+ */
+export function shouldSkipManifestUpsert(
+  manifests: PackageManifest[],
+  manifestPaths: string[],
+): boolean {
+  return manifests.length === 0 && manifestPaths.length > 0;
+}
+
 export async function runIndexRepo(params: {
   repoId: string;
   installationId: number;
@@ -287,6 +320,12 @@ export async function runIndexRepo(params: {
     tree_sha: params.defaultBranch,
     recursive: "1",
   });
+  const truncated = isGitTreeTruncated(tree.data);
+  if (truncated) {
+    logger.child({ component: "index-repo" }).warn("git tree truncated; paths are partial", {
+      repo: `${params.owner}/${params.name}`,
+    });
+  }
   const blobs = tree.data.tree.filter((n) => n.type === "blob" && n.path);
   const paths = blobs.map((b) => b.path!);
 
@@ -302,16 +341,22 @@ export async function runIndexRepo(params: {
     .filter((p) => p.endsWith("package.json") && !p.includes("node_modules"))
     .slice(0, 25);
   const manifests: PackageManifest[] = [];
+  let manifestFetchErrors = 0;
   for (const mp of manifestPaths) {
     const node = blobs.find((b) => b.path === mp);
     if (!node?.sha) continue;
+    if (typeof node.size === "number" && node.size > MAX_MANIFEST_BYTES) continue;
     try {
       const blob = await octokit.rest.git.getBlob({
         owner: params.owner,
         repo: params.name,
         file_sha: node.sha,
       });
-      const json = JSON.parse(Buffer.from(blob.data.content, "base64").toString("utf8"));
+      if (typeof blob.data.size === "number" && blob.data.size > MAX_MANIFEST_BYTES) continue;
+      const content = blob.data.content;
+      if (typeof content !== "string" || content.length > (MAX_MANIFEST_BYTES * 4) / 3 + 1024)
+        continue;
+      const json = JSON.parse(Buffer.from(content, "base64").toString("utf8"));
       manifests.push({
         path: mp,
         name: json.name,
@@ -319,6 +364,7 @@ export async function runIndexRepo(params: {
         devDependencies: json.devDependencies ?? {},
       });
     } catch {
+      manifestFetchErrors++;
       /* skip unparseable */
     }
   }
@@ -396,38 +442,61 @@ export async function runIndexRepo(params: {
   const dependencyGraph: DependencyGraph = { nodes, edges };
 
   // 8. Upsert knowledge rows (replace prior of each kind).
+  // A truncated tree is partial: skip the delete+insert to preserve prior knowledge.
+  if (truncated) {
+    logger.child({ component: "index-repo" }).warn("skipping knowledge upsert on truncated tree", {
+      repo: `${params.owner}/${params.name}`,
+    });
+    return { architecture, dependencyGraph, conventions: { inserted: 0, updated: 0 } };
+  }
+  if (shouldSkipManifestUpsert(manifests, manifestPaths)) {
+    logger.child({ component: "index-repo" }).warn("skipping knowledge upsert: all manifests failed to load", {
+      repo: `${params.owner}/${params.name}`,
+      manifestPaths: manifestPaths.length,
+      manifestFetchErrors,
+    });
+    return { architecture, dependencyGraph, conventions: { inserted: 0, updated: 0 } };
+  }
   const db = getDb();
-  await db
-    .delete(repoKnowledge)
-    .where(and(eq(repoKnowledge.repoId, params.repoId), eq(repoKnowledge.kind, "architecture")));
-  await db
-    .delete(repoKnowledge)
-    .where(and(eq(repoKnowledge.repoId, params.repoId), eq(repoKnowledge.kind, "dependency_graph")));
-  await db.insert(repoKnowledge).values([
-    { repoId: params.repoId, kind: "architecture", data: architecture },
-    { repoId: params.repoId, kind: "dependency_graph", data: dependencyGraph },
-  ]);
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(repoKnowledge)
+      .where(and(eq(repoKnowledge.repoId, params.repoId), eq(repoKnowledge.kind, "architecture")));
+    await tx
+      .delete(repoKnowledge)
+      .where(and(eq(repoKnowledge.repoId, params.repoId), eq(repoKnowledge.kind, "dependency_graph")));
+    await tx.insert(repoKnowledge).values([
+      { repoId: params.repoId, kind: "architecture", data: architecture },
+      { repoId: params.repoId, kind: "dependency_graph", data: dependencyGraph },
+    ]);
+  });
 
   // 9. Derive citable convention decisions and fold them into the repo's memory
   //    (same embed + dedup path as extract) so the judge can warn on structural
   //    conflicts — DB/ORM usage, framework, test runner, shared-code, naming.
   let conventions = { inserted: 0, updated: 0 };
-  try {
-    const derived = deriveConventions(architecture, manifests, paths);
-    if (derived.length > 0) {
-      conventions = await upsertDecisions(
-        params.repoId,
-        derived.map((d) => ({ d, source: "repo_analysis" as const })),
-        "repo_analysis",
-      );
-    }
-    logger.child({ component: "index-repo" }).info("conventions derived", {
+  if (truncated) {
+    logger.child({ component: "index-repo" }).warn("skipping convention derivation on truncated tree", {
       repo: `${params.owner}/${params.name}`,
-      derived: derived.length,
-      ...conventions,
     });
-  } catch (e) {
-    logger.child({ component: "index-repo" }).warn("convention derivation failed", { err: e });
+  } else {
+    try {
+      const derived = deriveConventions(architecture, manifests, paths);
+      if (derived.length > 0) {
+        conventions = await upsertDecisions(
+          params.repoId,
+          derived.map((d) => ({ d, source: "repo_analysis" as const })),
+          "repo_analysis",
+        );
+      }
+      logger.child({ component: "index-repo" }).info("conventions derived", {
+        repo: `${params.owner}/${params.name}`,
+        derived: derived.length,
+        ...conventions,
+      });
+    } catch (e) {
+      logger.child({ component: "index-repo" }).warn("convention derivation failed", { err: e });
+    }
   }
 
   return { architecture, dependencyGraph, conventions };

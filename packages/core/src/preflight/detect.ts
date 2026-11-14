@@ -56,9 +56,22 @@ export function scriptCommand(pm: PackageManager, script: string): string {
 
 function git(cwd: string, args: string[]): string {
   try {
-    return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+    return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], maxBuffer: 32 * 1024 * 1024 }).trim();
   } catch {
     return "";
+  }
+}
+
+/** Split NUL-terminated git output, preserving names verbatim (no trim/quoting). */
+export function parseNulSeparatedPaths(output: string): string[] {
+  return output.split("\0").filter((f) => f.length > 0);
+}
+
+function gitZ(cwd: string, args: string[]): string[] {
+  try {
+    return parseNulSeparatedPaths(execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], maxBuffer: 32 * 1024 * 1024 }));
+  } catch {
+    return [];
   }
 }
 
@@ -90,18 +103,43 @@ const VENDORED_PATH =
  */
 export function getChangedFiles(cwd: string): string[] {
   const out = new Set<string>();
-  for (const spec of [["diff", "--name-only", "HEAD"], ["diff", "--cached", "--name-only"], ["ls-files", "--others", "--exclude-standard"]]) {
-    for (const f of git(cwd, spec).split("\n")) if (f.trim()) out.add(f.trim());
+  for (const spec of [["diff", "--name-only", "-z", "HEAD"], ["diff", "--cached", "--name-only", "-z"], ["ls-files", "--others", "--exclude-standard", "-z"]]) {
+    for (const f of gitZ(cwd, ["-c", "core.quotePath=false", ...spec])) out.add(f);
   }
   return [...out].filter((f) => !VENDORED_PATH.test(f));
+}
+
+/** Files named by genuine `+++ b/<file>` headers in a unified diff. A header
+ *  is only genuine before the first hunk (`@@`) of a file entry and when it
+ *  immediately follows a `--- ` line; a `+++ b/...` line inside a hunk is
+ *  file content an author can forge to hide an untracked file. */
+export function filesInDiff(d: string): Set<string> {
+  const out = new Set<string>();
+  const lines = d.split("\n");
+  let inHunk = false;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+    if (line.startsWith("diff --git ")) {
+      inHunk = false;
+      continue;
+    }
+    if (line.startsWith("@@ ")) {
+      inHunk = true;
+      continue;
+    }
+    if (!inHunk && line.startsWith("+++ b/") && i > 0 && lines[i - 1]!.startsWith("--- ")) {
+      out.add(line.slice("+++ b/".length));
+    }
+  }
+  return out;
 }
 
 /** Unified diff for a set of files, capped, for feeding the decision check.
  *  Untracked files never appear in `git diff` — and brand-new files are exactly
  *  what coding agents create — so their contents are appended as a pseudo-diff. */
 export function getDiff(cwd: string, files: string[], maxChars = 12_000): string {
-  let d = git(cwd, ["diff", "HEAD", "--", ...files]) || git(cwd, ["diff", "--cached", "--", ...files]);
-  const inDiff = new Set([...d.matchAll(/^\+\+\+ b\/(.+)$/gm)].map((m) => m[1]!));
+  let d = git(cwd, ["-c", "core.quotePath=false", "diff", "HEAD", "--", ...files]) || git(cwd, ["-c", "core.quotePath=false", "diff", "--cached", "--", ...files]);
+  const inDiff = filesInDiff(d);
   for (const f of files) {
     if (inDiff.has(f) || d.length >= maxChars) continue;
     const abs = resolve(cwd, f);

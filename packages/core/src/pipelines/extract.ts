@@ -1,11 +1,11 @@
 import { getDb, decisions } from "@company-brain/db";
 import { eq, sql } from "drizzle-orm";
 import { getAI } from "../ai";
-import { consolidatePrompt, extractDocPrompt, extractPrompt } from "../ai/prompts";
+import { consolidatePrompt, extractDocPrompt, extractPrompt, filterExtractedDecisionsToBatch } from "../ai/prompts";
 import type { ExtractedDecision } from "../ai/types";
 import { getInstallationOctokit } from "../github/app";
 import { buildPrBatchText, fetchClosedPRs, fetchDocs } from "../github/fetchers";
-import { isRepoWithinPlan } from "../services/plan-guard";
+import { decisionHeadroom, isRepoWithinPlan } from "../services/plan-guard";
 import { upsertDecisions } from "./upsert-decisions";
 
 const PR_BATCH = 8;
@@ -25,6 +25,16 @@ function normalizeEvidence(ev: unknown): string[] {
   if (Array.isArray(ev)) return uniq(ev.map((x) => String(x).trim()));
   if (typeof ev === "string") return uniq(ev.split(",").map((s) => s.trim()));
   return [];
+}
+
+/** Parse numeric PR numbers (e.g. 29499 from "PR #29499") for the citation guardrail. */
+export function evidencePrNumbers(evidence: string[]): number[] {
+  const out: number[] = [];
+  for (const ev of evidence) {
+    const m = /#(\d+)/.exec(ev);
+    if (m) out.push(Number(m[1]));
+  }
+  return out;
 }
 
 export interface ExtractParams {
@@ -85,14 +95,36 @@ export async function runExtract(params: ExtractParams): Promise<ExtractResult> 
 
   // 2. Extract decisions in batches (cheap model).
   const raw: ExtractedDecision[] = [];
+  let batchSucceeded = 0;
   for (const batch of chunk(prs, PR_BATCH)) {
     const res = await ai.completeJSON<ExtractedDecision[]>(
       extractPrompt(buildPrBatchText(batch)),
       { tier: "cheap", maxTokens: 4000 },
     );
     if (Array.isArray(res)) {
-      for (const d of res) raw.push({ ...d, evidence: normalizeEvidence(d.evidence) });
+      batchSucceeded += 1;
+      // Keep only citations of PRs that were really in this batch, so text inside a PR
+      // cannot plant a decision that cites some other PR.
+      // Closed-unmerged (rejected) PRs are valid evidence too: a rejection is a decision.
+      const realIds = batch.map((pr) => pr.number);
+      const cleaned = res.filter((d) => d && typeof d === "object").map((d) => ({ ...d, evidence: normalizeEvidence(d.evidence) }));
+      raw.push(...filterExtractedDecisionsToBatch(cleaned, realIds));
     }
+  }
+
+  // LLM extraction failed for every batch (e.g. timeout / malformed JSON):
+  // signal it so callers don't mistake it for a repo with no decisions.
+  if (prs.length > 0 && batchSucceeded === 0) {
+    return {
+      prsFetched: prs.length,
+      extracted: 0,
+      droppedEmptyEvidence: 0,
+      consolidated: 0,
+      docDecisions: 0,
+      inserted: 0,
+      updated: 0,
+      aborted: "extraction-failed",
+    };
   }
 
   // 3. Guardrail: drop any decision without evidence (never invent).
@@ -107,9 +139,14 @@ export async function runExtract(params: ExtractParams): Promise<ExtractResult> 
       maxTokens: 4000,
     });
     if (Array.isArray(res) && res.length > 0) {
-      consolidated = res
+      const cleaned = res
+        .filter((d) => d && typeof d === "object")
         .map((d) => ({ ...d, evidence: normalizeEvidence(d.evidence) }))
         .filter((d) => d.decision && d.evidence.length > 0);
+      // Re-apply the batch-citation guardrail: consolidation must not invent
+      // citations (e.g. "PR #999999") or re-ground decisions in other PRs.
+      const groundedIds = grounded.flatMap((d) => evidencePrNumbers(d.evidence));
+      consolidated = filterExtractedDecisionsToBatch(cleaned, groundedIds);
     }
   }
 
@@ -124,7 +161,7 @@ export async function runExtract(params: ExtractParams): Promise<ExtractResult> 
       );
       if (Array.isArray(res)) {
         for (const d of res) {
-          if (d.decision) docDecisions.push({ ...d, evidence: [doc.path] });
+          if (d?.decision) docDecisions.push({ ...d, evidence: [doc.path] });
         }
       }
     }
@@ -149,11 +186,32 @@ export async function runExtract(params: ExtractParams): Promise<ExtractResult> 
     }
   }
 
-  // 7. Embed + upsert with pgvector dedup (refresh updates rather than duplicates).
-  const { inserted, updated } = await upsertDecisions(params.repoId, [
+  // 7. Plan enforcement: don't exceed the org's decision allowance.
+  const items = [
     ...consolidated.map((d) => ({ d, source: "github_pr" as const })),
     ...docDecisions.map((d) => ({ d, source: "doc" as const })),
-  ]);
+  ];
+  const headroom = await decisionHeadroom(params.repoId, items.length);
+  let toUpsert = items;
+  if (!headroom.ok) {
+    const allowed = headroom.limit < 0 ? items.length : Math.max(0, headroom.limit - headroom.used);
+    if (allowed <= 0) {
+      return {
+        prsFetched: prs.length,
+        extracted: grounded.length,
+        droppedEmptyEvidence,
+        consolidated: consolidated.length,
+        docDecisions: docDecisions.length,
+        inserted: 0,
+        updated: 0,
+        aborted: `plan-limit (${headroom.plan}: ${headroom.limit} decisions)`,
+      };
+    }
+    toUpsert = items.slice(0, allowed);
+  }
+
+  // 7. Embed + upsert with pgvector dedup (refresh updates rather than duplicates).
+  const { inserted, updated } = await upsertDecisions(params.repoId, toUpsert);
 
   return {
     prsFetched: prs.length,

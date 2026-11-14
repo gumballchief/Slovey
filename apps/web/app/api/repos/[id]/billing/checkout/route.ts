@@ -1,6 +1,6 @@
 import { dashboard, logAudit } from "@company-brain/core";
 import { assertRepoAccessWithRole, requireViewer } from "@/lib/server/auth";
-import { HttpError, handle, ok } from "@/lib/server/respond";
+import { HttpError, handle, ok, readJsonBody } from "@/lib/server/respond";
 import { type BillingInterval, appBaseUrl, getStripe, proLineItem } from "@/lib/server/stripe";
 
 export const runtime = "nodejs";
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }): Promise<Response> {
   return handle(async () => {
     const viewer = await requireViewer();
-    const body = (await req.json().catch(() => ({}))) as { interval?: string };
+    const body = await readJsonBody<{ interval?: string }>(req, 10_000);
     const interval: BillingInterval = body.interval === "monthly" ? "monthly" : "annual";
     const { id } = await ctx.params;
     const { role } = await assertRepoAccessWithRole(id, viewer);
@@ -32,13 +32,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       await dashboard.setOrgStripe(org.id, { stripeCustomerId: customerId });
     }
 
-    // Derive the redirect origin from the request (x-forwarded-host on Render),
-    // falling back to APP_BASE_URL — so the post-payment redirect returns to the
-    // real deployed domain even when APP_BASE_URL is unset (it would otherwise
-    // default to localhost and bounce the user off-site after paying).
-    const fwdHost = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
-    const fwdProto = req.headers.get("x-forwarded-proto") ?? "https";
-    const origin = fwdHost ? `${fwdProto}://${fwdHost}` : appBaseUrl();
+    const origin = appBaseUrl();
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",

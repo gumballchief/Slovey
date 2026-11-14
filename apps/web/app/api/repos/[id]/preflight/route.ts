@@ -14,7 +14,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     const { id } = await ctx.params;
     await assertRepoAccess(id, viewer);
     const runs = await preflight.listRuns(id, 20);
-    const detail = runs[0] ? await preflight.getRunDetail(runs[0].id) : null;
+    const detail = runs[0] ? await preflight.getRunDetail(runs[0].id, id) : null;
     const latest = detail
       ? { ...detail, checks: detail.checks.map((c) => ({ ...c, agent: agentForCheck(c.name) })) }
       : null;

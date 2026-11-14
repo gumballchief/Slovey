@@ -56,18 +56,24 @@ export async function upsertDecisions(
   // through as duplicates — merge their evidence/examples up front.
   const merged = new Map<string, UpsertItem>();
   for (const item of items) {
-    const key = item.d.decision.trim().toLowerCase();
+    const raw = item?.d;
+    if (!raw || typeof raw.decision !== "string") continue;
+    const evidence = Array.isArray(raw.evidence) ? raw.evidence : [];
+    const examples = Array.isArray(raw.examples) ? raw.examples : [];
+    const key = raw.decision.trim().toLowerCase();
+    if (!key) continue;
     const existing = merged.get(key);
     if (existing) {
-      existing.d.evidence = uniq([...existing.d.evidence, ...item.d.evidence]);
-      existing.d.examples = uniq([...(existing.d.examples ?? []), ...(item.d.examples ?? [])]);
+      existing.d.evidence = uniq([...existing.d.evidence, ...evidence]);
+      existing.d.examples = uniq([...(existing.d.examples ?? []), ...examples]);
     } else {
       merged.set(key, {
         source: item.source,
         d: {
-          ...item.d,
-          evidence: [...item.d.evidence],
-          examples: [...(item.d.examples ?? [])],
+          ...raw,
+          decision: raw.decision.trim(),
+          evidence: [...evidence],
+          examples: [...examples],
         },
       });
     }
@@ -83,6 +89,12 @@ export async function upsertDecisions(
         id: decisions.id,
         evidence: decisions.evidence,
         examples: decisions.examples,
+        review: decisions.review,
+        source: decisions.source,
+        domains: decisions.domains,
+        services: decisions.services,
+        languages: decisions.languages,
+        frameworks: decisions.frameworks,
         distance: sql<number>`(${decisions.embedding} <=> ${lit}::vector)`,
       })
       .from(decisions)
@@ -91,15 +103,33 @@ export async function upsertDecisions(
       .limit(1);
 
     if (near && near.distance < DEDUP_DISTANCE) {
+      // A decision a human wrote or confirmed keeps its wording: a later PR that
+      // reads similar (possibly an attacker's) may add evidence, never rewrite it.
+      const locked = near.review === "confirmed" || near.source === "manual";
+      const scope = locked
+        ? null
+        : extractScope([d.decision, d.why ?? "", (d.examples ?? []).join(" ")].join("\n"));
       await db
         .update(decisions)
         .set({
-          decision: d.decision,
-          why: d.why ?? "",
+          ...(locked || !scope
+            ? {}
+            : {
+                decision: d.decision,
+                why: d.why ?? "",
+                category: d.category ?? null,
+                embedding: vec,
+                ...(Object.keys(scope).length === 0
+                  ? {}
+                  : {
+                      domains: scope.domains ?? near.domains ?? [],
+                      services: scope.services ?? near.services ?? [],
+                      languages: scope.languages ?? near.languages ?? [],
+                      frameworks: scope.frameworks ?? near.frameworks ?? [],
+                    }),
+              }),
           examples: uniq([...(near.examples ?? []), ...(d.examples ?? [])]),
           evidence: uniq([...(near.evidence ?? []), ...d.evidence]),
-          category: d.category ?? null,
-          embedding: vec,
           updatedAt: new Date(),
         })
         .where(eq(decisions.id, near.id));

@@ -20,7 +20,11 @@ export async function upsertUser(input: UpsertUserInput) {
     })
     .onConflictDoUpdate({
       target: users.githubId,
-      set: { login: input.login, email: input.email ?? null, avatarUrl: input.avatarUrl ?? null },
+      set: {
+        login: input.login,
+        ...(input.email != null ? { email: input.email } : {}),
+        ...(input.avatarUrl != null ? { avatarUrl: input.avatarUrl } : {}),
+      },
     })
     .returning();
   return row;

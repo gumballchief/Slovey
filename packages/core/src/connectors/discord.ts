@@ -34,13 +34,15 @@ export class DiscordConnector implements ConnectorClient {
     }
     const perChannel = Math.min(config.limit ?? 100, 100);
     const docs: ConnectorDoc[] = [];
+    let lastError: unknown;
     for (const id of channels) {
       try {
         const meta = await this.get<{ name?: string }>(`/channels/${id}`);
         const messages = await this.get<DiscordMessage[]>(
           `/channels/${id}/messages?limit=${perChannel}`,
         );
-        const text = messages
+        const text = [...messages]
+          .reverse()
           .filter((m) => m.content)
           .map((m) => m.content!.trim())
           .filter(Boolean)
@@ -52,10 +54,12 @@ export class DiscordConnector implements ConnectorClient {
           content: text,
           url: `https://discord.com/channels/@me/${id}`,
         });
-      } catch {
+      } catch (e) {
         // skip channels the bot can't read
+        lastError = e;
       }
     }
+    if (docs.length === 0 && lastError !== undefined) throw lastError;
     return docs;
   }
 }

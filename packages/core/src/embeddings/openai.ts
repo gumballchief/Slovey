@@ -14,6 +14,7 @@ export class OpenAIEmbeddingProvider implements EmbeddingProvider {
 
   async embed(texts: string[]): Promise<number[][]> {
     if (texts.length === 0) return [];
+    const input = texts.map((t) => (t.trim().length === 0 ? " " : t));
     const res = await fetch(ENDPOINT, {
       method: "POST",
       headers: {
@@ -22,7 +23,7 @@ export class OpenAIEmbeddingProvider implements EmbeddingProvider {
       },
       body: JSON.stringify({
         model: this.model,
-        input: texts,
+        input,
         dimensions: this.dimensions,
       }),
     });

@@ -50,8 +50,10 @@ export function freshnessScore(d: {
   return Math.max(0, Math.min(1, score));
 }
 
-async function snapshot(decisionId: string, version: number, row: DecisionRow, by?: string, note?: string) {
-  const db = getDb();
+type DbClient = ReturnType<typeof getDb>;
+type TxClient = Parameters<Parameters<DbClient["transaction"]>[0]>[0];
+async function snapshot(decisionId: string, version: number, row: DecisionRow, by?: string, note?: string, dbClient?: DbClient | TxClient) {
+  const db = dbClient ?? getDb();
   await db.insert(decisionVersions).values({
     decisionId,
     version,
@@ -72,40 +74,43 @@ export async function createDecision(
     input.status ?? (confidence < CANDIDATE_THRESHOLD ? "candidate" : "approved");
   const embedding = await getEmbeddings().embedOne(embedText(input));
 
-  const [row] = await db
-    .insert(decisions)
-    .values({
-      repoId,
-      title: input.title ?? null,
-      summary: input.summary ?? null,
-      decision: input.decision,
-      why: input.why ?? "",
-      examples: input.examples ?? [],
-      evidence: input.evidence,
-      source: input.source,
-      category: input.category ?? null,
-      status,
-      ownerUser: input.ownerUser ?? null,
-      owningTeam: input.owningTeam ?? null,
-      importance: input.importance ?? "medium",
-      priority: input.priority ?? 0,
-      confidence,
-      review: "unreviewed",
-      domains: input.domains ?? [],
-      services: input.services ?? [],
-      affectedRepos: input.affectedRepos ?? [],
-      directories: input.directories ?? [],
-      languages: input.languages ?? [],
-      frameworks: input.frameworks ?? [],
-      rejectionReason: input.rejectionReason ?? null,
-      alternatives: input.alternatives ?? [],
-      approvedAt: status === "approved" ? new Date() : null,
-      embedding,
-      createdBy: input.createdBy ?? "graph",
-    })
-    .returning();
-  if (!row) throw new Error("createDecision failed");
-  await snapshot(row.id, 1, row, input.createdBy, "created");
+  const row = await db.transaction(async (tx) => {
+    const [created] = await tx
+      .insert(decisions)
+      .values({
+        repoId,
+        title: input.title ?? null,
+        summary: input.summary ?? null,
+        decision: input.decision,
+        why: input.why ?? "",
+        examples: input.examples ?? [],
+        evidence: input.evidence,
+        source: input.source,
+        category: input.category ?? null,
+        status,
+        ownerUser: input.ownerUser ?? null,
+        owningTeam: input.owningTeam ?? null,
+        importance: input.importance ?? "medium",
+        priority: input.priority ?? 0,
+        confidence,
+        review: "unreviewed",
+        domains: input.domains ?? [],
+        services: input.services ?? [],
+        affectedRepos: input.affectedRepos ?? [],
+        directories: input.directories ?? [],
+        languages: input.languages ?? [],
+        frameworks: input.frameworks ?? [],
+        rejectionReason: input.rejectionReason ?? null,
+        alternatives: input.alternatives ?? [],
+        approvedAt: status === "approved" ? new Date() : null,
+        embedding,
+        createdBy: input.createdBy ?? "graph",
+      })
+      .returning();
+    if (!created) throw new Error("createDecision failed");
+    await snapshot(created.id, 1, created, input.createdBy, "created", tx);
+    return created;
+  });
   return row;
 }
 
@@ -126,8 +131,8 @@ export async function getDecision(repoId: string, id: string): Promise<DecisionW
     .limit(1);
   if (!decision) return null;
   const [outgoing, incoming, vers] = await Promise.all([
-    db.select().from(decisionEdges).where(eq(decisionEdges.fromDecisionId, id)),
-    db.select().from(decisionEdges).where(eq(decisionEdges.toDecisionId, id)),
+    db.select().from(decisionEdges).where(and(eq(decisionEdges.repoId, repoId), eq(decisionEdges.fromDecisionId, id))),
+    db.select().from(decisionEdges).where(and(eq(decisionEdges.repoId, repoId), eq(decisionEdges.toDecisionId, id))),
     db
       .select({ n: sql<number>`count(*)::int` })
       .from(decisionVersions)
@@ -160,11 +165,40 @@ export async function updateDecision(
   // Increment version atomically in SQL, not current.version+1 computed in JS
   // between the SELECT above and this UPDATE — two concurrent writers would
   // otherwise both write the same version and duplicate the history snapshot.
+  // Allowlist updatable fields: never copy extra runtime keys (repoId, review,
+  // approvedAt, embedding, version, ...) from the patch into the UPDATE.
+  const allowedKeys: (keyof CreateDecisionInput)[] = [
+    "decision",
+    "title",
+    "summary",
+    "why",
+    "examples",
+    "evidence",
+    "source",
+    "category",
+    "status",
+    "ownerUser",
+    "owningTeam",
+    "importance",
+    "priority",
+    "confidence",
+    "domains",
+    "services",
+    "affectedRepos",
+    "directories",
+    "languages",
+    "frameworks",
+    "rejectionReason",
+    "alternatives",
+  ];
   const set: Record<string, unknown> = {
-    ...patch,
     updatedAt: new Date(),
     version: sql`${decisions.version} + 1`,
   };
+  for (const key of allowedKeys) {
+    const value = patch[key];
+    if (value !== undefined) set[key] = value;
+  }
   if (textChanged) {
     set.embedding = await getEmbeddings().embedOne(
       embedText({
@@ -175,13 +209,22 @@ export async function updateDecision(
       }),
     );
   }
-  const [row] = await db
-    .update(decisions)
-    .set(set)
-    .where(and(eq(decisions.id, id), eq(decisions.repoId, repoId)))
-    .returning();
-  if (row) await snapshot(id, row.version, row, changedBy, note);
-  return row ?? null;
+  const executeUpdate = async (client: DbClient | TxClient) => {
+    const [row] = await client
+      .update(decisions)
+      .set(set)
+      .where(and(eq(decisions.id, id), eq(decisions.repoId, repoId)))
+      .returning();
+    if (row) await snapshot(id, row.version, row, changedBy, note, client);
+    return row ?? null;
+  };
+  // UPDATE + snapshot must commit together: if the snapshot insert fails,
+  // the decision change must roll back rather than report failure after commit.
+  // Fall back to the direct client only for test doubles without transaction().
+  if (typeof db.transaction === "function") {
+    return db.transaction(async (tx) => executeUpdate(tx));
+  }
+  return executeUpdate(db);
 }
 
 /** Move a decision through its lifecycle, recording a version. */
@@ -203,12 +246,15 @@ export async function transitionStatus(
   if (status === "superseded" && opts.supersededById) set.supersededById = opts.supersededById;
   if (status === "rejected" && opts.rejectionReason) set.rejectionReason = opts.rejectionReason;
   const db = getDb();
-  const [row] = await db
-    .update(decisions)
-    .set(set)
-    .where(and(eq(decisions.id, id), eq(decisions.repoId, repoId)))
-    .returning();
-  if (row) await snapshot(id, row.version, row, opts.by, `status → ${status}`);
+  const row = await db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(decisions)
+      .set(set)
+      .where(and(eq(decisions.id, id), eq(decisions.repoId, repoId)))
+      .returning();
+    if (updated) await snapshot(id, updated.version, updated, opts.by, `status → ${status}`, tx);
+    return updated ?? null;
+  });
   return row ?? null;
 }
 
@@ -221,6 +267,20 @@ export async function addEdge(
   opts: { confidence?: number; provenance?: unknown } = {},
 ): Promise<EdgeRow> {
   const db = getDb();
+  const [from] = await db
+    .select({ id: decisions.id })
+    .from(decisions)
+    .where(and(eq(decisions.id, fromDecisionId), eq(decisions.repoId, repoId)))
+    .limit(1);
+  if (!from) throw new Error("addEdge: from decision not found in repo");
+  if ("decisionId" in target) {
+    const [to] = await db
+      .select({ id: decisions.id })
+      .from(decisions)
+      .where(and(eq(decisions.id, target.decisionId), eq(decisions.repoId, repoId)))
+      .limit(1);
+    if (!to) throw new Error("addEdge: target decision not found in repo");
+  }
   const [row] = await db
     .insert(decisionEdges)
     .values({
@@ -253,6 +313,12 @@ export async function traverse(
   opts: { depth?: number; types?: EdgeType[] } = {},
 ): Promise<TraversalResult> {
   const db = getDb();
+  const [start] = await db
+    .select({ id: decisions.id })
+    .from(decisions)
+    .where(and(eq(decisions.id, startId), eq(decisions.repoId, repoId)))
+    .limit(1);
+  if (!start) return { nodes: [], edges: [] };
   const depth = opts.depth ?? 2;
   const seen = new Set<string>([startId]);
   const edges: EdgeRow[] = [];
@@ -287,7 +353,10 @@ export async function traverse(
 
   const ids = [...seen];
   const nodes = ids.length
-    ? await db.select().from(decisions).where(inArray(decisions.id, ids))
+    ? await db
+        .select()
+        .from(decisions)
+        .where(and(eq(decisions.repoId, repoId), inArray(decisions.id, ids)))
     : [];
   // de-dupe edges by id
   const uniqEdges = [...new Map(edges.map((e) => [e.id, e])).values()];
@@ -366,6 +435,7 @@ export async function reviewDecision(
     .where(and(eq(decisions.id, id), eq(decisions.repoId, repoId)))
     .limit(1);
   if (!current) return null;
+  if (!isReviewable(current.status, current.review)) return null;
   const [row] = await db
     .update(decisions)
     .set({
@@ -376,7 +446,14 @@ export async function reviewDecision(
       confidence: sql`least(0.99, ${decisions.confidence} + 0.1)`,
       version: sql`${decisions.version} + 1`,
     })
-    .where(and(eq(decisions.id, id), eq(decisions.repoId, repoId)))
+    .where(
+      and(
+        eq(decisions.id, id),
+        eq(decisions.repoId, repoId),
+        eq(decisions.review, "unreviewed"),
+        inArray(decisions.status, ["candidate", "proposed", "approved"]),
+      ),
+    )
     .returning();
   if (row) await snapshot(id, row.version, row, opts.by, "reviewed → approved");
   return row ?? null;
@@ -422,12 +499,31 @@ export async function activeDecisionsForScope(
   return scored.map((x) => x.r);
 }
 
+function canonicalScopePath(s: string): string {
+  let v = s.normalize("NFC").toLowerCase().replace(/\\/g, "/");
+  for (;;) {
+    if (v.startsWith("./")) { v = v.slice(2); continue; }
+    if (v.startsWith("/")) { v = v.slice(1); continue; }
+    break;
+  }
+  return v.replace(/\/+$/, "");
+}
+
 /** Pure: how strongly a decision's scope matches a query (0 = no match). */
 export function scopeScore(
   d: Pick<DecisionRow, "services" | "domains" | "languages" | "frameworks" | "directories">,
   scope: ScopeQuery,
   paths: string[],
 ): number {
+  // Empty scope means applies-everywhere (e.g. global "use pnpm everywhere"):
+  // give a baseline so activeDecisionsForScope keeps it instead of dropping it.
+  const hasNoScope =
+    (d.services?.length ?? 0) === 0 &&
+    (d.domains?.length ?? 0) === 0 &&
+    (d.languages?.length ?? 0) === 0 &&
+    (d.frameworks?.length ?? 0) === 0 &&
+    (d.directories?.length ?? 0) === 0;
+  if (hasNoScope) return 1;
   const overlap = (a: string[], b?: string[]) =>
     !b || b.length === 0 ? 0 : a.filter((x) => b.map((y) => y.toLowerCase()).includes(x.toLowerCase())).length;
 
@@ -439,8 +535,9 @@ export function scopeScore(
   score += overlap(d.directories, scope.directories) * 2;
   // directory-prefix match against changed paths
   for (const dir of d.directories) {
-    const norm = dir.replace(/\/+$/, "").toLowerCase();
-    if (norm && paths.some((p) => p.toLowerCase().startsWith(norm))) score += 2;
+    const norm = canonicalScopePath(dir);
+    if ((norm === "" || norm === ".") && paths.length > 0) { score += 2; continue; }
+    if (norm && paths.some((p) => { const lp = canonicalScopePath(p); return lp === norm || lp.startsWith(norm + "/"); })) score += 2;
   }
   return score;
 }

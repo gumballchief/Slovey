@@ -39,10 +39,62 @@ export async function runCommandCheck(
   return { name, status: "fail", command, durationMs: r.durationMs, errors: parseErrors(name, combined), ...summaries };
 }
 
+/** Decode a C-style quoted git path (core.quotePath), e.g. `"src/caf\303\251.ts"` -> `src/caf\u00e9.ts`. */
+function unquoteGitPath(p: string): string {
+  if (p.length < 2 || p[0] !== '"' || p[p.length - 1] !== '"') return p;
+  const inner = p.slice(1, -1);
+  const bytes: number[] = [];
+  for (let i = 0; i < inner.length;) {
+    const c = inner[i]!;
+    if (c === "\\" && i + 1 < inner.length) {
+      const n = inner[i + 1]!;
+      if (n >= "0" && n <= "7") {
+        let oct = "";
+        for (let k = 0; k < 3 && i + 1 + k < inner.length; k++) {
+          const d = inner[i + 1 + k]!;
+          if (d < "0" || d > "7") break;
+          oct += d;
+        }
+        bytes.push(parseInt(oct, 8));
+        i += 1 + oct.length;
+        continue;
+      }
+      switch (n) {
+        case "a": bytes.push(7); break;
+        case "b": bytes.push(8); break;
+        case "f": bytes.push(12); break;
+        case "n": bytes.push(10); break;
+        case "r": bytes.push(13); break;
+        case "t": bytes.push(9); break;
+        case "v": bytes.push(11); break;
+        case "\\": bytes.push(92); break;
+        case '"': bytes.push(34); break;
+        default: bytes.push(n.charCodeAt(0)); break;
+      }
+      i += 2;
+      continue;
+    }
+    const code = inner.charCodeAt(i)!;
+    if (code >= 0xd800 && code <= 0xdbff && i + 1 < inner.length) {
+      const pair = inner.slice(i, i + 2);
+      for (const b of Buffer.from(pair, "utf8")) bytes.push(b);
+      i += 2;
+    } else if (code < 128) {
+      bytes.push(code);
+      i += 1;
+    } else {
+      for (const b of Buffer.from(inner[i]!, "utf8")) bytes.push(b);
+      i += 1;
+    }
+  }
+  return Buffer.from(bytes).toString("utf8");
+}
+
 /** Read changed files' text content (skips missing, binary-ish, or oversized). */
 export function readChanged(cwd: string, files: string[], maxBytes = 512_000): { path: string; content: string }[] {
   const out: { path: string; content: string }[] = [];
-  for (const rel of files) {
+  for (const raw of files) {
+    const rel = unquoteGitPath(raw);
     const abs = resolve(cwd, rel);
     try {
       if (!existsSync(abs) || statSync(abs).size > maxBytes) continue;
@@ -107,7 +159,10 @@ export function envCheck(cwd: string, changed: string[]): RawCheck {
 export function routeCheck(cwd: string, changed: string[]): RawCheck {
   const start = Date.now();
   const errors: PreflightError[] = [];
-  const routeFiles = changed.filter((f) => /(^|\/)route\.(t|j)sx?$/.test(f) && f.includes("/api/"));
+  const routeFiles = changed.filter((f) => {
+    const u = unquoteGitPath(f);
+    return /(^|\/)route\.(t|j)sx?$/.test(u) && u.includes("/api/");
+  });
   const METHOD = /export\s+(?:async\s+)?function\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)|export\s+const\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s*=/;
   for (const { path, content } of readChanged(cwd, routeFiles)) {
     if (!METHOD.test(content)) {

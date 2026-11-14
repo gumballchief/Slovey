@@ -15,6 +15,7 @@ import { upsertDecisions, type DecisionSource, type UpsertItem } from "./upsert-
 
 const log = logger.child({ component: "ingest-connector" });
 const MAX_DOCS = 40;
+const MAX_DOC_CHARS = 8000;
 
 export interface IngestResult {
   docs: number;
@@ -39,6 +40,7 @@ export async function runIngestConnector(params: {
     .where(eq(connectors.id, params.connectorId))
     .limit(1);
   if (!row) throw new Error(`connector not found: ${params.connectorId}`);
+  if (row.repoId !== params.repoId) throw new Error(`connector not found: ${params.connectorId}`);
 
   const type = row.type;
   if (!isConnectorType(type)) throw new Error(`unsupported connector type: ${type}`);
@@ -55,20 +57,40 @@ export async function runIngestConnector(params: {
 
     const ai = getAI();
     const items: UpsertItem[] = [];
+    let extractFailures = 0;
     for (const doc of docs) {
       if (!doc.content.trim()) continue;
-      const res = await ai.completeJSON<ExtractedDecision[]>(
-        extractPrompt(`### ${type.toUpperCase()} — ${doc.title}\n${doc.content}`),
-        { tier: "cheap", maxTokens: 2000 },
-      );
-      if (!Array.isArray(res)) continue;
+      let res: ExtractedDecision[] | null;
+      try {
+        res = await ai.completeJSON<ExtractedDecision[]>(
+          extractPrompt(`### ${type.toUpperCase()} — ${doc.title}\n${doc.content.slice(0, MAX_DOC_CHARS)}`),
+          { tier: "cheap", maxTokens: 2000 },
+        );
+      } catch {
+        extractFailures++;
+        continue;
+      }
+      if (!Array.isArray(res)) {
+        extractFailures++;
+        continue;
+      }
       for (const d of res) {
-        if (!d.decision) continue;
+        if (!d || typeof d !== "object" || typeof d.decision !== "string" || !d.decision) continue;
         items.push({
           d: { ...d, evidence: [doc.url || doc.title] },
           source: type as DecisionSource,
         });
       }
+    }
+
+    if (!items.length && extractFailures > 0) {
+      const msg = `extraction failed for ${extractFailures} document(s)`;
+      await db
+        .update(connectors)
+        .set({ status: "error", lastError: msg.slice(0, 500) })
+        .where(eq(connectors.id, row.id));
+      log.warn("connector ingest failed", { type, err: msg });
+      throw new Error(msg);
     }
 
     const { inserted, updated } = items.length

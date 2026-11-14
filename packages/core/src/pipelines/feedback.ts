@@ -5,12 +5,23 @@ import { reinforce } from "../memory";
 /** Decision texts this team has dismissed — passed to the judge as negatives. */
 export async function getDismissedNotes(repoId: string): Promise<string[]> {
   const db = getDb();
-  const rows = await db
-    .select({ decision: decisions.decision })
-    .from(feedback)
-    .innerJoin(decisions, eq(feedback.decisionId, decisions.id))
-    .where(and(eq(feedback.repoId, repoId), eq(feedback.action, "dismiss")))
-    .limit(20);
+  // Distinct in SQL so LIMIT 20 applies after dedup, not to raw dismiss rows.
+  // Fall back to plain select for test doubles that only implement `select`,
+  // preserving the repo scoping on both feedback and decisions either way.
+  const rows =
+    typeof db.selectDistinct === "function"
+      ? await db
+          .selectDistinct({ decision: decisions.decision })
+          .from(feedback)
+          .innerJoin(decisions, eq(feedback.decisionId, decisions.id))
+          .where(and(eq(feedback.repoId, repoId), eq(feedback.action, "dismiss"), eq(decisions.repoId, repoId)))
+          .limit(20)
+      : await db
+          .select({ decision: decisions.decision })
+          .from(feedback)
+          .innerJoin(decisions, eq(feedback.decisionId, decisions.id))
+          .where(and(eq(feedback.repoId, repoId), eq(feedback.action, "dismiss"), eq(decisions.repoId, repoId)))
+          .limit(20);
   return [...new Set(rows.map((r) => r.decision))];
 }
 
@@ -43,7 +54,28 @@ export async function recordFeedback(params: RecordFeedbackParams) {
     if (c) {
       prCheckId = c.id;
       if (!decisionId) decisionId = c.matched ?? null;
+    } else {
+      throw new Error("pr check not found for pr number");
     }
+  }
+
+  if (decisionId) {
+    const [d] = await db
+      .select({ id: decisions.id })
+      .from(decisions)
+      .where(and(eq(decisions.id, decisionId), eq(decisions.repoId, params.repoId)))
+      .limit(1);
+    if (!d) throw new Error("decision does not belong to repo");
+  }
+
+  if (prCheckId) {
+    const [c2] = await db
+      .select({ id: prChecks.id, matched: prChecks.matchedDecisionId })
+      .from(prChecks)
+      .where(and(eq(prChecks.id, prCheckId), eq(prChecks.repoId, params.repoId)))
+      .limit(1);
+    if (!c2) throw new Error("pr check does not belong to repo");
+    if (!decisionId) decisionId = c2.matched ?? null;
   }
 
   const [row] = await db

@@ -47,6 +47,17 @@ export function apiModeFromEnv(): ApiModeConfig | null {
   return { apiUrl, token };
 }
 
+/** The hosted API answered with an error status (vs. being unreachable). */
+export class RemotePreflightHttpError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = "RemotePreflightHttpError";
+  }
+}
+
 /** Fetch the hosted knowledge checks. Throws on network/auth error (caller degrades). */
 export async function fetchRemoteKnowledge(
   cfg: ApiModeConfig,
@@ -64,7 +75,10 @@ export async function fetchRemoteKnowledge(
     });
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      throw new Error(`hosted preflight HTTP ${res.status}${text ? `: ${text.slice(0, 160)}` : ""}`);
+      throw new RemotePreflightHttpError(
+        res.status,
+        `hosted preflight HTTP ${res.status}${text ? `: ${text.slice(0, 160)}` : ""}`,
+      );
     }
     const json = (await res.json()) as { result: PreflightResult };
     if (!json?.result) throw new Error("hosted preflight returned no result");
@@ -77,6 +91,67 @@ export async function fetchRemoteKnowledge(
   }
 }
 
+/**
+ * The verdict when the hosted checks could not be used, built from the local
+ * result alone. Pure + unit-tested.
+ *
+ * Downtime (unreachable, timeout, 5xx, rate limit) fails OPEN: our uptime must
+ * not block a developer's commit. The unverifiable decision-check stops
+ * blocking, a loud warning says so, and the GitHub App re-checks the decision
+ * graph at PR time as the backstop.
+ *
+ * A rejected token (401/403) fails CLOSED: waiting never fixes it, and failing
+ * open would quietly switch the decision gate off for good (a revoked token, a
+ * typo in CI) with only a warning line to show for it.
+ */
+export function localOnlyResult(local: PreflightResult, err: unknown): PreflightResult {
+  const msg = err instanceof Error ? err.message : String(err);
+  const rejected = err instanceof RemotePreflightHttpError && (err.status === 401 || err.status === 403);
+
+  if (rejected) {
+    const reason = `Slovey rejected your token (HTTP ${(err as RemotePreflightHttpError).status}), so the decision graph could not be checked.`;
+    const checks: CheckResult[] = local.checks.map((c) =>
+      c.name === "decision-check"
+        ? { ...c, status: "error", blocking: true, skippedReason: reason }
+        : c,
+    );
+    if (!checks.some((c) => c.name === "decision-check")) {
+      checks.push({ name: "decision-check", status: "error", command: "", durationMs: 0, blocking: true, errors: [], skippedReason: reason });
+    }
+    const anyFailure = checks.some((c) => c.status === "fail");
+    return {
+      ...local,
+      checks,
+      safeToCommit: false,
+      safeToPush: false,
+      status: resolveStatus({ checks, blocked: true, anyFailure, blockingViolations: 0 }),
+      warnings: [
+        ...local.warnings,
+        `${reason} Commit blocked until it is fixed: create a new token in the Slovey dashboard and set SLOVEY_TOKEN.`,
+      ],
+      agentInstruction:
+        "Agent, do not commit. The SLOVEY_TOKEN is invalid, expired or revoked, so Slovey's decision checks could not run. A human has to create a new token in the Slovey dashboard; do not try to work around this.",
+    };
+  }
+
+  const checks = local.checks.map((c) =>
+    c.name === "decision-check" && c.status === "skipped" ? { ...c, blocking: false } : c,
+  );
+  const blocked = checks.some((c) => c.blocking && c.status === "fail");
+  const anyFailure = checks.some((c) => c.status === "fail");
+  return {
+    ...local,
+    checks,
+    safeToCommit: !blocked,
+    safeToPush: !blocked,
+    status: resolveStatus({ checks, blocked, anyFailure, blockingViolations: 0 }),
+    warnings: [
+      ...local.warnings,
+      `Slovey hosted checks unavailable (${msg.slice(0, 90)}) — ran local checks only; the decision graph was NOT verified (it will be re-checked on your PR).`,
+    ],
+  };
+}
+
 /** Checks the hosted API owns (they need the decision graph / server AI keys). */
 const KNOWLEDGE_CHECKS = new Set(["decision-check", "security-review"]);
 
@@ -87,7 +162,17 @@ const KNOWLEDGE_CHECKS = new Set(["decision-check", "security-review"]);
  * decision-check, security-review, and architecture rules derived from rejected
  * decisions (folded into the local architecture-check).
  */
-export function mergeRemote(local: PreflightResult, remote: PreflightResult): PreflightResult {
+export interface MergeGate {
+  allowSkippedChecks: boolean;
+  blockCommitOnFailure: boolean;
+  blockPushOnFailure: boolean;
+}
+
+export function mergeRemote(
+  local: PreflightResult,
+  remote: PreflightResult,
+  gate: MergeGate = { allowSkippedChecks: false, blockCommitOnFailure: true, blockPushOnFailure: true },
+): PreflightResult {
   const remoteByName = (n: string) => remote.checks.find((c) => c.name === n);
 
   // Base = local checks minus the knowledge ones (they were skipped locally).
@@ -100,14 +185,15 @@ export function mergeRemote(local: PreflightResult, remote: PreflightResult): Pr
   // Fold remote's derived architecture-rule hits into the local architecture-check.
   // Clone rather than mutate — `local` is the caller's object and must be left intact.
   const remoteArch = remoteByName("architecture-check");
-  if (remoteArch?.errors.length) {
+  if (remoteArch && remoteArch.status !== "pass") {
     const idx = checks.findIndex((c) => c.name === "architecture-check");
     if (idx >= 0) {
       const localArch = checks[idx]!;
       const seen = new Set(localArch.errors.map((e) => `${e.file}:${e.message}`));
       const extra = remoteArch.errors.filter((e) => !seen.has(`${e.file}:${e.message}`));
       const errors = [...localArch.errors, ...extra];
-      checks[idx] = { ...localArch, errors, status: errors.length ? "fail" : localArch.status };
+      const mergedStatus = errors.length ? "fail" : localArch.status !== "pass" ? localArch.status : remoteArch.status;
+      checks[idx] = { ...localArch, errors, status: mergedStatus };
     } else {
       checks.push({ ...remoteArch });
     }
@@ -121,17 +207,34 @@ export function mergeRemote(local: PreflightResult, remote: PreflightResult): Pr
     fixSeen.has(f.id) ? false : (fixSeen.add(f.id), true),
   );
 
-  const blocked = checks.some((c) => c.blocking && c.status === "fail") || decisionViolations.length > 0;
+  // Same gate as the local engine: a blocking check that errored, or was skipped
+  // without allowSkippedChecks, cannot count as a pass. Remote fail/unverified
+  // verdicts arrive as the merged knowledge checks above, judged under the
+  // repo's own gate settings.
+  const blocked =
+    checks.some(
+      (c) =>
+        c.blocking &&
+        (c.status === "fail" || c.status === "error" || (c.status === "skipped" && !gate.allowSkippedChecks)),
+    ) || decisionViolations.length > 0;
+  // A hosted run that errored is treated like hosted downtime: fail open (our
+  // uptime must not block a commit) but never silently. The GitHub App
+  // re-checks the decision graph at PR time.
+  if (remote.status === "error") {
+    warnings.push(
+      "Slovey hosted checks errored. The decision graph was NOT verified for this change (it will be re-checked on your PR).",
+    );
+  }
   const anyFailure = checks.some((c) => c.status === "fail") || decisionViolations.length > 0;
-  // Same resolver as the local engine so the two can't drift. Gate behaviour is unchanged:
-  // `blocked` here already requires a real failure, so this yields "fail", never "unverified".
+  // Same resolver as the local engine so the two can't drift.
   const status = resolveStatus({ checks, blocked, anyFailure, blockingViolations: decisionViolations.length });
+  const hasViolations = decisionViolations.length > 0;
 
   return {
     ...local,
     status,
-    safeToCommit: !blocked,
-    safeToPush: !blocked,
+    safeToCommit: !blocked ? true : !gate.blockCommitOnFailure && !hasViolations,
+    safeToPush: !blocked ? true : !gate.blockPushOnFailure && !hasViolations,
     checks,
     decisionViolations,
     warnings,

@@ -96,11 +96,15 @@ export async function runRefreshMemory(repoId?: string): Promise<RefreshResult> 
   for (const repo of repos) {
     if (!inScope(repo.fullName)) continue;
     scanned++;
-    await enqueue(JOBS.extract, {
-      installationId: repo.installationGithubId,
-      fullName: repo.fullName,
-    });
-    log.info("refresh queued", { repo: repo.fullName });
+    try {
+      await enqueue(JOBS.extract, {
+        installationId: repo.installationGithubId,
+        fullName: repo.fullName,
+      });
+      log.info("refresh queued", { repo: repo.fullName });
+    } catch (e) {
+      log.warn("refresh failed", { repo: repo.fullName, err: e });
+    }
   }
   return { repos: scanned };
 }

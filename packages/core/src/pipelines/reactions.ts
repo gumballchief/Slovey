@@ -10,8 +10,12 @@ const log = logger.child({ component: "reactions" });
 
 interface ReactionLike {
   content?: string;
+  created_at?: string;
+  author_association?: string;
   user?: { login?: string; type?: string } | null;
 }
+
+const TRUSTED_ASSOCIATIONS = new Set(["COLLABORATOR", "MEMBER", "OWNER"]);
 
 /**
  * Pure: the distinct non-bot users who reacted 👎 (content "-1"). Extracted so it
@@ -23,6 +27,40 @@ export function pickDownvoters(reactions: ReactionLike[]): string[] {
     if (r.content !== "-1") continue;
     const u = r.user;
     if (!u?.login || u.type === "Bot" || u.login.endsWith("[bot]")) continue;
+    if (
+      r.author_association !== undefined &&
+      !TRUSTED_ASSOCIATIONS.has(r.author_association)
+    )
+      continue;
+    out.add(u.login);
+  }
+  return [...out];
+}
+
+/**
+ * Pure: like pickDownvoters but drops reactions created at-or-before the check.
+ * Prevents a stale 👎 from being re-recorded as a dismissal for a later check
+ * the reactor never saw. A missing/unparseable timestamp is treated as stale.
+ */
+export function pickFreshDownvoters(
+  reactions: ReactionLike[],
+  checkedAt: Date | string | number,
+): string[] {
+  const checkedMs = new Date(checkedAt).getTime();
+  if (Number.isNaN(checkedMs)) return pickDownvoters(reactions);
+  const out = new Set<string>();
+  for (const r of reactions) {
+    if (r.content !== "-1") continue;
+    const u = r.user;
+    if (!u?.login || u.type === "Bot" || u.login.endsWith("[bot]")) continue;
+    if (
+      r.author_association !== undefined &&
+      !TRUSTED_ASSOCIATIONS.has(r.author_association)
+    )
+      continue;
+    if (!r.created_at) continue;
+    const reactedMs = new Date(r.created_at).getTime();
+    if (Number.isNaN(reactedMs) || reactedMs <= checkedMs) continue;
     out.add(u.login);
   }
   return [...out];
@@ -56,20 +94,54 @@ export async function pollReactionDismissals(params: {
     comment_id: commentId,
     per_page: 100,
   });
-  const downvoters = pickDownvoters(res.data as ReactionLike[]);
-  if (downvoters.length === 0) return { recorded: 0 };
-
   const db = getDb();
   const [check] = await db
-    .select({ id: prChecks.id, matched: prChecks.matchedDecisionId })
+    .select({
+      id: prChecks.id,
+      matched: prChecks.matchedDecisionId,
+      checkedAt: prChecks.checkedAt,
+    })
     .from(prChecks)
     .where(and(eq(prChecks.repoId, params.repoId), eq(prChecks.prNumber, params.prNumber)))
     .orderBy(desc(prChecks.checkedAt))
     .limit(1);
   if (!check) return { recorded: 0 };
 
+  const downvoters = pickFreshDownvoters(res.data as ReactionLike[], check.checkedAt);
+  if (downvoters.length === 0) return { recorded: 0 };
+
   let recorded = 0;
+  let prAuthor: string | null = null;
+  try {
+    const { data: pr } = await octokit.rest.pulls.get({
+      owner: params.owner,
+      repo: params.name,
+      pull_number: params.prNumber,
+    });
+    prAuthor = pr.user?.login ?? null;
+  } catch (err) {
+    log.warn("failed to fetch PR author; skipping reaction dismissals", {
+      repo: `${params.owner}/${params.name}`,
+      pr: params.prNumber,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return { recorded: 0 };
+  }
   for (const user of downvoters) {
+    if (prAuthor && user.toLowerCase() === prAuthor.toLowerCase()) continue;
+    try {
+      const { data: perm } =
+        await octokit.rest.repos.getCollaboratorPermissionLevel({
+          owner: params.owner,
+          repo: params.name,
+          username: user,
+        });
+      const level = (perm as { permission?: string } | null)?.permission;
+      if (level !== "admin" && level !== "maintain" && level !== "write")
+        continue;
+    } catch {
+      continue;
+    }
     const existing = await db
       .select({ id: feedback.id })
       .from(feedback)

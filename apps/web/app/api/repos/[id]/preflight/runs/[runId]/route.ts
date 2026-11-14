@@ -14,7 +14,7 @@ export async function GET(
     const viewer = await requireViewer();
     const { id, runId } = await ctx.params;
     await assertRepoAccess(id, viewer);
-    const detail = await preflight.getRunDetail(runId);
+    const detail = await preflight.getRunDetail(runId, id);
     if (!detail || detail.run.repoId !== id) throw new HttpError(404, "Run not found");
     return ok(detail);
   });

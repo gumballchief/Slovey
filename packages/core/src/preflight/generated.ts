@@ -1,8 +1,7 @@
 import { architectureCheckContents, rulesFromRejectedDecisions } from "./architecture";
-import { loadPreflightConfig } from "./config";
 import { fetchRejectedDecisions, runDecisionCheck } from "./decisions";
-import { scanForSecrets } from "./redact";
-import type { DecisionViolation } from "./types";
+import { redact, scanForSecrets } from "./redact";
+import { DEFAULT_CONFIG, type DecisionViolation } from "./types";
 
 export interface GeneratedGateVerdict {
   blocked: boolean;
@@ -27,7 +26,10 @@ export async function checkGeneratedFile(
   const problems: string[] = [];
 
   // 1. Secrets in generated code (models occasionally hallucinate real-looking keys).
-  const { config } = loadPreflightConfig(process.cwd());
+  // Server has no checkout of the target repo, so there is no repo-local
+  // companybrain.preflight.json to load here — process.cwd() is the hosted
+  // process's directory, not the target repo. Use defaults.
+  const config = DEFAULT_CONFIG;
   if (config.secretScan.enabled) {
     for (const e of scanForSecrets(files)) {
       problems.push(`secret-scan: ${e.message} (${path}${e.line ? `:${e.line}` : ""})`);
@@ -49,7 +51,7 @@ export async function checkGeneratedFile(
   // 3. Decision graph on a pseudo-diff of the new file.
   let decisionViolations: DecisionViolation[] = [];
   if (config.decisionChecks.enabled) {
-    const diff = `+++ b/${path} (new file)\n${content.split("\n").map((l) => `+${l}`).join("\n")}`.slice(0, 12_000);
+    const diff = `+++ b/${path} (new file)\n${redact(content).split("\n").map((l) => `+${l}`).join("\n")}`;
     const { violations } = await runDecisionCheck(repoId, diff, [path]);
     decisionViolations = violations;
     for (const v of violations) {

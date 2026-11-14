@@ -34,6 +34,29 @@ const SAFE_COMMAND = /^[\w@./:= +-]+$/;
 
 const MAX_OUTPUT = 200_000; // cap captured stdout/stderr per stream
 
+/** Grace period after a timeout kill before stdio is destroyed and settlement is forced. */
+export const TIMEOUT_GRACE_MS = 500;
+
+/**
+ * Schedule a forced settlement for a timed-out run. A descendant that
+ * inherits stdio and survives killTree can keep the pipes open forever, so
+ * Node may never emit 'close'; destroying the streams and invoking onForce
+ * after the grace period guarantees the caller still settles. Returns a
+ * cancel function for when 'close' arrives in time.
+ */
+export function scheduleForcedSettlement(
+  streams: { stdout?: { destroy: () => void } | null; stderr?: { destroy: () => void } | null },
+  graceMs: number,
+  onForce: () => void,
+): () => void {
+  const grace = setTimeout(() => {
+    streams.stdout?.destroy();
+    streams.stderr?.destroy();
+    onForce();
+  }, graceMs);
+  return () => clearTimeout(grace);
+}
+
 export interface CommandOutcome {
   ok: boolean;
   code: number | null;
@@ -104,35 +127,44 @@ export function runCommand(
     let stdout = "";
     let stderr = "";
     let timedOut = false;
+    let settled = false;
+    let cancelForced: (() => void) | null = null;
     const cap = (buf: string, chunk: string) => (buf.length >= MAX_OUTPUT ? buf : (buf + chunk).slice(0, MAX_OUTPUT));
+
+    const settle = (code: number | null, err?: Error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      cancelForced?.();
+      resolvePromise({
+        ok: !timedOut && code === 0,
+        code,
+        stdout: redact(stdout),
+        stderr: redact(err ? `${stderr}\n${err.message}` : stderr),
+        timedOut,
+        durationMs: Date.now() - started,
+      });
+    };
 
     const timer = setTimeout(() => {
       timedOut = true;
       killTree(child);
+      // 'close' waits for stdio EOF, which a surviving descendant holding
+      // the pipes can prevent forever — force settlement after a grace period.
+      cancelForced = scheduleForcedSettlement(child, TIMEOUT_GRACE_MS, () => settle(null));
     }, timeoutMs);
 
     child.stdout?.on("data", (d) => (stdout = cap(stdout, d.toString())));
     child.stderr?.on("data", (d) => (stderr = cap(stderr, d.toString())));
 
-    child.on("error", (err) => {
-      clearTimeout(timer);
-      resolvePromise({
-        ok: false, code: null, stdout: redact(stdout),
-        stderr: redact(`${stderr}\n${err.message}`), timedOut,
-        durationMs: Date.now() - started,
-      });
+    child.on("error", (err) => settle(null, err));
+
+    // 'exit' fires even when inherited stdio stays open; once timed out the
+    // outcome is already decided, so it can settle without waiting for 'close'.
+    child.on("exit", (code) => {
+      if (timedOut) settle(code);
     });
 
-    child.on("close", (code) => {
-      clearTimeout(timer);
-      resolvePromise({
-        ok: !timedOut && code === 0,
-        code,
-        stdout: redact(stdout),
-        stderr: redact(stderr),
-        timedOut,
-        durationMs: Date.now() - started,
-      });
-    });
+    child.on("close", (code) => settle(code));
   });
 }

@@ -25,7 +25,7 @@ export interface EngineeringContext {
  * Deterministic + cited (no LLM): constraints, not prose.
  */
 export async function contextForScope(repoId: string, scope: ScopeQuery): Promise<EngineeringContext> {
-  const rows = await activeDecisionsForScope(repoId, scope, 30);
+  const rows = await activeDecisionsForScope(repoId, scope);
   const constraints: Constraint[] = rows
     .map((r) => ({
       decisionId: r.id,
@@ -36,7 +36,8 @@ export async function contextForScope(repoId: string, scope: ScopeQuery): Promis
       evidence: r.evidence ?? [],
       freshness: Number(freshnessScore(r).toFixed(2)),
     }))
-    .sort((a, b) => importanceRank(b.importance) - importanceRank(a.importance) || b.freshness - a.freshness);
+    .sort((a, b) => importanceRank(b.importance) - importanceRank(a.importance) || b.freshness - a.freshness)
+    .slice(0, 30);
 
   const promptBlock = constraints.length
     ? "Follow these existing team decisions (cite them if relevant):\n" +

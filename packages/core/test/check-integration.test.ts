@@ -21,7 +21,7 @@ class FakeJudge implements AIProvider {
 function script(prompt: string): JudgeResult {
   // Scope detection to the PR's changed files (the decisions list also mentions
   // fly.toml in its examples, so we must not match on the whole prompt).
-  const i = prompt.indexOf("CHANGED FILES:");
+  const i = prompt.indexOf("<CHANGED_FILES>");
   const changed = i >= 0 ? prompt.slice(i) : "";
   // The model "warns" but cites a PR that isn't in the candidate set.
   if (changed.includes("ghost.yml"))

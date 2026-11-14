@@ -82,14 +82,14 @@ export class GeminiProvider implements AIProvider {
           break;
         }
         const data = (await res.json()) as {
-          candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+          candidates?: Array<{ content?: { parts?: Array<{ text?: string; thought?: boolean }> } }>;
         };
         const parts = data.candidates?.[0]?.content?.parts;
         if (!parts) {
           lastErr = new Error(`Gemini empty response (attempt ${attempt})`);
           continue;
         }
-        return parts.map((p) => p.text ?? "").join("");
+        return parts.filter((p) => !p.thought).map((p) => p.text ?? "").join("");
       } catch (err) {
         lastErr = err;
         const delay = 400 * attempt;
@@ -156,9 +156,10 @@ export class GeminiProvider implements AIProvider {
           if (!payload || payload === "[DONE]") continue;
           try {
             const data = JSON.parse(payload) as {
-              candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+              candidates?: Array<{ content?: { parts?: Array<{ text?: string; thought?: boolean }> } }>;
             };
             for (const p of data.candidates?.[0]?.content?.parts ?? []) {
+              if (p.thought) continue;
               if (p.text) {
                 emitted = true;
                 yield p.text;
@@ -169,9 +170,12 @@ export class GeminiProvider implements AIProvider {
           }
         }
       }
-    } catch {
-      if (!emitted) yield await this.call(prompt, opts, false);
-      return;
+    } catch (err) {
+      if (!emitted) {
+        yield await this.call(prompt, opts, false);
+        return;
+      }
+      throw err;
     }
     // Stream ended with no text at all → fall back so the user still gets an answer.
     if (!emitted) yield await this.call(prompt, opts, false);

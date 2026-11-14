@@ -2,6 +2,9 @@ import type { ConnectorClient, ConnectorConfig, ConnectorDoc } from "./types";
 
 const BASE = "https://slack.com/api";
 
+const MAX_LINES_PER_CHANNEL = 1000;
+const MAX_CHARS_PER_CHANNEL = 100_000;
+
 interface SlackChannel {
   id: string;
   name: string;
@@ -9,6 +12,10 @@ interface SlackChannel {
 interface SlackMessage {
   text?: string;
   subtype?: string;
+  ts?: string;
+  user?: string;
+  thread_ts?: string;
+  reply_count?: number;
 }
 
 /**
@@ -34,7 +41,7 @@ export class SlackConnector implements ConnectorClient {
 
   private async resolveChannels(config: ConnectorConfig): Promise<SlackChannel[]> {
     if (config.channels?.length) {
-      return config.channels.map((id) => ({ id, name: id }));
+      return config.channels.slice(0, 20).map((id) => ({ id, name: id }));
     }
     const data = await this.call<{ channels?: SlackChannel[] }>("conversations.list", {
       types: "public_channel",
@@ -54,11 +61,49 @@ export class SlackConnector implements ConnectorClient {
           channel: ch.id,
           limit: String(perChannel),
         });
-        const text = (hist.messages ?? [])
-          .filter((m) => m.text && !m.subtype)
-          .map((m) => m.text!.trim())
-          .filter(Boolean)
-          .join("\n");
+        const messages = [...(hist.messages ?? [])].reverse();
+        const lines: string[] = [];
+        let charCount = 0;
+        for (const m of messages) {
+          if (!m.text || m.subtype) continue;
+          const t = m.text.trim();
+          if (!t) continue;
+          if (lines.length >= MAX_LINES_PER_CHANNEL || charCount + t.length > MAX_CHARS_PER_CHANNEL) break;
+          lines.push(t);
+          charCount += t.length + 1;
+        }
+        for (const parent of messages) {
+          if (lines.length >= MAX_LINES_PER_CHANNEL || charCount >= MAX_CHARS_PER_CHANNEL) break;
+          if (!parent.ts) continue;
+          const isThreadParent =
+            (parent.reply_count !== undefined && parent.reply_count > 0) ||
+            parent.thread_ts !== undefined;
+          if (!isThreadParent) continue;
+          try {
+            const thread = await this.call<{ messages?: SlackMessage[] }>(
+              "conversations.replies",
+              {
+                channel: ch.id,
+                ts: parent.ts,
+                limit: String(perChannel),
+              },
+            );
+            for (const reply of thread.messages ?? []) {
+              if (lines.length >= MAX_LINES_PER_CHANNEL || charCount >= MAX_CHARS_PER_CHANNEL) break;
+              if (reply.ts === parent.ts) continue;
+              if (!reply.text || reply.subtype) continue;
+              const t = reply.text.trim();
+              if (!t) continue;
+              const bounded = t.slice(0, MAX_CHARS_PER_CHANNEL - charCount);
+              lines.push(bounded);
+              charCount += bounded.length + 1;
+            }
+          } catch {
+            // Skip a thread we can't read (scope, or Slack's per-minute rate limit on
+            // conversations.replies): failing the whole sync would lose every channel.
+          }
+        }
+        const text = lines.join("\n");
         if (!text) continue;
         docs.push({
           id: ch.id,
@@ -66,8 +111,10 @@ export class SlackConnector implements ConnectorClient {
           content: text,
           url: `slack://channel/${ch.id}`,
         });
-      } catch {
-        // skip channels the bot isn't in
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg.includes("channel_not_found") || msg.includes("not_in_channel")) continue;
+        throw e;
       }
     }
     return docs;

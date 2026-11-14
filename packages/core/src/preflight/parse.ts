@@ -5,7 +5,8 @@ const TSC = /^(.+?)\((\d+),(\d+)\):\s+error\s+(TS\d+):\s+(.+)$/;
 /** eslint compact: "/abs/x.ts: line 3, col 1, Error - msg (rule)" */
 const ESLINT_COMPACT = /^(.+?):\s+line\s+(\d+),\s+col\s+(\d+),\s+(?:Error|Warning)\s+-\s+(.+?)(?:\s+\((.+?)\))?$/;
 /** eslint stylish error line: "  3:1  error  msg  rule" (file printed on its own line above) */
-const ESLINT_STYLISH_FILE = /^(?:\/|[A-Za-z]:\\|\.{0,2}\/).*\.[jt]sx?$/;
+/** absolute (POSIX or Windows), ./ or ../, or repo-relative (src/x.ts, x.ts); spaces allowed after the first segment. */
+const ESLINT_STYLISH_FILE = /^(?:(?:\/|[A-Za-z]:[\\/]|\.{0,2}[\\/]|[\w@-][\w.@-]*[\\/]).*|[\w@-][\w.@-]*)\.[jt]sx?$/;
 const ESLINT_STYLISH_ROW = /^\s+(\d+):(\d+)\s+(?:error|warning)\s+(.+?)\s{2,}([\w-/@]+)?\s*$/;
 /** vitest/jest failed test: "FAIL  test/x.test.ts > suite > name" or "● suite › name" */
 const VITEST_FAIL = /FAIL\s+(\S+\.(?:test|spec)\.[cm]?[jt]sx?)(?:\s*>\s*(.+))?$/;
@@ -34,9 +35,9 @@ const CATEGORY_BY_CHECK: Record<string, ErrorCategory> = {
   perf: "performance",
 };
 
-/** Stable short fingerprint of an error (file+code+message) for repeat detection. */
-export function fingerprint(e: Pick<PreflightError, "file" | "code" | "message">): string {
-  const s = `${e.file}|${e.code ?? ""}|${e.message}`;
+/** Stable short fingerprint of an error (file+code+message+line+column) for repeat detection. */
+export function fingerprint(e: Pick<PreflightError, "file" | "code" | "message" | "line" | "column">): string {
+  const s = `${e.file}|${e.code ?? ""}|${e.message}|${e.line ?? ""}|${e.column ?? ""}`;
   let h = 0x811c9dc5;
   for (let i = 0; i < s.length; i++) {
     h ^= s.charCodeAt(i);
@@ -45,14 +46,38 @@ export function fingerprint(e: Pick<PreflightError, "file" | "code" | "message">
   return (h >>> 0).toString(16).padStart(8, "0");
 }
 
+/** Mask secrets/tokens/credentialed URLs so parsed output is safe to persist/send. */
+export function redactSecrets(value: string): string {
+  return value
+    .replace(/\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|amqp):\/\/[^\s'")\]]+/gi, "[REDACTED]")
+    .replace(/\b([A-Za-z][\w.-]*:\/\/)[^\s/:@'"]+:[^\s/@'"]+@/g, "$1[REDACTED]@")
+    .replace(/\bA[SKS]IA[0-9A-Z]{16}\b/g, "[REDACTED]")
+    .replace(/\bAIza[0-9A-Za-z-_]{35}\b/g, "[REDACTED]")
+    .replace(/-----BEGIN [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----(?:[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----)?/g, "[REDACTED]")
+    .replace(/\b[A-Za-z0-9/+=]{40,}\b/g, "[REDACTED]")
+    .replace(/\bgithub_pat_[A-Za-z0-9_]{20,}\b/g, "[REDACTED]")
+    .replace(/\bgh[pousr]_[A-Za-z0-9_]{20,}\b/g, "[REDACTED]")
+    .replace(/\b(?:sk|rk)_(?:live|test)_[A-Za-z0-9_-]{10,}\b/g, "[REDACTED]")
+    .replace(/\bsk-[A-Za-z0-9_-]{16,}\b/g, "[REDACTED]")
+    .replace(/\bxox[baprs]-[A-Za-z0-9-]{10,}\b/g, "[REDACTED]")
+    .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[REDACTED]")
+    .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]{8,}/gi, "Bearer [REDACTED]")
+    .replace(/(\bAuthorization\s*[:=]\s*)(Basic|Bearer)\s+[A-Za-z0-9._~+/=-]+/gi, "$1$2 [REDACTED]")
+    .replace(/\bBasic\s+[A-Za-z0-9+/_=-]{8,}/gi, "Basic [REDACTED]")
+    .replace(/(\bAuthorization\s*[:=]\s*)(?!(?:Basic|Bearer)\b|\[REDACTED\])[^\s,;]+/gi, "$1[REDACTED]")
+    .replace(/(\b[A-Z0-9_.-]*(?:SECRET|TOKEN|PASSWORD|PASSWD|API[_-]?KEY|PRIVATE[_-]?KEY|DATABASE_URL)[A-Z0-9_.-]*["']?\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi, "$1[REDACTED]");
+}
+
 /** Parse a check's combined output into structured errors grouped by file. */
 export function parseErrors(check: string, output: string): PreflightError[] {
   const category = CATEGORY_BY_CHECK[check] ?? "unknown";
   const lines = output.split(/\r?\n/);
   const errors: PreflightError[] = [];
   let stylishFile = "";
-  const push = (e: Omit<PreflightError, "id" | "category">) =>
-    errors.push({ ...e, id: fingerprint(e), category });
+  const push = (e: Omit<PreflightError, "id" | "category">) => {
+    const safe = { ...e, message: redactSecrets(e.message), raw: e.raw ? redactSecrets(e.raw) : e.raw };
+    errors.push({ ...safe, id: fingerprint(safe), category });
+  };
 
   for (let li = 0; li < lines.length; li++) {
     const line = lines[li]!;
@@ -119,8 +144,14 @@ export function parseErrors(check: string, output: string): PreflightError[] {
     });
   }
   // De-dupe identical fingerprints (e.g. a vitest failure echoed in two sections).
+  // Key includes line/column so identical messages at different locations are kept.
   const seen = new Set<string>();
-  return errors.filter((e) => (seen.has(e.id!) ? false : (seen.add(e.id!), true)));
+  return errors.filter((e) => {
+    const key = `${e.id!}:${e.line ?? ""}:${e.column ?? ""}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 const PRIORITY_BY_CHECK: Record<string, Priority> = {
@@ -146,14 +177,15 @@ export function toFixInstructions(check: string, errors: PreflightError[]): FixI
   const priority = PRIORITY_BY_CHECK[check] ?? "medium";
   return errors.slice(0, 40).map((e) => {
     const loc = e.file ? `${e.file}${e.line ? `:${e.line}` : ""}` : "(no specific file)";
+    const message = redactSecrets(e.message);
     return {
       id: e.id ?? fingerprint(e),
       checkId: check,
       priority,
       file: e.file,
-      problem: `${check}: ${e.message}`,
+      problem: `${check}: ${message}`,
       instructionForAgent:
-        `Agent, fix this before continuing. In ${loc}, resolve: ${e.message}` +
+        `Agent, fix this before continuing. In ${loc}, resolve: ${message}` +
         (e.code ? ` (${e.code}).` : ".") +
         " Do not commit yet. Run Preflight again after fixing.",
       evidence: `${check} · ${loc}${e.code ? ` · ${e.code}` : ""}`,

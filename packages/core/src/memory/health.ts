@@ -1,6 +1,5 @@
 import { decisions, getDb } from "@company-brain/db";
-import { and, eq, inArray, sql } from "drizzle-orm";
-import { alias } from "drizzle-orm/pg-core";
+import { eq, sql } from "drizzle-orm";
 import { governanceReport, type GovernanceReport } from "../graph/governance";
 import { ACTIVE_STATUSES, isActiveStatus } from "../graph/types";
 import { classifyMemory, memoryScore, type MemoryLayer } from "./score";
@@ -98,34 +97,54 @@ export async function memoryHealth(repoId: string): Promise<MemoryHealth> {
   };
 }
 
-/** Near-duplicate active memories via a pgvector self-join (bounded result). */
+/** Cap on outer rows fed to the KNN scan — bounds work regardless of repo size. */
+const DUPLICATE_MAX_CANDIDATES = 200;
+/** Nearest neighbours checked per candidate row via the pgvector index. */
+const DUPLICATE_NEIGHBORS_PER_ROW = 5;
+const DUPLICATE_CACHE_TTL_MS = 60_000;
+const duplicateCache = new Map<string, { expiresAt: number; pairs: DuplicatePair[] }>();
+
+/**
+ * Near-duplicate active memories via a per-row LATERAL KNN scan (bounded).
+ * Each candidate row asks the pgvector index for its few nearest neighbours
+ * instead of comparing every pair, the outer input is capped to the most
+ * recent candidates, and results are cached briefly per repo.
+ */
 async function findDuplicates(repoId: string): Promise<DuplicatePair[]> {
+  const cached = duplicateCache.get(repoId);
+  if (cached && cached.expiresAt > Date.now()) return cached.pairs;
   const db = getDb();
-  const b = alias(decisions, "b");
-  const rows = await db
-    .select({
-      aId: decisions.id,
-      bId: b.id,
-      a: decisions.decision,
-      b: b.decision,
-      distance: sql<number>`(${decisions.embedding} <=> ${b.embedding})`,
-    })
-    .from(decisions)
-    .innerJoin(b, sql`${decisions.id} < ${b.id}`)
-    .where(
-      and(
-        eq(decisions.repoId, repoId),
-        eq(b.repoId, repoId),
-        inArray(decisions.status, ACTIVE_STATUSES),
-        inArray(b.status, ACTIVE_STATUSES),
-        sql`${decisions.embedding} is not null`,
-        sql`${b.embedding} is not null`,
-        sql`(${decisions.embedding} <=> ${b.embedding}) < ${DUPLICATE_DISTANCE}`,
-      ),
-    )
-    .orderBy(sql`(${decisions.embedding} <=> ${b.embedding})`)
-    .limit(25);
-  return rows.map((r) => ({ ...r, distance: Number(r.distance.toFixed(3)) }));
+  const raw: unknown = await db.execute(sql`
+    SELECT a.id AS "aId", nb.id AS "bId", a.decision AS "a", nb.decision AS "b", nb.distance AS "distance"
+    FROM (
+      SELECT id, decision, embedding FROM decisions
+      WHERE repo_id = ${repoId}
+        AND status IN ('approved', 'proposed')
+        AND embedding IS NOT NULL
+      ORDER BY updated_at DESC
+      LIMIT ${DUPLICATE_MAX_CANDIDATES}
+    ) a
+    CROSS JOIN LATERAL (
+      SELECT d.id, d.decision, (a.embedding <=> d.embedding) AS distance
+      FROM decisions d
+      WHERE d.repo_id = ${repoId}
+        AND d.id > a.id
+        AND d.status IN ('approved', 'proposed')
+        AND d.embedding IS NOT NULL
+      ORDER BY a.embedding <=> d.embedding
+      LIMIT ${DUPLICATE_NEIGHBORS_PER_ROW}
+    ) nb
+    WHERE nb.distance < ${DUPLICATE_DISTANCE}
+    ORDER BY nb.distance
+    LIMIT 25
+  `);
+  const list: unknown[] = Array.isArray(raw) ? raw : ((raw as { rows: unknown[] }).rows ?? []);
+  const pairs = (list as Array<{ aId: string; bId: string; a: string; b: string; distance: number }>).map((r) => ({
+    ...r,
+    distance: Number(Number(r.distance).toFixed(3)),
+  }));
+  duplicateCache.set(repoId, { expiresAt: Date.now() + DUPLICATE_CACHE_TTL_MS, pairs });
+  return pairs;
 }
 
 function buildRecommendations(x: {

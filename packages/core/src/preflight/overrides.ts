@@ -34,7 +34,7 @@ export async function getActiveOverrides(repoId: string, branch: string | null):
     .catch(() => [] as ActiveOverride[]);
   const map = new Map<string, ActiveOverride>();
   for (const r of rows) {
-    if (r.branch && branch && r.branch !== branch) continue;
+    if (r.branch && r.branch !== branch) continue;
     map.set(r.decisionId, r);
   }
   return map;
@@ -97,7 +97,8 @@ export async function createOverride(input: {
   if (matches.length > 1) throw new Error(`Ambiguous decision id prefix "${input.decisionIdOrPrefix}" — use more characters`);
   const target = matches[0]!;
 
-  const expiresAt = input.hours && input.hours > 0 ? new Date(Date.now() + input.hours * 3_600_000) : null;
+  const effectiveHours = typeof input.hours === "number" && Number.isFinite(input.hours) && input.hours > 0 ? input.hours : 168; // one week, same default as the CLI
+  const expiresAt = new Date(Date.now() + effectiveHours * 3_600_000);
   const [row] = await db
     .insert(preflightOverrides)
     .values({

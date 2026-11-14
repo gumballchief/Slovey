@@ -21,6 +21,7 @@ export async function GET(
     rateLimit(`ask:${viewer.userId ?? viewer.login}`, 30, 60_000);
     const q = (new URL(req.url).searchParams.get("q") ?? "").trim();
     if (!q) throw new HttpError(400, "q is required");
+    if (q.length > 4000) throw new HttpError(413, "q is too long (max 4000 characters).");
     return ok(await reasoning.engineeringSearch(id, q));
   });
 }

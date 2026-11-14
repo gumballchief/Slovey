@@ -23,8 +23,8 @@ export class VoyageProvider implements EmbeddingProvider {
     if (!res.ok) {
       throw new Error(`Voyage ${res.status}: ${await res.text()}`);
     }
-    const data = (await res.json()) as { data: Array<{ embedding: number[] }> };
-    return data.data.map((d) => d.embedding);
+    const data = (await res.json()) as { data: Array<{ embedding: number[]; index: number }> };
+    return [...data.data].sort((a, b) => a.index - b.index).map((d) => d.embedding);
   }
 
   async embedOne(text: string): Promise<number[]> {

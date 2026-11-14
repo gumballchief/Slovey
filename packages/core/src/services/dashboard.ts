@@ -58,7 +58,12 @@ export interface ApiRepo {
 }
 
 // ── mappers ──
-function toApiDecision(d: typeof decisions.$inferSelect): ApiDecision {
+function toApiDecision(
+  d: Pick<
+    typeof decisions.$inferSelect,
+    "id" | "repoId" | "decision" | "why" | "examples" | "evidence" | "source" | "status" | "createdAt"
+  >,
+): ApiDecision {
   return {
     id: d.id,
     decision: d.decision,
@@ -157,6 +162,41 @@ export interface RepoScope {
   orgIds: string[];
 }
 
+/** Pure visibility check mirroring listRepos(): owner (id or login) or org membership. */
+export function isRepoVisible(
+  repo: { ownerGithubId?: number | null; owner?: string | null; orgId?: string | null },
+  scope?: RepoScope,
+): boolean {
+  if (!scope) return true;
+  if (scope.githubId != null && repo.ownerGithubId === scope.githubId) return true;
+  if (
+    typeof repo.owner === "string" &&
+    repo.owner.toLowerCase() === (scope.login ?? "").toLowerCase()
+  )
+    return true;
+  if (repo.orgId && scope.orgIds.includes(repo.orgId)) return true;
+  return false;
+}
+
+/** Reject repos outside the caller's tenancy. No scope = dev/local (allow). */
+export async function requireRepoScope(repoId: string, scope?: RepoScope): Promise<void> {
+  if (!scope) return;
+  const db = getDb();
+  const [r] = await db
+    .select({ ownerGithubId: repos.ownerGithubId, owner: repos.owner, orgId: installations.orgId })
+    .from(repos)
+    .innerJoin(installations, eq(repos.installationId, installations.id))
+    .where(eq(repos.id, repoId))
+    .limit(1);
+  if (!r || !isRepoVisible(r, scope)) throw new Error("repo not visible to caller");
+}
+
+/** Reject orgs outside the caller's tenancy. No scope = dev/local (allow). */
+export async function requireOrgScope(orgId: string, scope?: RepoScope): Promise<void> {
+  if (!scope) return;
+  if (!scope.orgIds.includes(orgId)) throw new Error("org not visible to caller");
+}
+
 export async function listRepos(scope?: RepoScope): Promise<ApiRepo[]> {
   const db = getDb();
   // TENANCY: without scoping, this returned EVERY tenant's repos (names + metrics)
@@ -186,7 +226,9 @@ export async function listRepos(scope?: RepoScope): Promise<ApiRepo[]> {
     db
       .select({ repoId: decisions.repoId, n: sql<number>`count(*)::int` })
       .from(decisions)
-      .where(inArray(decisions.status, ["approved", "proposed"]))
+      .innerJoin(repos, eq(decisions.repoId, repos.id))
+      .innerJoin(installations, eq(repos.installationId, installations.id))
+      .where(and(inArray(decisions.status, ["approved", "proposed"]), visible))
       .groupBy(decisions.repoId),
     db
       .select({
@@ -195,11 +237,16 @@ export async function listRepos(scope?: RepoScope): Promise<ApiRepo[]> {
         conflicts: sql<number>`(count(*) filter (where ${prChecks.verdict} = 'conflict'))::int`,
       })
       .from(prChecks)
+      .innerJoin(repos, eq(prChecks.repoId, repos.id))
+      .innerJoin(installations, eq(repos.installationId, installations.id))
+      .where(visible)
       .groupBy(prChecks.repoId),
     db
       .select({ repoId: prChecks.repoId, verdict: prChecks.verdict, checkedAt: prChecks.checkedAt })
       .from(prChecks)
-      .where(sql`${prChecks.checkedAt} > now() - interval '42 days'`),
+      .innerJoin(repos, eq(prChecks.repoId, repos.id))
+      .innerJoin(installations, eq(repos.installationId, installations.id))
+      .where(and(sql`${prChecks.checkedAt} > now() - interval '42 days'`, visible)),
   ]);
 
   const decByRepo = new Map(decisionCounts.map((d) => [d.repoId, d.n]));
@@ -237,7 +284,8 @@ export async function listUserOrgIds(userId: string): Promise<string[]> {
   return rows.map((r) => r.orgId);
 }
 
-export async function getOverview(repoId: string) {
+export async function getOverview(repoId: string, scope?: RepoScope) {
+  await requireRepoScope(repoId, scope);
   const db = getDb();
   const [stats, trend, recentRows] = await Promise.all([
     repoStats(repoId),
@@ -257,7 +305,7 @@ export async function getOverview(repoId: string) {
     const ds = await db
       .select({ id: decisions.id, decision: decisions.decision })
       .from(decisions)
-      .where(inArray(decisions.id, matchedIds));
+      .where(and(inArray(decisions.id, matchedIds), eq(decisions.repoId, repoId)));
     for (const d of ds) textById.set(d.id, d.decision);
   }
   const recent: ApiCheckedPR[] = recentRows.map((c) =>
@@ -269,7 +317,9 @@ export async function getOverview(repoId: string) {
 export async function listDecisions(
   repoId: string,
   filter: { query?: string; source?: string } = {},
+  scope?: RepoScope,
 ): Promise<ApiDecision[]> {
+  await requireRepoScope(repoId, scope);
   const db = getDb();
   const conds = [eq(decisions.repoId, repoId), sql`${decisions.status} <> 'removed'`];
   if (filter.source) conds.push(eq(decisions.source, filter.source as ApiDecision["source"]));
@@ -278,10 +328,21 @@ export async function listDecisions(
     conds.push(or(ilike(decisions.decision, q), ilike(decisions.why, q))!);
   }
   const rows = await db
-    .select()
+    .select({
+      id: decisions.id,
+      repoId: decisions.repoId,
+      decision: decisions.decision,
+      why: decisions.why,
+      examples: decisions.examples,
+      evidence: decisions.evidence,
+      source: decisions.source,
+      status: decisions.status,
+      createdAt: decisions.createdAt,
+    })
     .from(decisions)
     .where(and(...conds))
-    .orderBy(desc(decisions.createdAt));
+    .orderBy(desc(decisions.createdAt))
+    .limit(1000);
   return rows.map(toApiDecision);
 }
 
@@ -293,14 +354,26 @@ export async function searchDecisions(
   repoId: string,
   query: string,
   limit = 8,
+  scope?: RepoScope,
 ): Promise<ApiDecision[]> {
+  await requireRepoScope(repoId, scope);
   const q = query.trim();
-  if (!q) return listDecisions(repoId);
+  if (!q) return listDecisions(repoId, {}, scope);
   const vec = await getEmbeddings().embedOne(q);
   const lit = `[${vec.join(",")}]`;
   const db = getDb();
   const rows = await db
-    .select()
+    .select({
+      id: decisions.id,
+      repoId: decisions.repoId,
+      decision: decisions.decision,
+      why: decisions.why,
+      examples: decisions.examples,
+      evidence: decisions.evidence,
+      source: decisions.source,
+      status: decisions.status,
+      createdAt: decisions.createdAt,
+    })
     .from(decisions)
     .where(
       and(
@@ -310,7 +383,7 @@ export async function searchDecisions(
       ),
     )
     .orderBy(sql`${decisions.embedding} <=> ${lit}::vector`)
-    .limit(limit);
+    .limit(Math.min(Math.max(limit, 1), 50));
   return rows.map(toApiDecision);
 }
 
@@ -330,26 +403,61 @@ export async function createDecision(
     /** What to use instead of the rejected approach. */
     alternatives?: string[];
   },
+  scope?: RepoScope,
 ): Promise<ApiDecision> {
+  await requireRepoScope(repoId, scope);
+  const org = await getOrgForRepo(repoId);
+  if (org) {
+    const billing = await getBilling(org.id);
+    const limit = PLAN_LIMITS[billing.plan].decisions;
+    if (limit !== -1 && billing.usage.decisions >= limit) {
+      throw new Error(`Decision limit reached for ${billing.plan} plan (${limit})`);
+    }
+  }
   const db = getDb();
   const text = [input.decision, input.why ?? "", (input.examples ?? []).join(" ")].join("\n");
   const embedding = await getEmbeddings().embedOne(text);
+  const values = {
+    repoId,
+    decision: input.decision,
+    why: input.why ?? "",
+    examples: input.examples ?? [],
+    evidence: input.evidence,
+    source: input.source ?? "github_pr",
+    category: input.category ?? null,
+    status: input.status ?? "approved",
+    rejectionReason: input.rejectionReason ?? null,
+    alternatives: input.alternatives ?? [],
+    embedding,
+    createdBy: input.createdBy ?? "dashboard",
+  };
+  if (org) {
+    const [row] = await db.transaction(async (tx) => {
+      const [locked] = await tx
+        .select({ plan: organizations.plan })
+        .from(organizations)
+        .where(eq(organizations.id, org.id))
+        .for("update");
+      const plan = ((locked?.plan ?? "free") as OrgPlan);
+      const limit = PLAN_LIMITS[plan].decisions;
+      if (limit !== -1) {
+        const [c] = await tx
+          .select({ n: sql<number>`count(*)::int` })
+          .from(decisions)
+          .innerJoin(repos, eq(decisions.repoId, repos.id))
+          .innerJoin(installations, eq(repos.installationId, installations.id))
+          .where(and(eq(installations.orgId, org.id), ne(decisions.status, "removed")));
+        if ((c?.n ?? 0) >= limit) {
+          throw new Error(`Decision limit reached for ${plan} plan (${limit})`);
+        }
+      }
+      return tx.insert(decisions).values(values).returning();
+    });
+    return toApiDecision(row!);
+  }
   const [row] = await db
     .insert(decisions)
-    .values({
-      repoId,
-      decision: input.decision,
-      why: input.why ?? "",
-      examples: input.examples ?? [],
-      evidence: input.evidence,
-      source: input.source ?? "github_pr",
-      category: input.category ?? null,
-      status: input.status ?? "approved",
-      rejectionReason: input.rejectionReason ?? null,
-      alternatives: input.alternatives ?? [],
-      embedding,
-      createdBy: input.createdBy ?? "dashboard",
-    })
+    .values(values)
     .returning();
   return toApiDecision(row!);
 }
@@ -357,8 +465,10 @@ export async function createDecision(
 export async function updateDecision(
   repoId: string,
   id: string,
-  patch: { decision?: string; why?: string; examples?: string[]; evidence?: string[]; status?: "approved" | "suggested" | "removed" },
+  patch: { decision?: string; why?: string; examples?: string[]; evidence?: string[]; status?: "approved" | "proposed" | "suggested" | "removed" },
+  scope?: RepoScope,
 ): Promise<ApiDecision | null> {
+  await requireRepoScope(repoId, scope);
   const db = getDb();
   const [current] = await db
     .select()
@@ -366,6 +476,20 @@ export async function updateDecision(
     .where(and(eq(decisions.id, id), eq(decisions.repoId, repoId)))
     .limit(1);
   if (!current) return null;
+  const isRestore =
+    current.status === "removed" && !!patch.status && patch.status !== "removed";
+  let restoreOrgId: string | null = null;
+  if (isRestore) {
+    const org = await getOrgForRepo(repoId);
+    if (org) {
+      restoreOrgId = org.id;
+      const billing = await getBilling(org.id);
+      const limit = PLAN_LIMITS[billing.plan].decisions;
+      if (limit !== -1 && billing.usage.decisions >= limit) {
+        throw new Error(`Decision limit reached for ${billing.plan} plan (${limit})`);
+      }
+    }
+  }
 
   const next = {
     decision: patch.decision ?? current.decision,
@@ -381,6 +505,36 @@ export async function updateDecision(
     const text = [next.decision, next.why, (next.examples ?? []).join(" ")].join("\n");
     set.embedding = await getEmbeddings().embedOne(text);
   }
+  if (isRestore && restoreOrgId && typeof db.transaction === "function") {
+    const orgId = restoreOrgId;
+    const row = await db.transaction(async (tx) => {
+      const [locked] = await tx
+        .select({ plan: organizations.plan })
+        .from(organizations)
+        .where(eq(organizations.id, orgId))
+        .for("update");
+      const plan = ((locked?.plan ?? "free") as OrgPlan);
+      const limit = PLAN_LIMITS[plan].decisions;
+      if (limit !== -1) {
+        const [c] = await tx
+          .select({ n: sql<number>`count(*)::int` })
+          .from(decisions)
+          .innerJoin(repos, eq(decisions.repoId, repos.id))
+          .innerJoin(installations, eq(repos.installationId, installations.id))
+          .where(and(eq(installations.orgId, orgId), ne(decisions.status, "removed")));
+        if ((c?.n ?? 0) >= limit) {
+          throw new Error(`Decision limit reached for ${plan} plan (${limit})`);
+        }
+      }
+      const [updated] = await tx
+        .update(decisions)
+        .set(set)
+        .where(and(eq(decisions.id, id), eq(decisions.repoId, repoId)))
+        .returning();
+      return updated;
+    });
+    return row ? toApiDecision(row) : null;
+  }
   const [row] = await db
     .update(decisions)
     .set(set)
@@ -390,7 +544,8 @@ export async function updateDecision(
 }
 
 /** Soft-delete (status='removed') so retrieval excludes it but history is kept. */
-export async function removeDecision(repoId: string, id: string): Promise<boolean> {
+export async function removeDecision(repoId: string, id: string, scope?: RepoScope): Promise<boolean> {
+  await requireRepoScope(repoId, scope);
   const db = getDb();
   const rows = await db
     .update(decisions)
@@ -400,13 +555,15 @@ export async function removeDecision(repoId: string, id: string): Promise<boolea
   return rows.length > 0;
 }
 
-export async function listPRChecks(repoId: string): Promise<ApiCheckedPR[]> {
+export async function listPRChecks(repoId: string, scope?: RepoScope): Promise<ApiCheckedPR[]> {
+  await requireRepoScope(repoId, scope);
   const db = getDb();
   const rows = await db
     .select()
     .from(prChecks)
     .where(eq(prChecks.repoId, repoId))
-    .orderBy(desc(prChecks.checkedAt));
+    .orderBy(desc(prChecks.checkedAt))
+    .limit(100);
   return rows.map((c) => toApiCheck(c));
 }
 
@@ -461,7 +618,8 @@ export const PLAN_LIMITS: Record<OrgPlan, { repos: number; decisions: number }> 
 };
 
 /** Plan + real current usage for an org (drives the Billing page). */
-export async function getBilling(orgId: string): Promise<ApiBilling> {
+export async function getBilling(orgId: string, scope?: RepoScope): Promise<ApiBilling> {
+  await requireOrgScope(orgId, scope);
   const db = getDb();
   // One parallel wave (was 6 sequential round-trips — the slowest route under
   // load). Per-repo scoping happens via joins so nothing depends on a prior
@@ -671,7 +829,8 @@ export async function getOrgForRepo(repoId: string): Promise<ApiOrg | null> {
 }
 
 /** Org members with their RBAC role, oldest first. */
-export async function listOrgMembers(orgId: string): Promise<ApiMember[]> {
+export async function listOrgMembers(orgId: string, scope?: RepoScope): Promise<ApiMember[]> {
+  await requireOrgScope(orgId, scope);
   const db = getDb();
   const rows = await db
     .select({
@@ -689,7 +848,8 @@ export async function listOrgMembers(orgId: string): Promise<ApiMember[]> {
 }
 
 /** Recent audit-log entries for an org (most recent first). */
-export async function listAuditLog(orgId: string, limit = 50): Promise<ApiAuditEntry[]> {
+export async function listAuditLog(orgId: string, limit = 50, scope?: RepoScope): Promise<ApiAuditEntry[]> {
+  await requireOrgScope(orgId, scope);
   const db = getDb();
   const rows = await db
     .select()
@@ -711,7 +871,9 @@ export async function listAuditLog(orgId: string, limit = 50): Promise<ApiAuditE
 export async function getPRCheck(
   repoId: string,
   prNumber: number,
+  scope?: RepoScope,
 ): Promise<(ApiCheckedPR & { decision?: ApiDecision }) | null> {
+  await requireRepoScope(repoId, scope);
   const db = getDb();
   const [c] = await db
     .select()
@@ -727,7 +889,7 @@ export async function getPRCheck(
     const [d] = await db
       .select()
       .from(decisions)
-      .where(eq(decisions.id, c.matchedDecisionId))
+      .where(and(eq(decisions.id, c.matchedDecisionId), eq(decisions.repoId, repoId)))
       .limit(1);
     if (d) {
       decision = toApiDecision(d);
@@ -739,7 +901,8 @@ export async function getPRCheck(
 }
 
 /** Structured repo knowledge (architecture + dependency graph) for the Architecture view. */
-export async function getRepoKnowledge(repoId: string) {
+export async function getRepoKnowledge(repoId: string, scope?: RepoScope) {
+  await requireRepoScope(repoId, scope);
   const db = getDb();
   const rows = await db
     .select()
@@ -753,7 +916,8 @@ export async function getRepoKnowledge(repoId: string) {
   };
 }
 
-export async function getSettings(repoId: string) {
+export async function getSettings(repoId: string, scope?: RepoScope) {
+  await requireRepoScope(repoId, scope);
   const db = getDb();
   const [row] = await db
     .select()
@@ -774,9 +938,11 @@ export async function updateSettings(
     mode: "comment" | "status_check";
     learnFromDismissals: boolean;
   }>,
+  scope?: RepoScope,
 ) {
+  await requireRepoScope(repoId, scope);
   const db = getDb();
-  await getSettings(repoId); // ensure row exists
+  await getSettings(repoId, scope); // ensure row exists
   const [row] = await db
     .update(repoSettings)
     .set({ ...patch, updatedAt: new Date() })
@@ -786,7 +952,8 @@ export async function updateSettings(
 }
 
 /** Enqueue a memory rebuild for a repo. Returns the job id. */
-export async function enqueueRebuild(repoId: string): Promise<{ jobId: string | null }> {
+export async function enqueueRebuild(repoId: string, scope?: RepoScope): Promise<{ jobId: string | null }> {
+  await requireRepoScope(repoId, scope);
   const db = getDb();
   const [r] = await db
     .select({ fullName: repos.fullName, instGh: installations.githubInstallationId })
@@ -795,23 +962,49 @@ export async function enqueueRebuild(repoId: string): Promise<{ jobId: string | 
     .where(eq(repos.id, repoId))
     .limit(1);
   if (!r) throw new Error("repo not found");
-  const jobId = await enqueue(JOBS.extract, {
-    installationId: r.instGh,
-    fullName: r.fullName,
-  });
+  // Dedup floods: one pending/cooldown rebuild per repo so a loop cannot
+  // saturate the shared extract queue ahead of other tenants.
+  const jobId = await enqueue(
+    JOBS.extract,
+    {
+      installationId: r.instGh,
+      fullName: r.fullName,
+    },
+    { singletonKey: `extract:${repoId}`, singletonHours: 1 },
+  );
   return { jobId };
 }
 
 export async function dashboardFeedback(
   repoId: string,
   input: { prNumber?: number; decisionId?: string; action: "dismiss" | "confirm"; byUser?: string; reason?: string },
+  scope?: RepoScope,
 ) {
+  await requireRepoScope(repoId, scope);
   const db = getDb();
+  let prCheckId: string | null = null;
+  if (input.prNumber != null) {
+    const [check] = await db
+      .select({ id: prChecks.id })
+      .from(prChecks)
+      .where(and(eq(prChecks.repoId, repoId), eq(prChecks.prNumber, input.prNumber)))
+      .orderBy(desc(prChecks.checkedAt))
+      .limit(1);
+    prCheckId = check?.id ?? null;
+  }
+  if (input.decisionId) {
+    const [own] = await db
+      .select({ id: decisions.id })
+      .from(decisions)
+      .where(and(eq(decisions.id, input.decisionId), eq(decisions.repoId, repoId)))
+      .limit(1);
+    if (!own) throw new Error("decision not in repo");
+  }
   const [row] = await db
     .insert(feedbackTable)
     .values({
       repoId,
-      prCheckId: null,
+      prCheckId,
       decisionId: input.decisionId ?? null,
       action: input.action,
       byUser: input.byUser ?? null,

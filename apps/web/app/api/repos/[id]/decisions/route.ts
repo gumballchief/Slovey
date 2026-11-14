@@ -62,7 +62,11 @@ export async function POST(
       alternatives: body.alternatives ?? [],
       createdBy: viewer.login,
     });
-    await logAudit({ repoId: id, actorUser: viewer.login, action: "decision.create", targetType: "decision", targetId: created.id });
+    try {
+      await logAudit({ repoId: id, actorUser: viewer.login, action: "decision.create", targetType: "decision", targetId: created.id });
+    } catch (err) {
+      console.error("[api] audit log failed:", err);
+    }
     return ok(created, { status: 201 });
   });
 }

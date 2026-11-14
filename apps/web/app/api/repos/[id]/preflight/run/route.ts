@@ -1,6 +1,6 @@
 import { preflight } from "@company-brain/core";
 import { assertRepoWrite, requireViewer } from "@/lib/server/auth";
-import { HttpError, handle, ok } from "@/lib/server/respond";
+import { HttpError, handle, ok, readJsonBody } from "@/lib/server/respond";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,7 +21,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     const viewer = await requireViewer();
     const { id } = await ctx.params;
     await assertRepoWrite(id, viewer);
-    const body = (await req.json().catch(() => null)) as preflight.RemotePreflightPayload | null;
+    const body = (await readJsonBody<preflight.RemotePreflightPayload | null>(req, 1_000_000)) as preflight.RemotePreflightPayload | null;
     if (!body || (!body.diff && !body.files?.length && !body.changedFiles?.length)) {
       throw new HttpError(400, "Provide at least one of: diff, files[{path,content}], changedFiles[]");
     }

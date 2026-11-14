@@ -5,7 +5,8 @@ let _wh: Webhooks | null = null;
 function webhooks(): Webhooks {
   if (_wh) return _wh;
   const env = loadEnv();
-  _wh = new Webhooks({ secret: env.GITHUB_WEBHOOK_SECRET ?? "" });
+  if (!env.GITHUB_WEBHOOK_SECRET) throw new Error("GITHUB_WEBHOOK_SECRET is required");
+  _wh = new Webhooks({ secret: env.GITHUB_WEBHOOK_SECRET });
   return _wh;
 }
 
@@ -79,17 +80,22 @@ export function parseWebhook(event: string, payload: any): WebhookIntent[] {
       return intents;
     }
     case "pull_request": {
-      if (payload.action !== "opened" && payload.action !== "synchronize") return [];
+      const isEditedBaseChange = payload.action === "edited" && Boolean(payload.changes?.base);
+      if (payload.action !== "opened" && payload.action !== "synchronize" && payload.action !== "reopened" && payload.action !== "ready_for_review" && !isEditedBaseChange) return [];
       // Defensive: never crash on a malformed payload (missing repo / non-numeric PR).
       const fullName = payload.repository?.full_name;
       const prNumber = payload.pull_request?.number;
       if (typeof fullName !== "string" || typeof prNumber !== "number") return [];
-      return [{ type: "check_pr", installationId, fullName, prNumber, action: payload.action }];
+      return [{ type: "check_pr", installationId, fullName, prNumber, action: payload.action === "opened" ? "opened" : "synchronize" }];
     }
     case "issue_comment": {
       if (payload.action !== "created" || !payload.issue?.pull_request) return [];
       // Never act on our own (or any bot's) comments — prevents self-dismissal loops.
       if (isBotComment(payload.comment)) return [];
+      // Comment-only users must not dismiss/confirm checks; the worker re-verifies
+      // collaborator permission (write+) via the installation token before acting.
+      const association = payload.comment?.author_association;
+      if (association !== "OWNER" && association !== "MEMBER" && association !== "COLLABORATOR") return [];
       const body: string = payload.comment?.body ?? "";
       const action = DISMISS_RE.test(body)
         ? "dismiss"

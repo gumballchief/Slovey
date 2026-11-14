@@ -1,6 +1,6 @@
 import { decisionApi } from "@company-brain/core";
 import { assertRepoAccess, requireViewer } from "@/lib/server/auth";
-import { HttpError, handle, ok } from "@/lib/server/respond";
+import { HttpError, handle, ok, readJsonBody } from "@/lib/server/respond";
 import { rateLimit } from "@/lib/server/ratelimit";
 
 export const runtime = "nodejs";
@@ -19,7 +19,7 @@ export async function POST(
     const { id } = await ctx.params;
     await assertRepoAccess(id, viewer);
     rateLimit(`cani:${viewer.userId ?? viewer.login}`, 30, 60_000);
-    const body = (await req.json().catch(() => ({}))) as { intent?: string };
+    const body = await readJsonBody<{ intent?: string }>(req);
     if (!body.intent?.trim()) throw new HttpError(400, "intent is required");
     return ok(await decisionApi.canI(id, body.intent.trim()));
   });

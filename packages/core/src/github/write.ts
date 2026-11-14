@@ -74,10 +74,17 @@ async function createCommitOn(
   const baseRef = await git.getRef({ owner, repo, ref: `heads/${onBranch}` });
   const baseSha = baseRef.data.object.sha;
   const baseCommit = await git.getCommit({ owner, repo, commit_sha: baseSha });
+  const baseTree = await git.getTree({ owner, repo, tree_sha: baseCommit.data.tree.sha, recursive: "true" });
+  const baseModes = new Map((baseTree.data.tree ?? []).map((e) => [e.path, e.mode]));
   const tree = await Promise.all(
     files.map(async (f) => {
       const blob = await git.createBlob({ owner, repo, content: f.content, encoding: "utf-8" });
-      return { path: f.path, mode: "100644" as const, type: "blob" as const, sha: blob.data.sha };
+      const existing = baseModes.get(f.path);
+      const mode = (existing === "100755" || existing === "120000" ? existing : "100644") as
+        | "100644"
+        | "100755"
+        | "120000";
+      return { path: f.path, mode, type: "blob" as const, sha: blob.data.sha };
     }),
   );
   const newTree = await git.createTree({ owner, repo, base_tree: baseCommit.data.tree.sha, tree });
@@ -91,12 +98,39 @@ export async function getCiStatus(
   opts: { owner: string; repo: string; ref: string },
 ): Promise<{ configured: boolean; state: string; summary: string }> {
   const { owner, repo, ref } = opts;
-  const [status, checks] = await Promise.all([
-    octokit.rest.repos.getCombinedStatusForRef({ owner, repo, ref }).catch(() => null),
-    octokit.rest.checks.listForRef({ owner, repo, ref, per_page: 30 }).catch(() => null),
+  const [status, checkRuns] = await Promise.all([
+    octokit.rest.repos.getCombinedStatusForRef({ owner, repo, ref }).catch((e) => {
+      if ((e as { status?: number })?.status === 404) return null;
+      throw e;
+    }),
+    (async () => {
+      try {
+        const all: Awaited<
+          ReturnType<InstallationOctokit["rest"]["checks"]["listForRef"]>
+        >["data"]["check_runs"] = [];
+        let page = 1;
+        for (;;) {
+          const res = await octokit.rest.checks.listForRef({ owner, repo, ref, per_page: 100, page });
+          const batch = res.data.check_runs ?? [];
+          all.push(...batch);
+          if (batch.length < 100) break;
+          page += 1;
+        }
+        return all;
+      } catch (e) {
+        if ((e as { status?: number })?.status === 404) return null;
+        throw e;
+      }
+    })(),
   ]);
-  const runs = checks?.data.check_runs ?? [];
-  const contexts = status?.data.statuses ?? [];
+  if (!status || !checkRuns) {
+    if (!status && !checkRuns) {
+      return { configured: false, state: "none", summary: "No CI is configured on this repository." };
+    }
+    throw new Error("Failed to fetch CI status: incomplete CI data");
+  }
+  const runs = checkRuns;
+  const contexts = status.data.statuses ?? [];
   if (runs.length === 0 && contexts.length === 0) {
     return { configured: false, state: "none", summary: "No CI is configured on this repository." };
   }

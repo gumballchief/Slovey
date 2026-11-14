@@ -1,6 +1,7 @@
 import { loadDbUrl } from "@company-brain/config";
 import PgBoss from "pg-boss";
 import { logger } from "../logger";
+import { JOBS } from "./jobs";
 import type { JobName, JobPayloads } from "./jobs";
 
 let _boss: PgBoss | null = null;
@@ -21,11 +22,22 @@ export async function getBoss(): Promise<PgBoss> {
   // pool — up to 20 connections, each with buffers. Cap it (PGBOSS_MAX) so the
   // 512MB worker doesn't blow its memory budget on idle connections.
   const max = Number(process.env.PGBOSS_MAX) || 10;
-  const boss = new PgBoss({ connectionString: dbUrl.toString(), ssl: { rejectUnauthorized: false }, max });
+  // If the Supabase CA bundle is provided (SUPABASE_CA, PEM text), verify the
+  // server for real; without it, keep the encrypted-but-unverified connection
+  // that production relies on today.
+  const ca = process.env.SUPABASE_CA;
+  const boss = new PgBoss({
+    connectionString: dbUrl.toString(),
+    ssl: ca ? { rejectUnauthorized: true, ca } : { rejectUnauthorized: false },
+    max,
+  });
   boss.on("error", (e) => logger.error("pg-boss error", { err: e }));
   _started = boss.start().then(() => {
     _boss = boss;
     return boss;
+  }).catch((err) => {
+    _started = null;
+    throw err;
   });
   return _started;
 }
@@ -42,6 +54,15 @@ const DEFAULT_SEND_OPTIONS: PgBoss.SendOptions = {
   retentionMinutes: 60 * 24,
 };
 
+/** Long-running extraction jobs outlive the 10-minute default expiry. */
+const LONG_EXPIRE_IN_SECONDS = 3600;
+
+const LONG_RUNNING_JOBS: ReadonlySet<JobName> = new Set([
+  JOBS.extract,
+  JOBS.refreshMemory,
+  JOBS.rescanPrs,
+]);
+
 /** Type-safe enqueue. Called from the webhook route handler. */
 export async function enqueue<N extends JobName>(
   name: N,
@@ -49,10 +70,20 @@ export async function enqueue<N extends JobName>(
   options?: PgBoss.SendOptions,
 ): Promise<string | null> {
   const boss = await getBoss();
-  return boss.send(name, data as object, { ...DEFAULT_SEND_OPTIONS, ...options });
+  const base = LONG_RUNNING_JOBS.has(name)
+    ? { ...DEFAULT_SEND_OPTIONS, expireInSeconds: LONG_EXPIRE_IN_SECONDS }
+    : DEFAULT_SEND_OPTIONS;
+  return boss.send(name, data as object, { ...base, ...options });
 }
 
 export async function stopBoss() {
+  if (_started) {
+    try {
+      await _started;
+    } catch {
+      // start failed; _started was already cleared by getBoss
+    }
+  }
   if (_boss) {
     await _boss.stop({ graceful: true });
     _boss = null;

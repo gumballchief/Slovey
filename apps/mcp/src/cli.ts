@@ -77,6 +77,13 @@ exit 0
 `;
   for (const [name, args] of [["pre-commit", "--mode commit"], ["pre-push", "--mode push"]] as const) {
     const p = resolve(dir, name);
+    if (existsSync(p)) {
+      const existing = readFileSync(p, "utf8");
+      if (!existing.includes(HOOK_MARKER) && !existing.includes(LEGACY_HOOK_MARKER)) {
+        console.error(`skipped ${name}: existing hook not installed by Slovey \u2014 merge manually (see ${p})`);
+        continue;
+      }
+    }
     writeFileSync(p, hook(args), { mode: 0o755 });
     try {
       chmodSync(p, 0o755);
@@ -122,6 +129,23 @@ const STATUS_MARK: Record<string, string> = {
   fail: "FAIL ✗",
 };
 
+export function isInteractiveHuman(): boolean {
+  if (process.env.SLOVEY_AGENT === "1" || process.env.SLOVEY_AGENT === "true") return false;
+  if (process.env.CI === "1" || process.env.CI === "true") return false;
+  return Boolean(process.stdin.isTTY && process.stdout.isTTY);
+}
+
+export function stripOverrideHint(text: string): string {
+  return text
+    .split("\n")
+    .filter((line) => !line.includes("preflight override"))
+    .join("\n");
+}
+
+export function stripOverrideSteps(steps: string[]): string[] {
+  return steps.filter((s) => !s.includes("preflight override"));
+}
+
 function printHuman(r: PreflightResult): void {
   // buildSummary no longer embeds the status — the mark below is the only place it renders.
   const mark = STATUS_MARK[r.status] ?? "FAIL ✗";
@@ -155,7 +179,10 @@ function printHuman(r: PreflightResult): void {
   // An unverified run is the common first-run outcome in a repo with no lint/typecheck
   // script. Say plainly that nothing is wrong with the code and how to make it runnable —
   // otherwise it reads as "this tool is broken".
-  if (r.status === "unverified") {
+  // A rejected token is its own case: the warning above already says what to do,
+  // and the "missing scripts" advice below would send them the wrong way.
+  const tokenRejected = r.checks.some((c) => c.name === "decision-check" && c.status === "error" && c.blocking);
+  if (r.status === "unverified" && !tokenRejected) {
     const skipped = r.checks.filter((c) => c.blocking && c.status === "skipped");
     console.log("\nNothing failed — but these required checks could not run, so this change is unverified:");
     for (const c of skipped) console.log(`  ⚠ ${c.name.padEnd(19)} ${c.skippedReason ?? "no reason recorded"}`);
@@ -165,12 +192,14 @@ function printHuman(r: PreflightResult): void {
     console.log("  • set allowSkippedChecks: true in the config to run without them on purpose");
   }
 
-  // Surface the human's override fast-lane in the human-readable output too.
+  // Surface the human's override fast-lane in the human-readable output too —
+  // only on an interactive human terminal so piped/agent-captured output never
+  // advertises the human-only override command.
   const overrideStep = r.nextSteps.find((s) => s.includes("preflight override"));
-  if (overrideStep) console.log(`\n→ ${overrideStep}`);
+  if (overrideStep && isInteractiveHuman()) console.log(`\n→ ${overrideStep}`);
   // agentInstruction is addressed to an agent; a human reading an unverified run already
   // got the plain-English version above.
-  if (r.status !== "unverified") console.log(`\n${r.agentInstruction}\n`);
+  if (r.status !== "unverified") console.log(`\n${stripOverrideHint(r.agentInstruction)}\n`);
   else console.log("");
 }
 
@@ -180,13 +209,13 @@ function printAgent(r: PreflightResult): void {
       {
         safeToCommit: r.safeToCommit,
         safeToPush: r.safeToPush,
-        agentInstruction: r.agentInstruction,
+        agentInstruction: stripOverrideHint(r.agentInstruction),
         humanReviewRequired: r.humanReviewRequired,
         attempt: r.attempt,
         fixInstructions: r.fixInstructions,
         decisionViolations: r.decisionViolations,
         warnings: r.warnings,
-        nextSteps: r.nextSteps,
+        nextSteps: stripOverrideSteps(r.nextSteps),
       },
       null,
       2,
@@ -208,7 +237,7 @@ async function showStatus(cwd: string): Promise<void> {
   console.log(`latest run: ${run.status.toUpperCase()} (mode: ${run.mode}) · ${run.summary}`);
   console.log(`safe to commit: ${run.safeToCommit} · safe to push: ${run.safeToPush} · attempt ${run.attempt}/${run.maxAttempts}${run.humanReviewRequired ? " · HUMAN REVIEW REQUIRED" : ""}`);
   console.log(`branch: ${run.branch ?? "—"} · ${new Date(run.createdAt as unknown as string).toLocaleString()}`);
-  console.log(`\n${run.agentInstruction}`);
+  console.log(`\n${stripOverrideHint(run.agentInstruction)}`);
 }
 
 /** HUMAN-ONLY: record an attributed, time-boxed override for a blocking decision. */
@@ -221,6 +250,12 @@ async function recordOverride(cwd: string, args: string[]): Promise<void> {
   const reason = flag("--reason");
   if (!decisionId || decisionId.startsWith("--") || !reason) {
     console.error('Usage: slovey preflight override <decisionId> --reason "<why>" [--hours 168] [--branch <b>]');
+    process.exitCode = 1;
+    return;
+  }
+  // Agents run commands without a terminal attached; a person typing has one.
+  if (!isInteractiveHuman()) {
+    console.error("Refusing override: run this yourself in a terminal (agents must not run it).");
     process.exitCode = 1;
     return;
   }
@@ -246,7 +281,8 @@ async function recordOverride(cwd: string, args: string[]): Promise<void> {
     reason,
     grantedBy,
     branch,
-    hours: Number.isFinite(hours) ? hours : 168,
+    // Time-boxed: at most one week, whatever --hours says.
+    hours: Number.isFinite(hours) && hours > 0 ? Math.min(hours, 168) : 168,
   });
   console.log(`override recorded by ${grantedBy}`);
   console.log(`  decision: ${r.decisionId.slice(0, 8)} — ${r.decision.slice(0, 90)}…`);
@@ -371,8 +407,13 @@ async function doctor(cwd: string): Promise<void> {
   await closeDb();
 }
 
+export function stripPreflightArgv(argv: string[]): string[] {
+  if (argv[0] === "preflight") argv.shift(); // allow "slovey preflight ..."
+  return argv;
+}
+
 async function main() {
-  const argv = process.argv.slice(2).filter((a) => a !== "preflight"); // allow "slovey preflight ..."
+  const argv = stripPreflightArgv(process.argv.slice(2));
   if (argv.includes("--help") || argv.includes("-h")) {
     console.log(HELP);
     return;
@@ -440,27 +481,12 @@ async function main() {
     if (wantsKnowledge) {
       try {
         const remote = await preflight.fetchRemoteKnowledge(apiCfg, preflight.collectChangePayload(cwd));
-        r = preflight.mergeRemote(local, remote);
+        const { config: gate } = preflight.loadPreflightConfig(cwd);
+        r = preflight.mergeRemote(local, remote, gate);
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        // Fail OPEN on transient hosted downtime — our uptime must not block a
-        // developer's commit. Downgrade the now-unverifiable decision-check from a
-        // blocking skip to non-blocking, keep a loud warning, and recompute the
-        // verdict from the checks we could actually run. The GitHub App re-checks
-        // the decision graph server-side at PR time as the backstop.
-        const checks = local.checks.map((c) =>
-          c.name === "decision-check" && c.status === "skipped" ? { ...c, blocking: false } : c,
-        );
-        const blocked = checks.some((c) => c.blocking && c.status === "fail");
-        const anyFail = checks.some((c) => c.status === "fail");
-        r = {
-          ...local,
-          checks,
-          safeToCommit: !blocked,
-          safeToPush: !blocked,
-          status: preflight.resolveStatus({ checks, blocked, anyFailure: anyFail, blockingViolations: 0 }),
-          warnings: [...local.warnings, `Slovey hosted checks unavailable (${msg.slice(0, 90)}) — ran local checks only; the decision graph was NOT verified (it will be re-checked on your PR).`],
-        };
+        // Downtime fails open (with a loud warning); a rejected token fails
+        // closed. See localOnlyResult for why.
+        r = preflight.localOnlyResult(local, e);
       }
     } else {
       r = local;
@@ -470,7 +496,7 @@ async function main() {
     r = await preflight.runPreflight({ cwd, repoId, mode, checkOnly, maxAttempts });
   }
 
-  if (argv.includes("--json")) console.log(JSON.stringify(r, null, 2));
+  if (argv.includes("--json")) console.log(JSON.stringify({ ...r, agentInstruction: stripOverrideHint(r.agentInstruction), nextSteps: stripOverrideSteps(r.nextSteps) }, null, 2));
   else if (argv.includes("--fix-agent")) printAgent(r);
   else printHuman(r);
 
@@ -481,8 +507,10 @@ async function main() {
   await closeDb();
 }
 
-main().catch(async (e) => {
-  console.error(`preflight failed: ${e instanceof Error ? e.message : String(e)}`);
-  process.exitCode = 1;
-  await closeDb().catch(() => {});
-});
+if (!process.env.VITEST) {
+  main().catch(async (e) => {
+    console.error(`preflight failed: ${e instanceof Error ? e.message : String(e)}`);
+    process.exitCode = 1;
+    await closeDb().catch(() => {});
+  });
+}

@@ -1,6 +1,6 @@
 import { enqueue, JOBS, saveConnector, isConnectorType, logAudit } from "@company-brain/core";
 import { assertRepoWrite, requireViewer } from "@/lib/server/auth";
-import { HttpError, handle, ok } from "@/lib/server/respond";
+import { HttpError, handle, ok, readJsonBody } from "@/lib/server/respond";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,10 +22,10 @@ export async function POST(
     if (!isConnectorType(type)) {
       throw new HttpError(400, `${type} can't be connected yet`);
     }
-    const body = (await req.json().catch(() => ({}))) as {
+    const body = await readJsonBody<{
       token?: string;
       config?: { channels?: string[]; baseUrl?: string; email?: string; limit?: number };
-    };
+    }>(req);
     if (!body.token?.trim()) throw new HttpError(400, "token is required");
 
     const saved = await saveConnector(id, type, body.token, body.config);
