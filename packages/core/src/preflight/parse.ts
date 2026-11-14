@@ -5,7 +5,8 @@ const TSC = /^(.+?)\((\d+),(\d+)\):\s+error\s+(TS\d+):\s+(.+)$/;
 /** eslint compact: "/abs/x.ts: line 3, col 1, Error - msg (rule)" */
 const ESLINT_COMPACT = /^(.+?):\s+line\s+(\d+),\s+col\s+(\d+),\s+(?:Error|Warning)\s+-\s+(.+?)(?:\s+\((.+?)\))?$/;
 /** eslint stylish error line: "  3:1  error  msg  rule" (file printed on its own line above) */
-const ESLINT_STYLISH_FILE = /^(?:\/|[A-Za-z]:\\|\.{0,2}\/).*\.[jt]sx?$/;
+/** absolute (POSIX or Windows), ./ or ../, or repo-relative (src/x.ts, x.ts); spaces allowed after the first segment. */
+const ESLINT_STYLISH_FILE = /^(?:(?:\/|[A-Za-z]:[\\/]|\.{0,2}[\\/]|[\w@-][\w.@-]*[\\/]).*|[\w@-][\w.@-]*)\.[jt]sx?$/;
 const ESLINT_STYLISH_ROW = /^\s+(\d+):(\d+)\s+(?:error|warning)\s+(.+?)\s{2,}([\w-/@]+)?\s*$/;
 /** vitest/jest failed test: "FAIL  test/x.test.ts > suite > name" or "● suite › name" */
 const VITEST_FAIL = /FAIL\s+(\S+\.(?:test|spec)\.[cm]?[jt]sx?)(?:\s*>\s*(.+))?$/;

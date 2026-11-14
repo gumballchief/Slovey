@@ -1,4 +1,4 @@
-import { dashboard, decisionApi, resolveRepoById, verifyApiToken, getUserGithubId } from "@company-brain/core";
+import { dashboard, decisionApi, resolveRepoById, verifyApiToken, getUserGithubIdentity, isRepoOwnerByIdentity } from "@company-brain/core";
 import { HttpError, handle, ok, readJsonBody } from "@/lib/server/respond";
 import { clientIp, rateLimit } from "@/lib/server/ratelimit";
 
@@ -108,11 +108,8 @@ export async function POST(req_: Request): Promise<Response> {
     // "revoked" whenever their membership row was missing (Google-only sign-in,
     // install-before-signup, or a pruned membership). Non-owners still go through
     // org membership, which is refreshed + pruned at each GitHub sign-in.
-    const callerGithubId = await getUserGithubId(verified.userId);
-    const isOwner =
-      repo.ownerGithubId != null &&
-      callerGithubId != null &&
-      repo.ownerGithubId === callerGithubId;
+    const caller = await getUserGithubIdentity(verified.userId);
+    const isOwner = isRepoOwnerByIdentity(repo, caller);
     if (!isOwner) {
       if (!repo.orgId) {
         throw new HttpError(403, "Your access to this repository has been revoked.");

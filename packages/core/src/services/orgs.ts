@@ -55,6 +55,35 @@ export async function getUserGithubId(userId: string): Promise<number | null> {
   return u?.githubId ?? null;
 }
 
+/**
+ * The caller's verified GitHub id + login. Users rows are only written from the
+ * verified GitHub identity at sign-in, so the login is a real GitHub handle
+ * (never an email-derived one).
+ */
+export async function getUserGithubIdentity(userId: string): Promise<{ githubId: number; login: string } | null> {
+  const db = getDb();
+  const [u] = await db
+    .select({ githubId: users.githubId, login: users.login })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  return u ?? null;
+}
+
+/**
+ * Repo-owner check for API-token callers, mirroring resolveAccess in the web
+ * layer: match the immutable owner id when the row has it; rows synced before
+ * owner_github_id existed fall back to a login match for a GitHub identity.
+ */
+export function isRepoOwnerByIdentity(
+  repo: { owner: string; ownerGithubId: number | null },
+  caller: { githubId: number; login: string } | null,
+): boolean {
+  if (!caller) return false;
+  if (repo.ownerGithubId != null) return repo.ownerGithubId === caller.githubId;
+  return repo.owner.toLowerCase() === caller.login.toLowerCase();
+}
+
 /** The viewer's role in an org, or null if they're not a member. */
 export async function userOrgRole(userId: string, orgId: string): Promise<Role | null> {
   const db = getDb();

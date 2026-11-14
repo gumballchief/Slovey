@@ -6,7 +6,6 @@ import {
   commitFilesToBranch,
   commitFilesToNewBranch,
   getCiStatus,
-  getFileContent,
   openPullRequest,
   type FileChange,
 } from "../github/write";
@@ -57,8 +56,52 @@ interface PlanFile {
 const MAX_FILES = 3;
 const MAX_REVISE_ROUNDS = 2;
 
+/** Existing files larger than this cannot be safely rewritten via full-file output (maxTokens 4000). */
+export const MAX_EXISTING_FILE_CHARS = 12000;
+/** Generated replacement shorter than this fraction of a non-trivial original is treated as truncated. */
+export const MIN_REPLACEMENT_RATIO = 0.7;
+
+export function isLargeExistingFile(content: string | null): boolean {
+  return content !== null && content.length > MAX_EXISTING_FILE_CHARS;
+}
+
+export function isTruncatedReplacement(original: string | null, replacement: string): boolean {
+  if (original === null) return false;
+  if (original.length <= 2000) return false;
+  return replacement.length < original.length * MIN_REPLACEMENT_RATIO;
+}
+
+/** Slice current file content to the prompt budget, even if a caller bypasses the large-file refusal. */
+export function capCurrentForPrompt(content: string): string {
+  return content.slice(0, MAX_EXISTING_FILE_CHARS);
+}
+
 // Never let the agent touch CI, secrets, deps, or migrations.
 export const PROTECTED_PATH = /(^|\/)(\.github\/(workflows|actions)[^\/]*|node_modules|migrations?|Jenkinsfile[^\/]*|\.gitlab-ci[^\/]*|\.circleci|\.buildkite|azure-pipelines[^\/]*|\.travis[^\/]*|bitbucket-pipelines[^\/]*|appveyor[^\/]*|\.?drone\.yml|\.cirrus\.yml)(\/|$)|(^|\/)\.env[^\s\/]*($|\/)|(^|\/)(package\.json|yarn\.lock)$|package-lock|pnpm-lock/i;
+
+export type AgentTargetKind = "text" | "binary" | "directory" | "submodule";
+
+/**
+ * Classify a repos.getContent payload so a missing file (404, handled by the
+ * caller) is never confused with an existing directory, submodule, or binary
+ * blob. File blobs decode as base64; NUL bytes mark binary assets.
+ */
+export function classifyContentData(data: unknown): AgentTargetKind {
+  if (Array.isArray(data)) return "directory";
+  if (typeof data !== "object" || data === null) return "binary";
+  const entry = data as { type?: string; encoding?: string; content?: string };
+  if (entry.type === "dir") return "directory";
+  if (entry.type === "submodule") return "submodule";
+  if (entry.type && entry.type !== "file") return "binary";
+  if (entry.encoding !== "base64" || typeof entry.content !== "string") return "binary";
+  try {
+    const buf = Buffer.from(entry.content, "base64");
+    if (buf.includes(0)) return "binary";
+    return "text";
+  } catch {
+    return "binary";
+  }
+}
 
 function stripFence(s: string): string {
   const t = s.trim();
@@ -179,12 +222,35 @@ Choose the SMALLEST set of files (1 to ${MAX_FILES}) to create or modify. Prefer
   const octokit = await getInstallationOctokit(installationId);
   const currentContents = new Map<string, string | null>();
   for (const f of plan) {
-    currentContents.set(f.path, f.isNew ? null : await getFileContent(octokit, { owner, repo: name }, f.path, defaultBranch));
+    let data: unknown;
+    try {
+      const res = await octokit.rest.repos.getContent({ owner, repo: name, path: f.path, ref: defaultBranch });
+      data = res.data;
+    } catch (e) {
+      if ((e as { status?: number })?.status === 404) {
+        currentContents.set(f.path, null);
+        continue;
+      }
+      throw e;
+    }
+    const kind = classifyContentData(data);
+    if (kind !== "text") {
+      throw new Error(`agent: refusing to overwrite ${kind} target: ${f.path}`);
+    }
+    const entry = data as { content: string };
+    const decoded = Buffer.from(entry.content, "base64").toString("utf8");
+    if (isLargeExistingFile(decoded)) {
+      throw new Error(`agent: refusing to rewrite large existing file: ${f.path} (${decoded.length} chars exceeds ${MAX_EXISTING_FILE_CHARS} char budget)`);
+    }
+    currentContents.set(f.path, decoded);
   }
 
   // 2. CODE — generate each file, feeding the siblings for coherence.
   const generate = async (target: PlanFile, generated: FileChange[], feedback?: string): Promise<string> => {
     const current = currentContents.get(target.path) ?? null;
+    if (isLargeExistingFile(current)) {
+      throw new Error(`agent: refusing to rewrite large existing file: ${target.path} (${current!.length} chars exceeds ${MAX_EXISTING_FILE_CHARS} char budget)`);
+    }
     const raw = await getAI().complete(
       `You are a senior engineer writing production code for "${fullName}".
 
@@ -196,13 +262,16 @@ ${architecture}
 
 Task: ${intent}
 
-Target file: ${target.path} — ${target.reason}${current !== null ? `\n\nCurrent contents:\n${current}` : "\n\n(this is a new file)"}${otherFilesBlock(generated, target.path)}${feedback ? `\n\nYour previous draft was rejected. You MUST resolve every one of these problems:\n${feedback}` : ""}
+Target file: ${target.path} — ${target.reason}${current !== null ? `\n\nCurrent contents:\n${capCurrentForPrompt(current)}` : "\n\n(this is a new file)"}${otherFilesBlock(generated, target.path)}${feedback ? `\n\nYour previous draft was rejected. You MUST resolve every one of these problems:\n${feedback}` : ""}
 
 Output the COMPLETE new contents of ${target.path} and NOTHING else — no prose, no markdown code fences.`,
       { tier: "premium", maxTokens: 4000, temperature: 0.2 },
     );
     const contents = stripFence(raw);
     if (!contents.trim()) throw new Error(`agent: code generation returned empty output for ${target.path}`);
+    if (isTruncatedReplacement(current, contents)) {
+      throw new Error(`agent: refusing truncated rewrite for ${target.path} (generated ${contents.length} chars vs original ${current!.length} chars)`);
+    }
     return contents;
   };
 

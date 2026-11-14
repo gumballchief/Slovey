@@ -1,6 +1,7 @@
 import { loadDbUrl } from "@company-brain/config";
 import PgBoss from "pg-boss";
 import { logger } from "../logger";
+import { JOBS } from "./jobs";
 import type { JobName, JobPayloads } from "./jobs";
 
 let _boss: PgBoss | null = null;
@@ -53,6 +54,15 @@ const DEFAULT_SEND_OPTIONS: PgBoss.SendOptions = {
   retentionMinutes: 60 * 24,
 };
 
+/** Long-running extraction jobs outlive the 10-minute default expiry. */
+const LONG_EXPIRE_IN_SECONDS = 3600;
+
+const LONG_RUNNING_JOBS: ReadonlySet<JobName> = new Set([
+  JOBS.extract,
+  JOBS.refreshMemory,
+  JOBS.rescanPrs,
+]);
+
 /** Type-safe enqueue. Called from the webhook route handler. */
 export async function enqueue<N extends JobName>(
   name: N,
@@ -60,7 +70,10 @@ export async function enqueue<N extends JobName>(
   options?: PgBoss.SendOptions,
 ): Promise<string | null> {
   const boss = await getBoss();
-  return boss.send(name, data as object, { ...DEFAULT_SEND_OPTIONS, ...options });
+  const base = LONG_RUNNING_JOBS.has(name)
+    ? { ...DEFAULT_SEND_OPTIONS, expireInSeconds: LONG_EXPIRE_IN_SECONDS }
+    : DEFAULT_SEND_OPTIONS;
+  return boss.send(name, data as object, { ...base, ...options });
 }
 
 export async function stopBoss() {

@@ -1,5 +1,5 @@
 import { agentRuns, getDb, type AgentRun } from "@company-brain/db";
-import { and, desc, eq, lt } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import { logger } from "../logger";
 import { runAgentTask } from "../pipelines/agent";
 import { resolveRepoById } from "./sync";
@@ -16,6 +16,25 @@ export async function createAgentRun(input: {
     .values({ repoId: input.repoId, intent: input.intent, requestedBy: input.requestedBy ?? null })
     .returning();
   return row!;
+}
+
+/** Queued + running runs for a repo (the per-repo pending cap), counted in SQL. */
+export async function countPendingAgentRuns(repoId: string): Promise<number> {
+  const db = getDb();
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(agentRuns)
+    .where(and(eq(agentRuns.repoId, repoId), inArray(agentRuns.status, ["queued", "running"])));
+  return row?.n ?? 0;
+}
+
+/** Fail a run that never left "queued" (e.g. its job could not be enqueued) so it stops holding a pending slot. */
+export async function failQueuedAgentRun(runId: string, error: string): Promise<void> {
+  const db = getDb();
+  await db
+    .update(agentRuns)
+    .set({ status: "failed", error, updatedAt: new Date() })
+    .where(and(eq(agentRuns.id, runId), eq(agentRuns.status, "queued")));
 }
 
 export async function listAgentRuns(repoId: string, limit = 20): Promise<AgentRun[]> {

@@ -404,8 +404,13 @@ async function doctor(cwd: string): Promise<void> {
   await closeDb();
 }
 
+export function stripPreflightArgv(argv: string[]): string[] {
+  if (argv[0] === "preflight") argv.shift(); // allow "slovey preflight ..."
+  return argv;
+}
+
 async function main() {
-  const argv = process.argv.slice(2).filter((a) => a !== "preflight"); // allow "slovey preflight ..."
+  const argv = stripPreflightArgv(process.argv.slice(2));
   if (argv.includes("--help") || argv.includes("-h")) {
     console.log(HELP);
     return;
@@ -473,7 +478,8 @@ async function main() {
     if (wantsKnowledge) {
       try {
         const remote = await preflight.fetchRemoteKnowledge(apiCfg, preflight.collectChangePayload(cwd));
-        r = preflight.mergeRemote(local, remote);
+        const { config: gate } = preflight.loadPreflightConfig(cwd);
+        r = preflight.mergeRemote(local, remote, gate);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         // Fail OPEN on transient hosted downtime — our uptime must not block a

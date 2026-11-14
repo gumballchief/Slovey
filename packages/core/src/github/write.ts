@@ -74,10 +74,8 @@ async function createCommitOn(
   const baseRef = await git.getRef({ owner, repo, ref: `heads/${onBranch}` });
   const baseSha = baseRef.data.object.sha;
   const baseCommit = await git.getCommit({ owner, repo, commit_sha: baseSha });
-  const baseTree = await git
-    .getTree({ owner, repo, tree_sha: baseCommit.data.tree.sha, recursive: "true" })
-    .catch(() => null);
-  const baseModes = new Map((baseTree?.data.tree ?? []).map((e) => [e.path, e.mode]));
+  const baseTree = await git.getTree({ owner, repo, tree_sha: baseCommit.data.tree.sha, recursive: "true" });
+  const baseModes = new Map((baseTree.data.tree ?? []).map((e) => [e.path, e.mode]));
   const tree = await Promise.all(
     files.map(async (f) => {
       const blob = await git.createBlob({ owner, repo, content: f.content, encoding: "utf-8" });

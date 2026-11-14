@@ -2,6 +2,9 @@ import type { ConnectorClient, ConnectorConfig, ConnectorDoc } from "./types";
 
 const BASE = "https://slack.com/api";
 
+const MAX_LINES_PER_CHANNEL = 1000;
+const MAX_CHARS_PER_CHANNEL = 100_000;
+
 interface SlackChannel {
   id: string;
   name: string;
@@ -59,11 +62,18 @@ export class SlackConnector implements ConnectorClient {
           limit: String(perChannel),
         });
         const messages = [...(hist.messages ?? [])].reverse();
-        const lines = messages
-          .filter((m) => m.text && !m.subtype)
-          .map((m) => m.text!.trim())
-          .filter(Boolean);
+        const lines: string[] = [];
+        let charCount = 0;
+        for (const m of messages) {
+          if (!m.text || m.subtype) continue;
+          const t = m.text.trim();
+          if (!t) continue;
+          if (lines.length >= MAX_LINES_PER_CHANNEL || charCount + t.length > MAX_CHARS_PER_CHANNEL) break;
+          lines.push(t);
+          charCount += t.length + 1;
+        }
         for (const parent of messages) {
+          if (lines.length >= MAX_LINES_PER_CHANNEL || charCount >= MAX_CHARS_PER_CHANNEL) break;
           if (!parent.ts) continue;
           const isThreadParent =
             (parent.reply_count !== undefined && parent.reply_count > 0) ||
@@ -79,13 +89,18 @@ export class SlackConnector implements ConnectorClient {
               },
             );
             for (const reply of thread.messages ?? []) {
+              if (lines.length >= MAX_LINES_PER_CHANNEL || charCount >= MAX_CHARS_PER_CHANNEL) break;
               if (reply.ts === parent.ts) continue;
               if (!reply.text || reply.subtype) continue;
               const t = reply.text.trim();
-              if (t) lines.push(t);
+              if (!t) continue;
+              const bounded = t.slice(0, MAX_CHARS_PER_CHANNEL - charCount);
+              lines.push(bounded);
+              charCount += bounded.length + 1;
             }
           } catch {
-            // skip threads the bot can't read
+            // Skip a thread we can't read (scope, or Slack's per-minute rate limit on
+            // conversations.replies): failing the whole sync would lose every channel.
           }
         }
         const text = lines.join("\n");

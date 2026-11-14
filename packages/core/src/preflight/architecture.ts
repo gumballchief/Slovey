@@ -37,8 +37,10 @@ export function architectureCheckContents(
   const contentRules = rules.filter((r) => r.type !== "forbidden-path");
 
   for (const rule of pathRules) {
+    if (errors.length >= MAX_ARCHITECTURE_ERRORS) break;
     const re = globToRegex(rule.glob);
     for (const f of changedPaths) {
+      if (errors.length >= MAX_ARCHITECTURE_ERRORS) break;
       if (re.test(f)) {
         errors.push({
           file: f, code: "arch-path", category: "architecture",
@@ -49,7 +51,16 @@ export function architectureCheckContents(
   }
 
   if (contentRules.length > 0) {
+    let filesScanned = 0;
+    let charsScanned = 0;
     for (const { path, content } of files) {
+      if (errors.length >= MAX_ARCHITECTURE_ERRORS) break;
+      if (filesScanned >= MAX_CONTENTS_FILES) break;
+      // Mirror readChanged: skip oversized or binary-ish files before split/lineStarts.
+      if (content.length > 512_000 || content.includes("\u0000")) continue;
+      if (charsScanned + content.length > MAX_CONTENTS_TOTAL_CHARS) break;
+      filesScanned++;
+      charsScanned += content.length;
       // Content rules without an explicit `in` scope apply to CODE files only —
       // keyword rules matching prose (notes, tweets.json, docs) is pure noise.
       // An explicit `in` glob overrides this and scopes exactly as written.
@@ -64,6 +75,7 @@ export function architectureCheckContents(
         if (scanned[i] === "\n") lineStarts.push(i + 1);
       }
       for (const rule of contentRules) {
+        if (errors.length >= MAX_ARCHITECTURE_ERRORS) break;
         if (rule.in && !globToRegex(rule.in).test(path)) continue;
         if (!rule.in && !CODE_FILE.test(path)) continue;
         const re =
@@ -75,7 +87,7 @@ export function architectureCheckContents(
         const greedy = new RegExp(re.source, flags);
         let seen = 0;
         for (const m of scanned.matchAll(greedy)) {
-          if (seen >= MAX_CONTENT_MATCHES_PER_RULE_FILE) break;
+          if (seen >= MAX_CONTENT_MATCHES_PER_RULE_FILE || errors.length >= MAX_ARCHITECTURE_ERRORS) break;
           seen++;
           if (!m[0]) continue;
           const line = lineNumberAt(lineStarts, m.index ?? 0);
@@ -194,6 +206,12 @@ function escapeRegex(s: string): string {
 
 /** Max reported matches per content rule per file — bounds per-request CPU and errors. */
 const MAX_CONTENT_MATCHES_PER_RULE_FILE = 100;
+
+/** Global caps for the Contents variant: many files x many rules must not
+ *  produce unbounded errors, memory, or response payloads. */
+const MAX_ARCHITECTURE_ERRORS = 500;
+const MAX_CONTENTS_FILES = 200;
+const MAX_CONTENTS_TOTAL_CHARS = 5_000_000;
 
 /** 1-based line number for an offset via binary search over line-start offsets. */
 function lineNumberAt(lineStarts: number[], index: number): number {

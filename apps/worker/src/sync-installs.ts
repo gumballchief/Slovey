@@ -6,14 +6,17 @@ import { closeDb } from "@company-brain/db";
 async function main() {
   loadEnv();
   const app = getApp();
-  const { data } = await app.octokit.request("GET /app/installations", { per_page: 100 });
-  if (data.length === 0) {
-    console.log("No installations found. Install the app on gumballchief/pr-bot-test first.");
-  }
-  for (const inst of data) {
-    const acct = (inst.account as { login?: string } | null)?.login ?? "?";
-    console.log(`Syncing installation ${inst.id} (${acct})…`);
-    await syncInstallation(inst.id);
+  for (let page = 1; ; page++) {
+    const { data } = await app.octokit.request("GET /app/installations", { per_page: 100, page });
+    if (page === 1 && data.length === 0) {
+      console.log("No installations found. Install the app on gumballchief/pr-bot-test first.");
+    }
+    for (const inst of data) {
+      const acct = (inst.account as { login?: string } | null)?.login ?? "?";
+      console.log(`Syncing installation ${inst.id} (${acct})…`);
+      await syncInstallation(inst.id);
+    }
+    if (data.length < 100) break;
   }
   console.log("Done.");
   await closeDb();

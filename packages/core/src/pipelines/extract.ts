@@ -95,12 +95,14 @@ export async function runExtract(params: ExtractParams): Promise<ExtractResult> 
 
   // 2. Extract decisions in batches (cheap model).
   const raw: ExtractedDecision[] = [];
+  let batchSucceeded = 0;
   for (const batch of chunk(prs, PR_BATCH)) {
     const res = await ai.completeJSON<ExtractedDecision[]>(
       extractPrompt(buildPrBatchText(batch)),
       { tier: "cheap", maxTokens: 4000 },
     );
     if (Array.isArray(res)) {
+      batchSucceeded += 1;
       // Keep only citations of PRs that were really in this batch, so text inside a PR
       // cannot plant a decision that cites some other PR.
       // Closed-unmerged (rejected) PRs are valid evidence too: a rejection is a decision.
@@ -108,6 +110,21 @@ export async function runExtract(params: ExtractParams): Promise<ExtractResult> 
       const cleaned = res.filter((d) => d && typeof d === "object").map((d) => ({ ...d, evidence: normalizeEvidence(d.evidence) }));
       raw.push(...filterExtractedDecisionsToBatch(cleaned, realIds));
     }
+  }
+
+  // LLM extraction failed for every batch (e.g. timeout / malformed JSON):
+  // signal it so callers don't mistake it for a repo with no decisions.
+  if (prs.length > 0 && batchSucceeded === 0) {
+    return {
+      prsFetched: prs.length,
+      extracted: 0,
+      droppedEmptyEvidence: 0,
+      consolidated: 0,
+      docDecisions: 0,
+      inserted: 0,
+      updated: 0,
+      aborted: "extraction-failed",
+    };
   }
 
   // 3. Guardrail: drop any decision without evidence (never invent).

@@ -287,6 +287,19 @@ export function isGitTreeTruncated(
 /** Maximum package.json blob size to fetch/decode (1 MiB). Larger manifests are skipped. */
 export const MAX_MANIFEST_BYTES = 1_048_576;
 
+/**
+ * True when manifests could not be loaded at all (e.g. transient blob fetch /
+ * parse failures) even though package.json files exist. Persisting the derived
+ * empty frameworks/dependency graph would overwrite the prior correct snapshot,
+ * so callers must skip the delete+insert like the truncated-tree case.
+ */
+export function shouldSkipManifestUpsert(
+  manifests: PackageManifest[],
+  manifestPaths: string[],
+): boolean {
+  return manifests.length === 0 && manifestPaths.length > 0;
+}
+
 export async function runIndexRepo(params: {
   repoId: string;
   installationId: number;
@@ -328,6 +341,7 @@ export async function runIndexRepo(params: {
     .filter((p) => p.endsWith("package.json") && !p.includes("node_modules"))
     .slice(0, 25);
   const manifests: PackageManifest[] = [];
+  let manifestFetchErrors = 0;
   for (const mp of manifestPaths) {
     const node = blobs.find((b) => b.path === mp);
     if (!node?.sha) continue;
@@ -350,6 +364,7 @@ export async function runIndexRepo(params: {
         devDependencies: json.devDependencies ?? {},
       });
     } catch {
+      manifestFetchErrors++;
       /* skip unparseable */
     }
   }
@@ -431,6 +446,14 @@ export async function runIndexRepo(params: {
   if (truncated) {
     logger.child({ component: "index-repo" }).warn("skipping knowledge upsert on truncated tree", {
       repo: `${params.owner}/${params.name}`,
+    });
+    return { architecture, dependencyGraph, conventions: { inserted: 0, updated: 0 } };
+  }
+  if (shouldSkipManifestUpsert(manifests, manifestPaths)) {
+    logger.child({ component: "index-repo" }).warn("skipping knowledge upsert: all manifests failed to load", {
+      repo: `${params.owner}/${params.name}`,
+      manifestPaths: manifestPaths.length,
+      manifestFetchErrors,
     });
     return { architecture, dependencyGraph, conventions: { inserted: 0, updated: 0 } };
   }

@@ -34,7 +34,17 @@ export class GeminiEmbeddingProvider implements EmbeddingProvider {
         throw new Error(`Gemini embeddings ${res.status}: ${await res.text()}`);
       }
       const data = (await res.json()) as { embeddings: Array<{ values: number[] }> };
-      for (const e of data.embeddings) out.push(e.values);
+      if (!Array.isArray(data.embeddings) || data.embeddings.length !== chunk.length) {
+        throw new Error(
+          `Gemini embeddings returned ${data.embeddings?.length ?? 0} embeddings for ${chunk.length} texts`,
+        );
+      }
+      for (const e of data.embeddings) {
+        if (!e || !Array.isArray(e.values) || e.values.length === 0) {
+          throw new Error("Gemini embeddings returned an entry without values");
+        }
+        out.push(e.values);
+      }
     }
     return out;
   }

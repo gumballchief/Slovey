@@ -16,6 +16,9 @@ import type { EngineeringPlan, PlanStep } from "./types";
  * API and rejected knowledge. The LLM is the final step and only writes prose
  * over evidence the graph already supplied — it never invents company facts.
  */
+/** Matches CanI's silence threshold: farther rejected rows are not precedent. */
+const REJECTED_PRECEDENT_MAX_DISTANCE = 0.6;
+
 export async function plan(repoId: string, request: string): Promise<EngineeringPlan> {
   const reasoning: string[] = [];
   const { intent, matched } = classifyIntent(request);
@@ -34,10 +37,16 @@ export async function plan(repoId: string, request: string): Promise<Engineering
   ]);
 
   const constraints = ctx?.constraints ?? [];
-  // Only treat rejected rows as "precedent" when CanI also matched something
-  // semantically close, or the row clearly relates — getRejectedKnowledge already
-  // ranks by similarity, so the top rows are the relevant ones.
-  const rejectedPrecedent = rejected.slice(0, 3);
+  // getRejectedKnowledge ranks by embedding distance with no threshold, so the
+  // nearest rows may still be unrelated. Only treat rows within the distance
+  // gate as precedent (rows without a distance, e.g. unranked listings, pass).
+  const rejectedPrecedent = rejected
+    .filter((r) => {
+      if (r.distance == null) return true;
+      const d = Number(r.distance);
+      return !Number.isFinite(d) || d <= REJECTED_PRECEDENT_MAX_DISTANCE;
+    })
+    .slice(0, 3);
   reasoning.push(
     `Evidence: ${constraints.length} active constraint(s), CanI verdict=${verdictRes.verdict}, ${rejectedPrecedent.length} rejected precedent(s).`,
   );
@@ -179,16 +188,18 @@ Respond ONLY with JSON: {"summary":"<2-3 sentence executive summary>","steps":[{
     confidence: string;
   }>(prompt, { tier: "premium", maxTokens: 700 });
 
-  if (!res?.summary || !Array.isArray(res.steps) || res.steps.length === 0) return null;
+  if (!res?.summary || !Array.isArray(res.steps)) return null;
   const confidence: AnswerConfidence =
     res.confidence === "high" || res.confidence === "medium" || res.confidence === "low"
       ? res.confidence
       : "medium";
+  const steps: PlanStep[] = res.steps
+    .filter((s) => s?.title && s?.detail)
+    .map((s) => ({ title: String(s.title), detail: String(s.detail) }));
+  if (steps.length === 0) return null;
   return {
     summary: res.summary,
-    steps: res.steps
-      .filter((s) => s?.title && s?.detail)
-      .map((s) => ({ title: String(s.title), detail: String(s.detail) })),
+    steps,
     confidence,
   };
 }

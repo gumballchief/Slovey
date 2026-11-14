@@ -162,12 +162,14 @@ export function isCheckInsertWinner(
 /**
  * Whether the PR head moved while the judge was running. Bot comments are
  * per-PR (not per-SHA), so a stale run must not touch the comment.
+ * An unverifiable (missing) current head fails closed: it cannot be
+ * confirmed to match the judged head, so treat it as changed and skip.
  */
 export function hasHeadChanged(
   originalHeadSha: string,
   currentHeadSha: string | null | undefined,
 ): boolean {
-  if (!currentHeadSha) return false;
+  if (!currentHeadSha) return true;
   return originalHeadSha !== currentHeadSha;
 }
 
@@ -354,7 +356,7 @@ export async function checkPr(params: CheckPrParams): Promise<CheckPrResult> {
       return { verdict: "skipped", posted: false, reason: "head-changed" };
     }
   } catch {
-    // Re-verify is best-effort; if GitHub is unreachable, proceed with this run.
+    return { verdict: "skipped", posted: false, reason: "head-recheck-failed" };
   }
 
   // Surface the result. comment mode posts a single cited comment, only on a

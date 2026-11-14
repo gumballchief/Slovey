@@ -87,7 +87,17 @@ const KNOWLEDGE_CHECKS = new Set(["decision-check", "security-review"]);
  * decision-check, security-review, and architecture rules derived from rejected
  * decisions (folded into the local architecture-check).
  */
-export function mergeRemote(local: PreflightResult, remote: PreflightResult): PreflightResult {
+export interface MergeGate {
+  allowSkippedChecks: boolean;
+  blockCommitOnFailure: boolean;
+  blockPushOnFailure: boolean;
+}
+
+export function mergeRemote(
+  local: PreflightResult,
+  remote: PreflightResult,
+  gate: MergeGate = { allowSkippedChecks: false, blockCommitOnFailure: true, blockPushOnFailure: true },
+): PreflightResult {
   const remoteByName = (n: string) => remote.checks.find((c) => c.name === n);
 
   // Base = local checks minus the knowledge ones (they were skipped locally).
@@ -121,17 +131,24 @@ export function mergeRemote(local: PreflightResult, remote: PreflightResult): Pr
     fixSeen.has(f.id) ? false : (fixSeen.add(f.id), true),
   );
 
-  const blocked = checks.some((c) => c.blocking && c.status === "fail") || decisionViolations.length > 0;
+  // Same gate as the local engine: a blocking check that errored, or was skipped
+  // without allowSkippedChecks, cannot count as a pass.
+  const blocked =
+    checks.some(
+      (c) =>
+        c.blocking &&
+        (c.status === "fail" || c.status === "error" || (c.status === "skipped" && !gate.allowSkippedChecks)),
+    ) || decisionViolations.length > 0;
   const anyFailure = checks.some((c) => c.status === "fail") || decisionViolations.length > 0;
-  // Same resolver as the local engine so the two can't drift. Gate behaviour is unchanged:
-  // `blocked` here already requires a real failure, so this yields "fail", never "unverified".
+  // Same resolver as the local engine so the two can't drift.
   const status = resolveStatus({ checks, blocked, anyFailure, blockingViolations: decisionViolations.length });
+  const hasViolations = decisionViolations.length > 0;
 
   return {
     ...local,
     status,
-    safeToCommit: !blocked,
-    safeToPush: !blocked,
+    safeToCommit: !blocked ? true : !gate.blockCommitOnFailure && !hasViolations,
+    safeToPush: !blocked ? true : !gate.blockPushOnFailure && !hasViolations,
     checks,
     decisionViolations,
     warnings,

@@ -83,6 +83,7 @@ export async function runDecisionCheck(
   const diffChunks = chunkDiffForJudge(diff);
   const truncationNote = truncationNoteForDiff(diff);
   const db = getDb();
+  let retrievalFailed = false;
   const [relevant, rejected] = await Promise.all([
     Promise.all(
       diffChunks.map((chunk) =>
@@ -90,7 +91,10 @@ export async function runDecisionCheck(
           repoId,
           { title: "preflight change", body: chunk || changedFiles.join("\n"), changedFiles },
           { topK: 10 },
-        ).catch(() => []),
+        ).catch(() => {
+          retrievalFailed = true;
+          return [];
+        }),
       ),
     ).then((pools) => {
       const byId = new Map<string, (typeof pools)[number][number]>();
@@ -107,7 +111,10 @@ export async function runDecisionCheck(
       .from(decisionsTable)
       .where(and(eq(decisionsTable.repoId, repoId), eq(decisionsTable.status, "rejected")))
       .limit(50)
-      .catch(() => [] as { id: string; decision: string; evidence: string[] | null; title: string | null }[]),
+      .catch(() => {
+        retrievalFailed = true;
+        return [] as { id: string; decision: string; evidence: string[] | null; title: string | null }[];
+      }),
   ]);
 
   const catalog = new Map<string, CatalogEntry>();
@@ -123,7 +130,10 @@ export async function runDecisionCheck(
       status: "rejected",
     });
   }
-  if (catalog.size === 0) return { violations: [], note: "No governing decisions found for the changed files." };
+  if (catalog.size === 0) {
+    if (retrievalFailed) return { violations: [], note: "Decision store unavailable \u2014 decision check unverified." };
+    return { violations: [], note: "No governing decisions found for the changed files." };
+  }
 
   const list = [...catalog.values()];
   const rawViolations: RawViolation[] = [];

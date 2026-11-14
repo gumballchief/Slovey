@@ -15,6 +15,7 @@ import { upsertDecisions, type DecisionSource, type UpsertItem } from "./upsert-
 
 const log = logger.child({ component: "ingest-connector" });
 const MAX_DOCS = 40;
+const MAX_DOC_CHARS = 8000;
 
 export interface IngestResult {
   docs: number;
@@ -59,10 +60,16 @@ export async function runIngestConnector(params: {
     let extractFailures = 0;
     for (const doc of docs) {
       if (!doc.content.trim()) continue;
-      const res = await ai.completeJSON<ExtractedDecision[]>(
-        extractPrompt(`### ${type.toUpperCase()} — ${doc.title}\n${doc.content}`),
-        { tier: "cheap", maxTokens: 2000 },
-      );
+      let res: ExtractedDecision[] | null;
+      try {
+        res = await ai.completeJSON<ExtractedDecision[]>(
+          extractPrompt(`### ${type.toUpperCase()} — ${doc.title}\n${doc.content.slice(0, MAX_DOC_CHARS)}`),
+          { tier: "cheap", maxTokens: 2000 },
+        );
+      } catch {
+        extractFailures++;
+        continue;
+      }
       if (!Array.isArray(res)) {
         extractFailures++;
         continue;

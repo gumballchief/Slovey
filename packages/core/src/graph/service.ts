@@ -74,40 +74,43 @@ export async function createDecision(
     input.status ?? (confidence < CANDIDATE_THRESHOLD ? "candidate" : "approved");
   const embedding = await getEmbeddings().embedOne(embedText(input));
 
-  const [row] = await db
-    .insert(decisions)
-    .values({
-      repoId,
-      title: input.title ?? null,
-      summary: input.summary ?? null,
-      decision: input.decision,
-      why: input.why ?? "",
-      examples: input.examples ?? [],
-      evidence: input.evidence,
-      source: input.source,
-      category: input.category ?? null,
-      status,
-      ownerUser: input.ownerUser ?? null,
-      owningTeam: input.owningTeam ?? null,
-      importance: input.importance ?? "medium",
-      priority: input.priority ?? 0,
-      confidence,
-      review: "unreviewed",
-      domains: input.domains ?? [],
-      services: input.services ?? [],
-      affectedRepos: input.affectedRepos ?? [],
-      directories: input.directories ?? [],
-      languages: input.languages ?? [],
-      frameworks: input.frameworks ?? [],
-      rejectionReason: input.rejectionReason ?? null,
-      alternatives: input.alternatives ?? [],
-      approvedAt: status === "approved" ? new Date() : null,
-      embedding,
-      createdBy: input.createdBy ?? "graph",
-    })
-    .returning();
-  if (!row) throw new Error("createDecision failed");
-  await snapshot(row.id, 1, row, input.createdBy, "created");
+  const row = await db.transaction(async (tx) => {
+    const [created] = await tx
+      .insert(decisions)
+      .values({
+        repoId,
+        title: input.title ?? null,
+        summary: input.summary ?? null,
+        decision: input.decision,
+        why: input.why ?? "",
+        examples: input.examples ?? [],
+        evidence: input.evidence,
+        source: input.source,
+        category: input.category ?? null,
+        status,
+        ownerUser: input.ownerUser ?? null,
+        owningTeam: input.owningTeam ?? null,
+        importance: input.importance ?? "medium",
+        priority: input.priority ?? 0,
+        confidence,
+        review: "unreviewed",
+        domains: input.domains ?? [],
+        services: input.services ?? [],
+        affectedRepos: input.affectedRepos ?? [],
+        directories: input.directories ?? [],
+        languages: input.languages ?? [],
+        frameworks: input.frameworks ?? [],
+        rejectionReason: input.rejectionReason ?? null,
+        alternatives: input.alternatives ?? [],
+        approvedAt: status === "approved" ? new Date() : null,
+        embedding,
+        createdBy: input.createdBy ?? "graph",
+      })
+      .returning();
+    if (!created) throw new Error("createDecision failed");
+    await snapshot(created.id, 1, created, input.createdBy, "created", tx);
+    return created;
+  });
   return row;
 }
 
@@ -206,13 +209,22 @@ export async function updateDecision(
       }),
     );
   }
-  const [row] = await db
-    .update(decisions)
-    .set(set)
-    .where(and(eq(decisions.id, id), eq(decisions.repoId, repoId)))
-    .returning();
-  if (row) await snapshot(id, row.version, row, changedBy, note);
-  return row ?? null;
+  const executeUpdate = async (client: DbClient | TxClient) => {
+    const [row] = await client
+      .update(decisions)
+      .set(set)
+      .where(and(eq(decisions.id, id), eq(decisions.repoId, repoId)))
+      .returning();
+    if (row) await snapshot(id, row.version, row, changedBy, note, client);
+    return row ?? null;
+  };
+  // UPDATE + snapshot must commit together: if the snapshot insert fails,
+  // the decision change must roll back rather than report failure after commit.
+  // Fall back to the direct client only for test doubles without transaction().
+  if (typeof db.transaction === "function") {
+    return db.transaction(async (tx) => executeUpdate(tx));
+  }
+  return executeUpdate(db);
 }
 
 /** Move a decision through its lifecycle, recording a version. */
@@ -513,8 +525,9 @@ export function scopeScore(
   score += overlap(d.directories, scope.directories) * 2;
   // directory-prefix match against changed paths
   for (const dir of d.directories) {
-    const norm = dir.replace(/\/+$/, "").toLowerCase();
-    if (norm && paths.some((p) => { const lp = p.toLowerCase(); return lp === norm || lp.startsWith(norm + "/"); })) score += 2;
+    const norm = dir.normalize("NFC").toLowerCase().replace(/\/+$/, "");
+    if ((norm === "" || norm === ".") && paths.length > 0) { score += 2; continue; }
+    if (norm && paths.some((p) => { const lp = p.normalize("NFC").toLowerCase(); return lp === norm || lp.startsWith(norm + "/"); })) score += 2;
   }
   return score;
 }

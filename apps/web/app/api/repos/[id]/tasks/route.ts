@@ -1,4 +1,4 @@
-import { JOBS, createAgentRun, dashboard, enqueue, listAgentRuns } from "@company-brain/core";
+import { JOBS, countPendingAgentRuns, createAgentRun, dashboard, enqueue, failQueuedAgentRun, listAgentRuns } from "@company-brain/core";
 import { assertRepoAccess, assertRepoWrite, requireViewer } from "@/lib/server/auth";
 import { HttpError, handle, ok, readJsonBody } from "@/lib/server/respond";
 import { rateLimit } from "@/lib/server/ratelimit";
@@ -61,16 +61,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       // Per-org/repo flood control: applies to all plans (incl. unlimited).
       rateLimit(`agent-tasks:org:${org.id}`, 20, 60_000);
       rateLimit(`agent-tasks:repo:${id}`, 10, 60_000);
-      // Count pending over all runs, not just the newest page: completed runs
-      // would otherwise push still-running tasks out of the 10-item window.
-      let pending = 0;
-      let capLimit = 50;
-      for (;;) {
-        const page = await listAgentRuns(id, capLimit);
-        pending = page.filter((r) => r.status === "queued" || r.status === "running").length;
-        if (page.length < capLimit) break;
-        capLimit *= 2;
-      }
+      // Count pending over all runs in SQL: a newest-N page would let completed
+      // runs push still-running tasks out of the window.
+      const pending = await countPendingAgentRuns(id);
       if (pending >= 5) {
         throw new HttpError(429, "Too many pending agent tasks for this repo. Wait for existing runs to finish.");
       }
@@ -82,7 +75,17 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       }
       return createAgentRun({ repoId: id, intent, requestedBy: viewer.login });
     });
-    await enqueue(JOBS.agentTask, { runId: run.id }, { retryLimit: 0 });
+    try {
+      await enqueue(JOBS.agentTask, { runId: run.id }, { retryLimit: 0 });
+    } catch (enqueueError) {
+      // Without this the orphan "queued" row would hold one of the 5 pending slots forever.
+      try {
+        await failQueuedAgentRun(run.id, "Could not queue the task. Please try again.");
+      } catch {
+        // Best-effort cleanup only; preserve the original enqueue failure below.
+      }
+      throw enqueueError;
+    }
     return ok(run, { status: 201 });
   });
 }

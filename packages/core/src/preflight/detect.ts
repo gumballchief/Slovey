@@ -56,7 +56,7 @@ export function scriptCommand(pm: PackageManager, script: string): string {
 
 function git(cwd: string, args: string[]): string {
   try {
-    return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+    return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], maxBuffer: 32 * 1024 * 1024 }).trim();
   } catch {
     return "";
   }
@@ -69,7 +69,7 @@ export function parseNulSeparatedPaths(output: string): string[] {
 
 function gitZ(cwd: string, args: string[]): string[] {
   try {
-    return parseNulSeparatedPaths(execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }));
+    return parseNulSeparatedPaths(execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], maxBuffer: 32 * 1024 * 1024 }));
   } catch {
     return [];
   }

@@ -21,7 +21,9 @@ export async function POST(
     await assertRepoAccess(id, viewer);
     rateLimit(`plan:${viewer.userId ?? viewer.login}`, 20, 60_000);
     const body = (await readJsonBody(req)) as { request?: string };
-    if (!body.request?.trim()) throw new HttpError(400, "request is required");
-    return ok(await decisionApi.plan(id, body.request.trim()));
+    const request = body.request?.trim();
+    if (!request) throw new HttpError(400, "request is required");
+    if (request.length > 20_000) throw new HttpError(413, "request is too long (max 20000 characters).");
+    return ok(await decisionApi.plan(id, request));
   });
 }

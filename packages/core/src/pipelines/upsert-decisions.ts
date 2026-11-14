@@ -115,10 +115,14 @@ export async function upsertDecisions(
                 why: d.why ?? "",
                 category: d.category ?? null,
                 embedding: vec,
-                domains: scope.domains ?? [],
-                services: scope.services ?? [],
-                languages: scope.languages ?? [],
-                frameworks: scope.frameworks ?? [],
+                ...(Object.keys(scope).length === 0
+                  ? {}
+                  : {
+                      domains: scope.domains ?? [],
+                      services: scope.services ?? [],
+                      languages: scope.languages ?? [],
+                      frameworks: scope.frameworks ?? [],
+                    }),
               }),
           examples: uniq([...(near.examples ?? []), ...(d.examples ?? [])]),
           evidence: uniq([...(near.evidence ?? []), ...d.evidence]),

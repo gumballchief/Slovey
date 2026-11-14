@@ -146,6 +146,23 @@ async function runPreflightInner(opts: RunPreflightOptions): Promise<PreflightRe
   }
 
   const checks: CheckResult[] = [];
+  // Unknown required names must never be dropped silently — a typo would
+  // otherwise pass the gate without running anything.
+  const knownChecks = new Set<string>(SAFE_ORDER);
+  for (const name of new Set(config.requiredChecks)) {
+    if (!knownChecks.has(name)) {
+      warnings.push(`Unknown required check "${name}" is not a known preflight check — failing the gate. Fix requiredChecks (known checks: ${SAFE_ORDER.join(", ")}).`);
+      checks.push(stamp({
+        name, status: "fail", command: "", durationMs: 0,
+        errors: [{ file: "", code: "unknown-check", category: "unknown", message: `Unknown required check "${name}" — no such preflight check exists.` }],
+      }));
+    }
+  }
+  for (const name of new Set(config.optionalChecks)) {
+    if (!knownChecks.has(name) && !requiredSet.has(name)) {
+      warnings.push(`Unknown optional check "${name}" is not a known preflight check — ignoring it.`);
+    }
+  }
   const decisionViolations: DecisionViolation[] = [];
 
   for (const name of ordered) {

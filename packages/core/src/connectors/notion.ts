@@ -2,6 +2,8 @@ import type { ConnectorClient, ConnectorConfig, ConnectorDoc } from "./types";
 
 const BASE = "https://api.notion.com/v1";
 const NOTION_VERSION = "2022-06-28";
+const MAX_CHILD_DEPTH = 4;
+const MAX_BLOCKS_PER_DOC = 500;
 
 interface NotionPage {
   id: string;
@@ -23,11 +25,26 @@ function pageTitle(page: NotionPage): string {
 }
 
 /** Flatten a block's rich_text array to plain text. */
+function richTextToString(rich: unknown): string {
+  if (!Array.isArray(rich)) return "";
+  return rich.map((r) => (r as { plain_text?: string }).plain_text ?? "").join("");
+}
+
+/** Flatten a block to plain text, including non-rich_text bodies. */
 function blockText(block: Record<string, unknown>): string {
   const type = block.type as string | undefined;
   if (!type) return "";
-  const body = block[type] as { rich_text?: Array<{ plain_text?: string }> } | undefined;
-  return (body?.rich_text ?? []).map((r) => r.plain_text ?? "").join("");
+  if (type === "table_row") {
+    const body = block[type] as { cells?: unknown } | undefined;
+    if (!body || !Array.isArray(body.cells)) return "";
+    return body.cells.map((cell) => richTextToString(cell)).filter(Boolean).join(" | ");
+  }
+  if (type === "child_page" || type === "child_database") {
+    const body = block[type] as { title?: unknown } | undefined;
+    return typeof body?.title === "string" ? body.title : "";
+  }
+  const body = block[type] as { rich_text?: unknown } | undefined;
+  return richTextToString(body?.rich_text);
 }
 
 /**
@@ -45,6 +62,26 @@ export class NotionConnector implements ConnectorClient {
       "notion-version": NOTION_VERSION,
       "content-type": "application/json",
     };
+  }
+
+  private async listChildren(blockId: string): Promise<Array<Record<string, unknown>>> {
+    const out: Array<Record<string, unknown>> = [];
+    let cursor: string | undefined;
+    do {
+      const url =
+        `${BASE}/blocks/${blockId}/children?page_size=100` +
+        (cursor ? `&start_cursor=${encodeURIComponent(cursor)}` : "");
+      const res = await fetch(url, { headers: this.headers() });
+      if (!res.ok) break;
+      const json = (await res.json()) as {
+        results?: Array<Record<string, unknown>>;
+        has_more?: boolean;
+        next_cursor?: string | null;
+      };
+      out.push(...(json.results ?? []));
+      cursor = json.has_more ? (json.next_cursor ?? undefined) : undefined;
+    } while (cursor);
+    return out;
   }
 
   async fetchDocs(config: ConnectorConfig = {}): Promise<ConnectorDoc[]> {
@@ -67,23 +104,29 @@ export class NotionConnector implements ConnectorClient {
       const allBlocks: Array<Record<string, unknown>> = [];
       let content = "";
       try {
-        let cursor: string | undefined;
-        do {
-          const url =
-            `${BASE}/blocks/${page.id}/children?page_size=100` +
-            (cursor ? `&start_cursor=${encodeURIComponent(cursor)}` : "");
-          const blocksRes = await fetch(url, {
-            headers: this.headers(),
-          });
-          if (!blocksRes.ok) break;
-          const blocks = (await blocksRes.json()) as {
-            results?: Array<Record<string, unknown>>;
-            has_more?: boolean;
-            next_cursor?: string | null;
-          };
-          allBlocks.push(...(blocks.results ?? []));
-          cursor = blocks.has_more ? (blocks.next_cursor ?? undefined) : undefined;
-        } while (cursor);
+        allBlocks.push(...(await this.listChildren(page.id)));
+        const queue: Array<{ id: string; depth: number }> = allBlocks
+          .filter((b) => b.has_children === true && typeof b.id === "string")
+          .map((b) => ({ id: b.id as string, depth: 0 }));
+        const seen = new Set<string>([page.id]);
+        while (queue.length > 0 && allBlocks.length < MAX_BLOCKS_PER_DOC) {
+          const next = queue.shift();
+          if (!next || seen.has(next.id)) continue;
+          seen.add(next.id);
+          const children = await this.listChildren(next.id);
+          for (const child of children) {
+            if (allBlocks.length >= MAX_BLOCKS_PER_DOC) break;
+            allBlocks.push(child);
+            if (
+              child.has_children === true &&
+              typeof child.id === "string" &&
+              next.depth < MAX_CHILD_DEPTH &&
+              !seen.has(child.id as string)
+            ) {
+              queue.push({ id: child.id as string, depth: next.depth + 1 });
+            }
+          }
+        }
         content = allBlocks.map(blockText).filter(Boolean).join("\n");
       } catch {
         // a single page's blocks failing shouldn't abort the whole sync

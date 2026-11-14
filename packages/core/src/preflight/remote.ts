@@ -95,7 +95,10 @@ export async function runRemotePreflight(repoId: string, payload: RemotePrefligh
     }
   }
   const { config } = loadPreflightConfig(process.cwd()); // server defaults; repo config lives client-side
-  const changed = [...new Set([...changedFilesInput, ...files.map((f) => f.path)])].slice(0, REMOTE_PREFLIGHT_MAX_CHANGED_FILES);
+  const changed = [...new Set([...changedFilesInput, ...files.map((f) => f.path)])];
+  if (changed.length > REMOTE_PREFLIGHT_MAX_CHANGED_FILES) {
+    throw new RemotePreflightTooLargeError(`Too many changed files: ${changed.length} exceeds limit of ${REMOTE_PREFLIGHT_MAX_CHANGED_FILES}`);
+  }
   const rawDiff = payload.diff ?? files.map((f) => `+++ ${f.path}\n${f.content}`).join("\n");
   const diff = rawDiff.length > REMOTE_PREFLIGHT_MAX_DIFF_FOR_CHECKS ? rawDiff.slice(0, REMOTE_PREFLIGHT_MAX_DIFF_FOR_CHECKS) : rawDiff;
 
@@ -163,7 +166,8 @@ export async function runRemotePreflight(repoId: string, payload: RemotePrefligh
     checks.push({ ...arch, blocking: true });
   }
 
-  // decision-check on the supplied diff.
+  // decision-check on the supplied diff. Without diff or file contents there
+  // is no change content to judge — report skipped (not a clean pass).
   const startDec = Date.now();
   const decisionResult = await runDecisionCheck(repoId, rawDiff, changed);
   const { blocking: violations, warnings: overrideWarnings } = applyOverrides(decisionResult.violations, overrides);
@@ -171,11 +175,19 @@ export async function runRemotePreflight(repoId: string, payload: RemotePrefligh
   const blockingViolations = violations.filter(
     (v) => !config.decisionChecks.blockOnHighConfidence || v.confidence >= config.decisionChecks.minimumBlockingConfidence,
   );
-  checks.push({
-    name: "decision-check", command: "", durationMs: Date.now() - startDec, blocking: blockingViolations.length > 0,
-    status: blockingViolations.length ? "fail" : "pass", errors: [],
-    skippedReason: note && violations.length === 0 ? note : undefined,
-  });
+  if (changed.length > 0 && (!hasFileContent || uncoveredChanged.length > 0) && !hasDiff && blockingViolations.length === 0) {
+    checks.push({
+      name: "decision-check", command: "", durationMs: Date.now() - startDec, blocking: true,
+      status: "skipped", errors: [],
+      skippedReason: "No file contents or diff supplied — decision check had no coverage; supply files[] or diff for full enforcement.",
+    });
+  } else {
+    checks.push({
+      name: "decision-check", command: "", durationMs: Date.now() - startDec, blocking: blockingViolations.length > 0,
+      status: blockingViolations.length ? "fail" : "pass", errors: [],
+      skippedReason: note && violations.length === 0 ? note : undefined,
+    });
+  }
 
   for (const c of checks) {
     if (c.errors.length > REMOTE_PREFLIGHT_MAX_ERRORS_PER_CHECK) {

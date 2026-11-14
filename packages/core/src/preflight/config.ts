@@ -19,8 +19,13 @@ export function loadPreflightConfig(
   let warning: string | undefined;
   try {
     const raw = readFileSync(resolve(cwd, CONFIG_FILENAME), "utf8");
-    fileCfg = JSON.parse(raw) as Partial<PreflightConfig>;
-    source = "file";
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+      warning = `Could not parse ${CONFIG_FILENAME}; using defaults (expected a JSON object)`;
+    } else {
+      fileCfg = parsed as Partial<PreflightConfig>;
+      source = "file";
+    }
   } catch (e) {
     if ((e as { code?: string })?.code !== "ENOENT") {
       warning = `Could not parse ${CONFIG_FILENAME}; using defaults (${e instanceof Error ? e.message : String(e)})`;

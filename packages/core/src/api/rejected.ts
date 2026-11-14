@@ -1,5 +1,5 @@
 import { decisions, getDb } from "@company-brain/db";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, sql } from "drizzle-orm";
 import { getEmbeddings } from "../embeddings";
 
 export interface RejectedKnowledge {
@@ -9,6 +9,8 @@ export interface RejectedKnowledge {
   alternatives: string[];
   evidence: string[];
   createdAt: string;
+  /** Cosine distance to the query when semantically searched; null otherwise. */
+  distance?: number | null;
 }
 
 /**
@@ -29,13 +31,21 @@ export async function getRejectedKnowledge(
         const vec = await getEmbeddings().embedOne(query);
         const lit = `[${vec.join(",")}]`;
         return db
-          .select()
+          .select({
+            ...getTableColumns(decisions),
+            distance: sql<number>`${decisions.embedding} <=> ${lit}::vector`,
+          })
           .from(decisions)
           .where(and(base, sql`${decisions.embedding} is not null`))
           .orderBy(sql`${decisions.embedding} <=> ${lit}::vector`)
           .limit(limit);
       })()
-    : await db.select().from(decisions).where(base).orderBy(desc(decisions.createdAt)).limit(limit);
+    : await db
+        .select({ ...getTableColumns(decisions), distance: sql<number | null>`null::float8` })
+        .from(decisions)
+        .where(base)
+        .orderBy(desc(decisions.createdAt))
+        .limit(limit);
 
   return rows.map((r) => ({
     id: r.id,
@@ -44,5 +54,6 @@ export async function getRejectedKnowledge(
     alternatives: r.alternatives ?? [],
     evidence: r.evidence ?? [],
     createdAt: r.createdAt.toISOString(),
+    distance: r.distance ?? null,
   }));
 }

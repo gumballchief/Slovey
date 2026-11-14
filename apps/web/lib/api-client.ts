@@ -43,7 +43,8 @@ async function send<T>(url: string, method: string, body?: unknown): Promise<T> 
     const text = await res.text().catch(() => "");
     throw new Error(`${method} ${url} failed: ${res.status} ${text}`);
   }
-  return (await res.json().catch(() => ({}))) as T;
+  if (res.status === 204) return {} as T;
+  return (await res.json()) as T;
 }
 
 // ── reads (with mock fallback) ──

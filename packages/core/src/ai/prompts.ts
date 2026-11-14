@@ -90,12 +90,19 @@ Respond ONLY with JSON: {"warn":true/false,"evidence":"...","explanation":"one s
  * their discussion. Every decision MUST carry evidence (PR numbers); the
  * pipeline drops any with empty evidence.
  */
+/**
+ * Backstop on the batch block. Each PR is already capped (body 1.2k, discussion
+ * 2.5k), so 8 PRs fit well inside this; it only stops a caller passing raw text.
+ */
+export const EXTRACT_BATCH_MAX_CHARS = 40_000;
+
 export function extractPrompt(prBatchText: string): string {
   // Neutralize delimiter break-outs in untrusted PR text so it cannot close
   // the batch block early and masquerade as a new trusted batch/instructions.
   const safePrBatchText = prBatchText
     .replace(/<\s*\/?\s*(PR_BATCH|TITLE|DESCRIPTION)\s*>/gi, "[tag removed]")
-    .replace(/<\//g, "&lt;/");
+    .replace(/<\//g, "&lt;/")
+    .slice(0, EXTRACT_BATCH_MAX_CHARS);
   return `You are building an engineering team's decision memory from their closed pull requests (both MERGED and REJECTED) and the discussion on them.
 
 Extract durable, reusable team decisions — rules, rejected approaches, conventions, and architectural choices that should guide future PRs. Ignore one-off details.

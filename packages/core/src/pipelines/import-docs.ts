@@ -55,9 +55,34 @@ export function splitDocs(raw: string, fallbackPath = "pasted-doc"): ImportDoc[]
   const docs: ImportDoc[] = [];
   let title = "";
   let buf: string[] = [];
+  const used = new Set<string>();
+  const uniquePath = (base: string): string => {
+    if (!used.has(base)) {
+      used.add(base);
+      return base;
+    }
+    const dot = base.lastIndexOf(".");
+    const stem = dot > 0 ? base.slice(0, dot) : base;
+    const ext = dot > 0 ? base.slice(dot) : "";
+    let n = 2;
+    while (used.has(`${stem}-${n}${ext}`)) n++;
+    const dup = `${stem}-${n}${ext}`;
+    used.add(dup);
+    return dup;
+  };
   const flush = () => {
     const content = buf.join("\n").trim();
-    if (content) docs.push({ path: title ? `${slugify(title)}.md` : fallbackPath, content });
+    if (!content) {
+      buf = [];
+      return;
+    }
+    if (!title) {
+      docs.push({ path: uniquePath(fallbackPath), content });
+    } else {
+      const slug = slugify(title);
+      const base = slug ? `${slug}.md` : fallbackPath;
+      docs.push({ path: uniquePath(base), content });
+    }
     buf = [];
   };
   let inFence = false;

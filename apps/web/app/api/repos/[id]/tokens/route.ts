@@ -33,7 +33,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         : null;
 
     const created = await createApiToken({ userId: viewer.userId, repoId: id, name, expiresAt });
-    await logAudit({ repoId: id, actorUser: viewer.login, action: "token.create", targetType: "api_token", targetId: created.id });
+    try {
+      await logAudit({ repoId: id, actorUser: viewer.login, action: "token.create", targetType: "api_token", targetId: created.id });
+    } catch {
+      // Audit is best-effort: never lose the one-time plaintext on audit failure.
+    }
     // `token` is the plaintext — surfaced once, then only the hint is ever shown.
     return ok(created, { status: 201 });
   });

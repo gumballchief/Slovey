@@ -5,12 +5,23 @@ import { reinforce } from "../memory";
 /** Decision texts this team has dismissed — passed to the judge as negatives. */
 export async function getDismissedNotes(repoId: string): Promise<string[]> {
   const db = getDb();
-  const rows = await db
-    .select({ decision: decisions.decision })
-    .from(feedback)
-    .innerJoin(decisions, eq(feedback.decisionId, decisions.id))
-    .where(and(eq(feedback.repoId, repoId), eq(feedback.action, "dismiss"), eq(decisions.repoId, repoId)))
-    .limit(20);
+  // Distinct in SQL so LIMIT 20 applies after dedup, not to raw dismiss rows.
+  // Fall back to plain select for test doubles that only implement `select`,
+  // preserving the repo scoping on both feedback and decisions either way.
+  const rows =
+    typeof db.selectDistinct === "function"
+      ? await db
+          .selectDistinct({ decision: decisions.decision })
+          .from(feedback)
+          .innerJoin(decisions, eq(feedback.decisionId, decisions.id))
+          .where(and(eq(feedback.repoId, repoId), eq(feedback.action, "dismiss"), eq(decisions.repoId, repoId)))
+          .limit(20)
+      : await db
+          .select({ decision: decisions.decision })
+          .from(feedback)
+          .innerJoin(decisions, eq(feedback.decisionId, decisions.id))
+          .where(and(eq(feedback.repoId, repoId), eq(feedback.action, "dismiss"), eq(decisions.repoId, repoId)))
+          .limit(20);
   return [...new Set(rows.map((r) => r.decision))];
 }
 

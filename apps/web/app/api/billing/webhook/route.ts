@@ -13,13 +13,32 @@ const MAX_WEBHOOK_BYTES = 1_000_000; // Stripe events are small; cap before buff
 // same subscription cannot both pass the live-status checks before either
 // writes: inside the queue the live check + setOrgPlan are atomic, so the
 // final plan follows Stripe's live state, not webhook write order.
-let webhookChain: Promise<unknown> = Promise.resolve();
+const webhookChains = new Map<string, Promise<unknown>>();
+let fallbackChain: Promise<unknown> = Promise.resolve();
 
-function runSerialized<T>(fn: () => Promise<T>): Promise<T> {
-  const run = webhookChain.then(fn, fn);
-  webhookChain = run.then(
+function runSerialized<T>(key: string | null, fn: () => Promise<T>): Promise<T> {
+  if (key === null) {
+    const run = fallbackChain.then(fn, fn);
+    fallbackChain = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }
+  const prev = webhookChains.get(key) ?? Promise.resolve();
+  const run = prev.then(fn, fn);
+  const next = run.then(
     () => undefined,
     () => undefined,
+  );
+  webhookChains.set(key, next);
+  next.then(
+    () => {
+      if (webhookChains.get(key) === next) webhookChains.delete(key);
+    },
+    () => {
+      if (webhookChains.get(key) === next) webhookChains.delete(key);
+    },
   );
   return run;
 }
@@ -96,8 +115,8 @@ export async function POST(req: Request): Promise<Response> {
   try {
     // No in-memory dedupe: marking an event seen before it is applied would make
     // Stripe's retry of a failed attempt a no-op. Every handler below is idempotent.
-    await runSerialized(async () => {
     const subKey = subscriptionKey(event);
+    await runSerialized(subKey, async () => {
     if (subKey && event.created < (lastEventBySubscription.get(subKey) ?? 0)) {
       log.info("ignoring out-of-order subscription event", { type: event.type, subId: subKey });
       return;
