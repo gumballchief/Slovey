@@ -43,6 +43,8 @@ gitignored — they are never pushed.
 | `TOKEN_ENCRYPTION_KEY` | `openssl rand -base64 32` (32 bytes) |
 
 > **⚠️ Gotcha — the GitHub App's Webhook URL must be exactly `https://slovey.dev/api/github/webhooks`.**
+> (The site moved to slovey.ai on 2026-11-14. slovey.dev keeps serving `/api/*` and `/auth/*` in place and
+> redirects only pages, so this webhook URL, the Stripe webhook and installed CLIs keep working.)
 > It was once typo'd to `slovey.**com**` (a domain we don't own). Nothing surfaced this: GitHub
 > reported every install as successful, while each delivery silently died with
 > `remote error: tls: handshake failure` (500). With no `installation` event ever

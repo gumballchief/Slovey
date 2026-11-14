@@ -11,7 +11,7 @@ that contradict them — always citing the exact decision and the PR it came fro
 
 <br/>
 
-[![live](https://img.shields.io/badge/live-slovey.dev-6E1FE0?style=flat-square&labelColor=17191c)](https://slovey.dev)
+[![live](https://img.shields.io/badge/live-slovey.ai-6E1FE0?style=flat-square&labelColor=17191c)](https://slovey.ai)
 [![Next.js 16](https://img.shields.io/badge/Next.js_16-000000?style=flat-square&logo=nextdotjs&logoColor=white)](https://nextjs.org)
 [![React 19](https://img.shields.io/badge/React_19-20232A?style=flat-square&logo=react&logoColor=61DAFB)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
@@ -27,7 +27,7 @@ that contradict them — always citing the exact decision and the PR it came fro
 [![repo size](https://img.shields.io/github/repo-size/gumballchief/slovey?style=flat-square&labelColor=17191c&color=8b90a6)](https://github.com/gumballchief/slovey)
 [![stars](https://img.shields.io/github/stars/gumballchief/slovey?style=flat-square&labelColor=17191c&color=f6b03a)](https://github.com/gumballchief/slovey/stargazers)
 
-**[🌐 slovey.dev](https://slovey.dev)** &nbsp;·&nbsp; [Quickstart](./docs/quickstart.md) &nbsp;·&nbsp; [Architecture](#-architecture) &nbsp;·&nbsp; [Roadmap](./docs/roadmap.md)
+**[🌐 slovey.ai](https://slovey.ai)** &nbsp;·&nbsp; [Quickstart](./docs/quickstart.md) &nbsp;·&nbsp; [Architecture](#-architecture) &nbsp;·&nbsp; [Roadmap](./docs/roadmap.md)
 
 </div>
 
@@ -174,6 +174,6 @@ pnpm dev:worker               # job consumer
 ---
 
 <div align="center">
-<sub>Built by <a href="https://github.com/gumballchief">@gumballchief</a> · live at <a href="https://slovey.dev">slovey.dev</a></sub><br/>
+<sub>Built by <a href="https://github.com/gumballchief">@gumballchief</a> · live at <a href="https://slovey.ai">slovey.ai</a></sub><br/>
 <sub><i>Package identifiers are prefixed <code>@company-brain/*</code> — the project's original codename.</i></sub>
 </div>

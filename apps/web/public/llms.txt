@@ -59,11 +59,11 @@ npm i -g slovey
 
 ## Links
 
-- [Homepage](https://slovey.dev/): what Slovey is and a live example of a blocked change.
-- [Documentation](https://slovey.dev/docs): setup, recording decisions, configuring the gate.
-- [MCP server](https://slovey.dev/mcp): connecting Claude Code, Cursor, and other agents.
-- [API reference](https://slovey.dev/api-reference): REST endpoints for the decision graph.
-- [Integrations](https://slovey.dev/integrations): GitHub, Slack, Notion, Jira, Linear, Confluence.
-- [Security](https://slovey.dev/security): where code and decision data are processed and stored.
-- [Changelog](https://slovey.dev/changelog): release history.
+- [Homepage](https://slovey.ai/): what Slovey is and a live example of a blocked change.
+- [Documentation](https://slovey.ai/docs): setup, recording decisions, configuring the gate.
+- [MCP server](https://slovey.ai/mcp): connecting Claude Code, Cursor, and other agents.
+- [API reference](https://slovey.ai/api-reference): REST endpoints for the decision graph.
+- [Integrations](https://slovey.ai/integrations): GitHub, Slack, Notion, Jira, Linear, Confluence.
+- [Security](https://slovey.ai/security): where code and decision data are processed and stored.
+- [Changelog](https://slovey.ai/changelog): release history.
 - [Source code](https://github.com/gumballchief/slovey): MIT-licensed repository.

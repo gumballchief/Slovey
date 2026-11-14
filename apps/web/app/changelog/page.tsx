@@ -12,8 +12,9 @@ const RELEASES: Array<{ date: string; title: string; items: string[] }> = [
     date: "November 2026",
     title: "A new Slovey",
     items: [
+      "Slovey now lives at slovey.ai. Links to slovey.dev keep working and bring you here.",
       "A redesigned dashboard: Today shows what needs you, Memory draws your decisions as a map linked to the pull requests and incidents behind them, Reviews lets you approve learned decisions from the keyboard, and Ask answers with sources.",
-      "Upgrading to Team now happens on slovey.dev with a checkout that matches the product. Seats and yearly or monthly billing are set right on the page.",
+      "Upgrading to Team now happens on slovey.ai with a checkout that matches the product. Seats and yearly or monthly billing are set right on the page.",
       "Paste a diff on the Preflight page and Slovey checks it against your decisions on the spot.",
       "Repositories keep their history when they're renamed or transferred on GitHub.",
       "If the GitHub app is uninstalled, Slovey stops scanning that account and keeps its data in case you come back. A nightly check keeps installs in sync with GitHub even if a notification is missed.",

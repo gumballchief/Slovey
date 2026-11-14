@@ -16,7 +16,7 @@ export function ContactForm({ sales }: { sales?: boolean }) {
       style={{ display: "grid", gap: 16, maxWidth: 560 }}
       onSubmit={(e) => {
         e.preventDefault();
-        const subject = sales ? "Slovey for our team" : "Hello from slovey.dev";
+        const subject = sales ? "Slovey for our team" : "Hello from slovey.ai";
         const body = `Name: ${name}\nEmail: ${email}\n\n${message}`;
         window.location.href = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
       }}

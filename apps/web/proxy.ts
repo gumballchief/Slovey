@@ -1,10 +1,13 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
-import { CANONICAL_HOSTS } from "@/lib/site";
+import { CANONICAL_HOSTS, LEGACY_HOSTS, SITE_URL, servedOnLegacyHost } from "@/lib/site";
 
 /**
- * Proxy (Next 16's renamed Middleware). Two jobs:
+ * Proxy (Next 16's renamed Middleware). Three jobs:
+ *
+ * 0. Send pages on the old slovey.dev address to slovey.ai (permanent 308).
+ *    API and auth routes on slovey.dev keep answering in place, see LEGACY_HOSTS.
  *
  * 1. Refresh the Supabase auth session on server-rendered app requests.
  *    Server Components can't write cookies, so the rotated Supabase session
@@ -28,8 +31,12 @@ function needsSessionRefresh(pathname: string): boolean {
   return pathname === "/" || pathname === "/app" || pathname.startsWith("/app/");
 }
 
+function hostOf(request: NextRequest): string {
+  return (request.headers.get("host") ?? "").split(":")[0].toLowerCase();
+}
+
 function isCanonicalHost(request: NextRequest): boolean {
-  const host = (request.headers.get("host") ?? "").split(":")[0].toLowerCase();
+  const host = hostOf(request);
   return (
     (CANONICAL_HOSTS as readonly string[]).includes(host) ||
     host === "localhost" ||
@@ -38,6 +45,11 @@ function isCanonicalHost(request: NextRequest): boolean {
 }
 
 export async function proxy(request: NextRequest) {
+  const { pathname, search } = request.nextUrl;
+  if ((LEGACY_HOSTS as readonly string[]).includes(hostOf(request)) && !servedOnLegacyHost(pathname)) {
+    return NextResponse.redirect(`${SITE_URL}${pathname}${search}`, 308);
+  }
+
   let response = NextResponse.next({ request });
 
   if (needsSessionRefresh(request.nextUrl.pathname)) {

@@ -93,7 +93,7 @@ function requireDirectMode(what: string): void {
   if (HOSTED) {
     throw new Error(
       `${what} needs a direct database connection, which hosted accounts do not have. ` +
-        `Run the gate with "slovey preflight" and see run history at https://slovey.dev/app.`,
+        `Run the gate with "slovey preflight" and see run history at https://slovey.ai/app.`,
     );
   }
 }
@@ -462,7 +462,7 @@ async function main() {
         `${e instanceof Error ? e.message : String(e)}
 ` +
           `If you meant to use a hosted Slovey account, set SLOVEY_TOKEN instead — ` +
-          `create one at https://slovey.dev/app and no database is needed.`,
+          `create one at https://slovey.ai/app and no database is needed.`,
       );
     }
 

@@ -1,6 +1,6 @@
 # Slovey web
 
-The Next.js 16 app behind slovey.dev: the public site, sign-in, checkout, the dashboard and every HTTP API
+The Next.js 16 app behind slovey.ai: the public site, sign-in, checkout, the dashboard and every HTTP API
 (GitHub webhooks, Stripe, the CLI and MCP endpoints). Business logic lives in `@company-brain/core`; this app
 is the surface.
 

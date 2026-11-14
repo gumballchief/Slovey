@@ -4,7 +4,7 @@ import { resolveStatus } from "./engine";
 import type { CheckResult, PreflightResult } from "./types";
 
 /** Default hosted API. Override with SLOVEY_API_URL (or legacy COMPANY_BRAIN_API_URL). */
-const DEFAULT_API_URL = "https://slovey.dev";
+const DEFAULT_API_URL = "https://slovey.ai";
 
 export interface ChangePayload {
   diff: string;

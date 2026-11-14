@@ -176,7 +176,7 @@ function CheckoutFor({ repoId }: { repoId: string }) {
           <div className="co-off">
             <div className="ui-h3">Payments aren&apos;t switched on here</div>
             <p className="ui-small">
-              This copy of Slovey has no payment key set, so it can&apos;t take a card. On slovey.dev this is where you pay.
+              This copy of Slovey has no payment key set, so it can&apos;t take a card. On slovey.ai this is where you pay.
             </p>
           </div>
         ) : clientSecret ? (

@@ -64,7 +64,7 @@ slovey doctor              # confirm setup
 slovey preflight --mode commit
 ```
 
-`SLOVEY_API_URL` defaults to `https://slovey.dev` — set it only if you self-host.
+`SLOVEY_API_URL` defaults to `https://slovey.ai` — set it only if you self-host.
 The legacy `COMPANY_BRAIN_TOKEN` / `COMPANY_BRAIN_API_URL` names are still
 accepted, so existing CI configs keep working.
 

@@ -39,7 +39,7 @@ export default function AboutPage() {
         <h2>Open by default</h2>
         <p>
           Slovey is open source under the MIT license. You can read every line of how it decides, run it yourself, or
-          use the hosted version at slovey.dev.
+          use the hosted version at slovey.ai.
         </p>
         <p>
           We&apos;re a small, early team. If the problem resonates, <Link href="/contact">we&apos;d like to hear from you</Link>.

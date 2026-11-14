@@ -47,7 +47,7 @@ const pkg = {
   bin: { slovey: "cli.mjs", "slovey-mcp": "index.mjs", "company-brain-mcp": "index.mjs" },
   files: ["cli.mjs", "index.mjs", "README.md"],
   keywords: ["ai", "agents", "coding-agent", "preflight", "code-review", "mcp", "architecture-decision-records", "adr", "claude", "cursor"],
-  homepage: "https://slovey.dev",
+  homepage: "https://slovey.ai",
   repository: { type: "git", url: "git+https://github.com/gumballchief/slovey.git" },
   license: "MIT",
   engines: { node: ">=18" },
@@ -85,7 +85,7 @@ npx slovey@latest doctor
 
 ## Setup
 
-1. Sign in at [slovey.dev](https://slovey.dev) and connect your repository.
+1. Sign in at [slovey.ai](https://slovey.ai) and connect your repository.
 2. Go to **Preflight → CLI Tokens** and mint a token.
 3. Export it:
 
@@ -135,7 +135,7 @@ Overrides are attributed and expire.
 
 ## License
 
-MIT · [slovey.dev](https://slovey.dev) · [github.com/gumballchief/slovey](https://github.com/gumballchief/slovey)
+MIT · [slovey.ai](https://slovey.ai) · [github.com/gumballchief/slovey](https://github.com/gumballchief/slovey)
 `;
 writeFileSync("dist/README.md", readme);
 

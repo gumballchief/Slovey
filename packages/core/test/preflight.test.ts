@@ -535,7 +535,7 @@ describe("API-mode merge (local + hosted knowledge)", () => {
 
     process.env.SLOVEY_TOKEN = "cb_new";
     expect(apiModeFromEnv()?.token).toBe("cb_new");
-    expect(apiModeFromEnv()?.apiUrl).toBe("https://slovey.dev"); // built-in default
+    expect(apiModeFromEnv()?.apiUrl).toBe("https://slovey.ai"); // built-in default
 
     // Legacy names alone still work.
     delete process.env.SLOVEY_TOKEN;
