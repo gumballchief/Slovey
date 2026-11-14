@@ -1,5 +1,5 @@
 import { dashboard, preflight, resolveRepoById, verifyApiToken, getUserGithubId } from "@company-brain/core";
-import { HttpError, handle, ok } from "@/lib/server/respond";
+import { HttpError, handle, ok, readJsonBody } from "@/lib/server/respond";
 import { clientIp, rateLimit } from "@/lib/server/ratelimit";
 
 export const runtime = "nodejs";
@@ -52,18 +52,21 @@ export async function POST(req: Request): Promise<Response> {
       }
     }
 
-    const body = (await req.json().catch(() => ({}))) as {
+    const body = await readJsonBody<{
       diff?: string;
       changedFiles?: string[];
       files?: { path: string; content: string }[];
       branch?: string | null;
       commitSha?: string | null;
       attemptId?: string | null;
-    };
+    }>(req, 3_000_000); // raw JSON cap; escaping adds overhead over the ~2MB content limit below
 
     // Guard against oversized payloads (whole-repo dumps) — by byte size AND by
     // file cardinality (a huge changedFiles array is cheap to send, costly to process).
-    const totalBytes = (body.files ?? []).reduce((n, f) => n + (f.content?.length ?? 0), 0) + (body.diff?.length ?? 0);
+    const totalBytes =
+      (body.files ?? []).reduce((n, f) => n + (f.path?.length ?? 0) + (f.content?.length ?? 0), 0) +
+      (body.changedFiles ?? []).reduce((n, f) => n + (f?.length ?? 0), 0) +
+      (body.diff?.length ?? 0);
     if (totalBytes > 2_000_000) {
       throw new HttpError(413, "Payload too large — send only changed files/diff (max ~2MB).");
     }

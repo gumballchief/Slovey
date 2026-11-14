@@ -119,9 +119,11 @@ async function resolveAccess(
   // abandoned login. Fall back to the login match only for rows synced before
   // owner_github_id existed (backfilled on the next installation sync).
   const isOwner =
-    repo.ownerGithubId != null && viewer.githubId != null
-      ? repo.ownerGithubId === viewer.githubId
-      : repo.owner.toLowerCase() === viewer.login.toLowerCase();
+    repo.ownerGithubId != null
+      ? viewer.githubId != null && repo.ownerGithubId === viewer.githubId
+      : // A viewer with no GitHub identity has a login made from their email prefix,
+        // which anyone can pick, so it must never match a GitHub owner name.
+        viewer.githubId != null && repo.owner.toLowerCase() === viewer.login.toLowerCase();
   if (isOwner) return { repo, role: "owner" };
   if (viewer.userId && repo.orgId) {
     const role = await userOrgRole(viewer.userId, repo.orgId);
