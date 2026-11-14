@@ -1,5 +1,5 @@
 import { loadEnv, type ConfidenceThreshold } from "@company-brain/config";
-import { getDb, prChecks, repoSettings } from "@company-brain/db";
+import { decisions, getDb, prChecks, repoSettings } from "@company-brain/db";
 import { and, eq } from "drizzle-orm";
 import { getAI } from "../ai";
 import { judgePrompt } from "../ai/prompts";
@@ -128,6 +128,30 @@ export function shouldOverwriteExistingCheck(
   _newVerdict: CheckPrResult["verdict"],
 ): boolean {
   return existingVerdict === "skipped";
+}
+
+/**
+ * Whether a re-checked existing row means this run lost a concurrent race and
+ * must not touch GitHub. Only a transient "skipped" row may be replaced;
+ * a terminal clear/conflict row is the winner and suppresses our post.
+ */
+export function shouldSkipPostForExistingVerdict(
+  existingVerdict: string | null | undefined,
+): boolean {
+  if (!existingVerdict) return false;
+  return !shouldOverwriteExistingCheck(existingVerdict as CheckPrResult["verdict"], "clear");
+}
+
+/**
+ * Whether this run won the conditional insert. The upsert only updates a
+ * "skipped" row, so a terminal concurrent winner makes `.returning()`
+ * empty — the loser must then re-apply/return the winner's verdict rather
+ * than its own GitHub side effect.
+ */
+export function isCheckInsertWinner(
+  inserted: { id: string } | null | undefined,
+): boolean {
+  return inserted != null;
 }
 
 /**
@@ -267,6 +291,24 @@ export async function checkPr(params: CheckPrParams): Promise<CheckPrResult> {
     }
   }
 
+  // Concurrent duplicate webhooks can both pass the pre-judge idempotency
+  // check above, then race to post opposite GitHub results. Re-check after the
+  // judge and let only the first writer post; a terminal row already wins.
+  const rechecked = await db
+    .select({ id: prChecks.id, verdict: prChecks.verdict })
+    .from(prChecks)
+    .where(
+      and(
+        eq(prChecks.repoId, params.repoId),
+        eq(prChecks.prNumber, params.prNumber),
+        eq(prChecks.headSha, pr.headSha),
+      ),
+    )
+    .limit(1);
+  if (rechecked.length > 0 && shouldSkipPostForExistingVerdict(rechecked[0]!.verdict)) {
+    return { verdict: "skipped", posted: false, reason: "already-checked", checkId: rechecked[0]!.id };
+  }
+
   // Surface the result. comment mode posts a single cited comment, only on a
   // conflict. status_check mode always sets a commit status — failure on a
   // conflict, success on a clear PR — so it works as a required merge gate
@@ -375,6 +417,113 @@ export async function checkPr(params: CheckPrParams): Promise<CheckPrResult> {
       where: eq(prChecks.verdict, "skipped"),
     })
     .returning({ id: prChecks.id });
+
+  // If the conditional upsert returned no row, a concurrent run won with a
+  // terminal verdict and our GitHub post above may have landed after (and
+  // overwritten) theirs. Re-apply the winner's status/comment so the last
+  // GitHub write matches the recorded row, and return the winner's verdict.
+  if (!isCheckInsertWinner(inserted)) {
+    const [winner] = await db
+      .select({
+        id: prChecks.id,
+        verdict: prChecks.verdict,
+        explanation: prChecks.explanation,
+        matchedDecisionId: prChecks.matchedDecisionId,
+        confidence: prChecks.confidence,
+        severity: prChecks.severity,
+        suggestedFix: prChecks.suggestedFix,
+        posted: prChecks.posted,
+      })
+      .from(prChecks)
+      .where(
+        and(
+          eq(prChecks.repoId, params.repoId),
+          eq(prChecks.prNumber, params.prNumber),
+          eq(prChecks.headSha, pr.headSha),
+        ),
+      )
+      .limit(1);
+    if (winner) {
+      const winnerVerdict = winner.verdict as CheckPrResult["verdict"];
+      if (postingAllowed(params.fullName)) {
+        try {
+          if (settings.mode === "status_check") {
+            if (winnerVerdict === "conflict" || winnerVerdict === "clear") {
+              const s = statusForVerdict(winnerVerdict, winner.explanation);
+              await octokit.rest.repos.createCommitStatus({
+                owner: params.owner,
+                repo: params.name,
+                sha: pr.headSha,
+                state: s.state,
+                context: "company-brain",
+                description: s.description,
+              });
+            }
+          } else if (winnerVerdict === "conflict" && winner.matchedDecisionId) {
+            const [d] = await db
+              .select({ decision: decisions.decision, evidence: decisions.evidence })
+              .from(decisions)
+              .where(eq(decisions.id, winner.matchedDecisionId))
+              .limit(1);
+            if (d) {
+              const body = buildComment({
+                explanation: winner.explanation ?? "",
+                decision: d.decision,
+                citation: d.evidence.join(", "),
+                confidence: winner.confidence ?? "",
+                severity: winner.severity ?? undefined,
+                suggestedFix: winner.suggestedFix ?? undefined,
+              });
+              const existingComment = await findBotComment(
+                octokit,
+                params.owner,
+                params.name,
+                params.prNumber,
+                COMMENT_MARKER,
+              );
+              await postOrUpdateComment(
+                octokit,
+                params.owner,
+                params.name,
+                params.prNumber,
+                body,
+                existingComment,
+              );
+            }
+          } else if (winnerVerdict === "clear") {
+            const existingComment = await findBotComment(
+              octokit,
+              params.owner,
+              params.name,
+              params.prNumber,
+              COMMENT_MARKER,
+            );
+            if (existingComment) {
+              await postOrUpdateComment(
+                octokit,
+                params.owner,
+                params.name,
+                params.prNumber,
+                buildResolvedComment("clear"),
+                existingComment,
+              );
+            }
+          }
+        } catch {
+          // best-effort; the recorded winner verdict is authoritative
+        }
+      }
+      await logAudit({
+        repoId: params.repoId,
+        actorUser: "company-brain[bot]",
+        action: winner.posted ? "pr.commented" : "pr.checked",
+        targetType: "pr_check",
+        targetId: winner.id,
+        metadata: { prNumber: params.prNumber, verdict: winnerVerdict, reason: "already-checked", confidence: winner.confidence },
+      });
+      return { verdict: winnerVerdict, posted: winner.posted, reason: "already-checked", checkId: winner.id };
+    }
+  }
 
   await logAudit({
     repoId: params.repoId,

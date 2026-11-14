@@ -100,23 +100,38 @@ export async function getCiStatus(
   opts: { owner: string; repo: string; ref: string },
 ): Promise<{ configured: boolean; state: string; summary: string }> {
   const { owner, repo, ref } = opts;
-  const [status, checks] = await Promise.all([
+  const [status, checkRuns] = await Promise.all([
     octokit.rest.repos.getCombinedStatusForRef({ owner, repo, ref }).catch((e) => {
       if ((e as { status?: number })?.status === 404) return null;
       throw e;
     }),
-    octokit.rest.checks.listForRef({ owner, repo, ref, per_page: 30 }).catch((e) => {
-      if ((e as { status?: number })?.status === 404) return null;
-      throw e;
-    }),
+    (async () => {
+      try {
+        const all: Awaited<
+          ReturnType<InstallationOctokit["rest"]["checks"]["listForRef"]>
+        >["data"]["check_runs"] = [];
+        let page = 1;
+        for (;;) {
+          const res = await octokit.rest.checks.listForRef({ owner, repo, ref, per_page: 100, page });
+          const batch = res.data.check_runs ?? [];
+          all.push(...batch);
+          if (batch.length < 100) break;
+          page += 1;
+        }
+        return all;
+      } catch (e) {
+        if ((e as { status?: number })?.status === 404) return null;
+        throw e;
+      }
+    })(),
   ]);
-  if (!status || !checks) {
-    if (!status && !checks) {
+  if (!status || !checkRuns) {
+    if (!status && !checkRuns) {
       return { configured: false, state: "none", summary: "No CI is configured on this repository." };
     }
     throw new Error("Failed to fetch CI status: incomplete CI data");
   }
-  const runs = checks.data.check_runs ?? [];
+  const runs = checkRuns;
   const contexts = status.data.statuses ?? [];
   if (runs.length === 0 && contexts.length === 0) {
     return { configured: false, state: "none", summary: "No CI is configured on this repository." };

@@ -24,7 +24,7 @@ vi.mock("@company-brain/db", () => ({
               };
             }
             if (vals["status"] === "ready") {
-              return Promise.reject(new Error("db connection lost"));
+              return { returning: () => Promise.reject(new Error("db connection lost")) };
             }
             return Promise.resolve([]);
           },

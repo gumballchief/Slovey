@@ -284,6 +284,9 @@ export function isGitTreeTruncated(
   return tree?.truncated === true;
 }
 
+/** Maximum package.json blob size to fetch/decode (1 MiB). Larger manifests are skipped. */
+export const MAX_MANIFEST_BYTES = 1_048_576;
+
 export async function runIndexRepo(params: {
   repoId: string;
   installationId: number;
@@ -328,13 +331,18 @@ export async function runIndexRepo(params: {
   for (const mp of manifestPaths) {
     const node = blobs.find((b) => b.path === mp);
     if (!node?.sha) continue;
+    if (typeof node.size === "number" && node.size > MAX_MANIFEST_BYTES) continue;
     try {
       const blob = await octokit.rest.git.getBlob({
         owner: params.owner,
         repo: params.name,
         file_sha: node.sha,
       });
-      const json = JSON.parse(Buffer.from(blob.data.content, "base64").toString("utf8"));
+      if (typeof blob.data.size === "number" && blob.data.size > MAX_MANIFEST_BYTES) continue;
+      const content = blob.data.content;
+      if (typeof content !== "string" || content.length > (MAX_MANIFEST_BYTES * 4) / 3 + 1024)
+        continue;
+      const json = JSON.parse(Buffer.from(content, "base64").toString("utf8"));
       manifests.push({
         path: mp,
         name: json.name,
@@ -419,6 +427,13 @@ export async function runIndexRepo(params: {
   const dependencyGraph: DependencyGraph = { nodes, edges };
 
   // 8. Upsert knowledge rows (replace prior of each kind).
+  // A truncated tree is partial: skip the delete+insert to preserve prior knowledge.
+  if (truncated) {
+    logger.child({ component: "index-repo" }).warn("skipping knowledge upsert on truncated tree", {
+      repo: `${params.owner}/${params.name}`,
+    });
+    return { architecture, dependencyGraph, conventions: { inserted: 0, updated: 0 } };
+  }
   const db = getDb();
   await db.transaction(async (tx) => {
     await tx

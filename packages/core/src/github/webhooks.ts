@@ -80,12 +80,13 @@ export function parseWebhook(event: string, payload: any): WebhookIntent[] {
       return intents;
     }
     case "pull_request": {
-      if (payload.action !== "opened" && payload.action !== "synchronize" && payload.action !== "reopened") return [];
+      const isEditedBaseChange = payload.action === "edited" && Boolean(payload.changes?.base);
+      if (payload.action !== "opened" && payload.action !== "synchronize" && payload.action !== "reopened" && payload.action !== "ready_for_review" && !isEditedBaseChange) return [];
       // Defensive: never crash on a malformed payload (missing repo / non-numeric PR).
       const fullName = payload.repository?.full_name;
       const prNumber = payload.pull_request?.number;
       if (typeof fullName !== "string" || typeof prNumber !== "number") return [];
-      return [{ type: "check_pr", installationId, fullName, prNumber, action: payload.action === "reopened" ? "synchronize" : payload.action }];
+      return [{ type: "check_pr", installationId, fullName, prNumber, action: payload.action === "opened" ? "opened" : "synchronize" }];
     }
     case "issue_comment": {
       if (payload.action !== "created" || !payload.issue?.pull_request) return [];

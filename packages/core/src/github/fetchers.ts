@@ -70,6 +70,10 @@ export async function fetchClosedPRs(
   return out;
 }
 
+function sanitizePrText(s: string): string {
+  return (s ?? "").replace(/<\/?untrusted-pr-content>/g, "");
+}
+
 /** Format closed PRs into the text block the extraction prompt consumes.
  * NOTE: PR titles/bodies/discussions are untrusted third-party input. They are
  * wrapped in explicit delimiters and must never be followed as instructions —
@@ -85,7 +89,7 @@ export function buildPrBatchText(prs: ClosedPr[]): string {
     prs
       .map(
         (pr) =>
-          `### PR #${pr.number} [${pr.state.toUpperCase()}]\n<untrusted-pr-content>\nTITLE: ${pr.title}\nDESCRIPTION: ${pr.body}\nDISCUSSION:\n${pr.discussion || "(none)"}\n</untrusted-pr-content>`,
+          `### PR #${pr.number} [${pr.state.toUpperCase()}]\n<untrusted-pr-content>\nTITLE: ${sanitizePrText(pr.title)}\nDESCRIPTION: ${sanitizePrText(pr.body)}\nDISCUSSION:\n${sanitizePrText(pr.discussion) || "(none)"}\n</untrusted-pr-content>`,
       )
       .join("\n\n")
   );
@@ -163,6 +167,7 @@ export interface PrForCheck {
   headSha: string;
   changedFiles: string[];
   diffSummary: string;
+  truncated: boolean;
 }
 
 /** Fetch a single PR with the context the judge needs. */
@@ -199,19 +204,33 @@ export async function fetchPrForCheck(
   );
   const parts: string[] = [];
   let used = 0;
-  let patchTruncated = false;
+  let truncated = false;
   for (const f of ordered) {
     const header = `${f.filename} (+${f.additions}/-${f.deletions})\n`;
     const rawPatch = f.patch ?? "[patch unavailable: binary/large file]";
-    if (f.patch == null || rawPatch.length > PER_FILE_PATCH_CAP) patchTruncated = true;
-    const entry = `${header}${truncate(rawPatch, PER_FILE_PATCH_CAP)}`;
+    if (f.patch == null || rawPatch.length > PER_FILE_PATCH_CAP) truncated = true;
+    const fullEntry = `${header}${truncate(rawPatch, PER_FILE_PATCH_CAP)}`;
     const sep = parts.length > 0 ? 2 : 0;
-    if (parts.length > 0 && used + sep + entry.length > DIFF_SUMMARY_CAP) continue;
-    parts.push(entry);
-    used += sep + entry.length;
+    if (parts.length > 0 && used + sep + fullEntry.length > DIFF_SUMMARY_CAP) {
+      truncated = true;
+      const remaining = DIFF_SUMMARY_CAP - used - sep;
+      if (remaining > header.length + 20) {
+        const patchBudget = remaining - header.length - 14;
+        const sliced = `${rawPatch.slice(0, Math.max(0, patchBudget))}\n…[truncated]`;
+        const entry = `${header}${sliced}`;
+        parts.push(entry);
+        used += sep + entry.length;
+      } else if (remaining > 0) {
+        parts.push(fullEntry.slice(0, remaining));
+        used += sep + remaining;
+      }
+    } else {
+      parts.push(fullEntry);
+      used += sep + fullEntry.length;
+    }
   }
   let diffSummary = parts.join("\n\n");
-  if (parts.length < filesData.length || patchTruncated) {
+  if (truncated) {
     diffSummary += `\n\n…[truncated: incomplete diff — showing ${parts.length} of ${filesData.length} files; full review required, do not approve on partial diff]`;
   }
   return {
@@ -222,6 +241,7 @@ export async function fetchPrForCheck(
     headSha: pr.data.head.sha,
     changedFiles,
     diffSummary,
+    truncated,
   };
 }
 

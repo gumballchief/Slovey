@@ -185,9 +185,10 @@ export async function POST(req: Request): Promise<Response> {
               log.info("ignoring stale subscription update", { orgId, subId: sub.id });
               break;
             }
-          } catch {
-            // Fail closed: without live confirmation never (re-)grant Pro from
-            // a replayable event; a genuine upgrade will arrive/retry later.
+          } catch (e) {
+            // Transient Stripe errors must retry (500) instead of acking and
+            // losing the upgrade; only a gone/missing subscription is ignored.
+            if (!isSubscriptionGoneError(e)) throw e;
             log.info("ignoring unverifiable subscription update", { orgId, subId: sub.id });
             break;
           }

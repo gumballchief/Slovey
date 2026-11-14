@@ -50,15 +50,9 @@ const KEYWORD_STOPWORDS = new Set([
 
 /** Distinctive alphanumeric terms from untrusted PR text for keyword backstop. */
 export function extractQueryKeywords(pr: JudgePrInput, maxTerms = 10): string[] {
-  const text = [
-    pr.title,
-    pr.body,
-    (pr.changedFiles ?? []).join(" "),
-    pr.diffSummary ?? "",
-  ]
-    .filter(Boolean)
-    .join("\n")
-    .toLowerCase();
+  // Reuse the capped retrieval query so multi-megabyte bodies/diffs cannot
+  // force a full lowercased copy + huge token array here.
+  const text = buildRetrievalQueryText(pr).toLowerCase();
   const tokens = text
     .split(/[^a-z0-9]+/)
     .filter((t) => t.length >= 4 && !KEYWORD_STOPWORDS.has(t));

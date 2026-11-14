@@ -103,6 +103,7 @@ export async function runExtract(params: ExtractParams): Promise<ExtractResult> 
     if (Array.isArray(res)) {
       // Keep only citations of PRs that were really in this batch, so text inside a PR
       // cannot plant a decision that cites some other PR.
+      // Closed-unmerged (rejected) PRs are valid evidence too: a rejection is a decision.
       const realIds = batch.map((pr) => pr.number);
       const cleaned = res.filter((d) => d && typeof d === "object").map((d) => ({ ...d, evidence: normalizeEvidence(d.evidence) }));
       raw.push(...filterExtractedDecisionsToBatch(cleaned, realIds));

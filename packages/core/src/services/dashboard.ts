@@ -191,6 +191,12 @@ export async function requireRepoScope(repoId: string, scope?: RepoScope): Promi
   if (!r || !isRepoVisible(r, scope)) throw new Error("repo not visible to caller");
 }
 
+/** Reject orgs outside the caller's tenancy. No scope = dev/local (allow). */
+export async function requireOrgScope(orgId: string, scope?: RepoScope): Promise<void> {
+  if (!scope) return;
+  if (!scope.orgIds.includes(orgId)) throw new Error("org not visible to caller");
+}
+
 export async function listRepos(scope?: RepoScope): Promise<ApiRepo[]> {
   const db = getDb();
   // TENANCY: without scoping, this returned EVERY tenant's repos (names + metrics)
@@ -357,7 +363,17 @@ export async function searchDecisions(
   const lit = `[${vec.join(",")}]`;
   const db = getDb();
   const rows = await db
-    .select()
+    .select({
+      id: decisions.id,
+      repoId: decisions.repoId,
+      decision: decisions.decision,
+      why: decisions.why,
+      examples: decisions.examples,
+      evidence: decisions.evidence,
+      source: decisions.source,
+      status: decisions.status,
+      createdAt: decisions.createdAt,
+    })
     .from(decisions)
     .where(
       and(
@@ -367,7 +383,7 @@ export async function searchDecisions(
       ),
     )
     .orderBy(sql`${decisions.embedding} <=> ${lit}::vector`)
-    .limit(limit);
+    .limit(Math.min(Math.max(limit, 1), 50));
   return rows.map(toApiDecision);
 }
 
@@ -811,7 +827,8 @@ export async function getOrgForRepo(repoId: string): Promise<ApiOrg | null> {
 }
 
 /** Org members with their RBAC role, oldest first. */
-export async function listOrgMembers(orgId: string): Promise<ApiMember[]> {
+export async function listOrgMembers(orgId: string, scope?: RepoScope): Promise<ApiMember[]> {
+  await requireOrgScope(orgId, scope);
   const db = getDb();
   const rows = await db
     .select({
@@ -829,7 +846,8 @@ export async function listOrgMembers(orgId: string): Promise<ApiMember[]> {
 }
 
 /** Recent audit-log entries for an org (most recent first). */
-export async function listAuditLog(orgId: string, limit = 50): Promise<ApiAuditEntry[]> {
+export async function listAuditLog(orgId: string, limit = 50, scope?: RepoScope): Promise<ApiAuditEntry[]> {
+  await requireOrgScope(orgId, scope);
   const db = getDb();
   const rows = await db
     .select()
@@ -971,6 +989,14 @@ export async function dashboardFeedback(
       .orderBy(desc(prChecks.checkedAt))
       .limit(1);
     prCheckId = check?.id ?? null;
+  }
+  if (input.decisionId) {
+    const [own] = await db
+      .select({ id: decisions.id })
+      .from(decisions)
+      .where(and(eq(decisions.id, input.decisionId), eq(decisions.repoId, repoId)))
+      .limit(1);
+    if (!own) throw new Error("decision not in repo");
   }
   const [row] = await db
     .insert(feedbackTable)

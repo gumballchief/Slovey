@@ -33,9 +33,32 @@ export async function listAgentRuns(repoId: string, limit = 20): Promise<AgentRu
  */
 export const AGENT_RUN_STALE_MS = 10 * 60 * 1000;
 
+/** Heartbeat interval for a running agent task; must stay well under the stale timeout. */
+export const AGENT_RUN_HEARTBEAT_MS = 60 * 1000;
+
 /** A crashed claim is a running row whose heartbeat went stale. Terminal states never qualify. */
 export function isStaleAgentRunForRetry(status: string, updatedAt: Date, now: Date = new Date()): boolean {
   return status === "running" && now.getTime() - updatedAt.getTime() > AGENT_RUN_STALE_MS;
+}
+
+/** True when the row still carries our last heartbeat (nobody reclaimed it since). */
+export function isAgentRunStillOwned(currentUpdatedAt: Date, lastHeartbeat: Date): boolean {
+  return currentUpdatedAt.getTime() === lastHeartbeat.getTime();
+}
+
+/**
+ * Stop heartbeating and wait for a beat already in flight to land. Without
+ * settling, an in-flight beat can change updatedAt after the final update's
+ * ownership token is read, making that update miss its own row: the run is
+ * left "running" despite having opened a PR, so a later stale reclaim
+ * re-executes it and opens a duplicate.
+ */
+export async function settleAgentRunHeartbeat(
+  clearTimer: () => void,
+  inFlight: Promise<void> | null,
+): Promise<void> {
+  clearTimer();
+  await inFlight;
 }
 
 export async function executeAgentRun(runId: string): Promise<void> {
@@ -63,20 +86,57 @@ export async function executeAgentRun(runId: string): Promise<void> {
     run = reclaimed;
   }
 
+  let lastHeartbeat = new Date(run.updatedAt);
+  let heartbeatInFlight: Promise<void> | null = null;
+  const heartbeatTimer = setInterval(() => {
+    if (heartbeatInFlight) return;
+    const beat = new Date();
+    const expected = lastHeartbeat;
+    heartbeatInFlight = db
+      .update(agentRuns)
+      .set({ updatedAt: beat })
+      .where(and(eq(agentRuns.id, runId), eq(agentRuns.status, "running"), eq(agentRuns.updatedAt, expected)))
+      .returning()
+      .then((rows) => {
+        const beatUpdatedAt = rows[0]?.updatedAt;
+        if (rows.length > 0 && beatUpdatedAt) lastHeartbeat = new Date(beatUpdatedAt);
+      })
+      .catch(() => {})
+      .then(() => {
+        heartbeatInFlight = null;
+      });
+  }, AGENT_RUN_HEARTBEAT_MS);
+  const stopHeartbeat = async (): Promise<void> => {
+    await settleAgentRunHeartbeat(() => clearInterval(heartbeatTimer), heartbeatInFlight);
+  };
+  const timerWithUnref = heartbeatTimer as unknown as { unref?: () => void };
+  if (typeof timerWithUnref.unref === "function") timerWithUnref.unref();
+
   try {
     const repo = await resolveRepoById(run.repoId);
     if (!repo) throw new Error("repository no longer connected");
-    const r = await runAgentTask({
-      repoId: repo.repoId,
-      installationId: repo.installationGithubId,
-      owner: repo.owner,
-      name: repo.name,
-      fullName: repo.fullName,
-      defaultBranch: repo.defaultBranch,
-      intent: run.intent,
-    });
+    let r: Awaited<ReturnType<typeof runAgentTask>>;
     try {
-      await db
+      r = await runAgentTask({
+        repoId: repo.repoId,
+        installationId: repo.installationGithubId,
+        owner: repo.owner,
+        name: repo.name,
+        fullName: repo.fullName,
+        defaultBranch: repo.defaultBranch,
+        intent: run.intent,
+      });
+    } finally {
+      await stopHeartbeat();
+    }
+    const ownedHeartbeat = lastHeartbeat;
+    const ownedWhere = and(
+      eq(agentRuns.id, runId),
+      eq(agentRuns.status, "running"),
+      eq(agentRuns.updatedAt, ownedHeartbeat),
+    );
+    try {
+      const [readyRow] = await db
         .update(agentRuns)
         .set({
           status: "ready",
@@ -95,7 +155,12 @@ export async function executeAgentRun(runId: string): Promise<void> {
           ciSummary: r.ciSummary,
           updatedAt: new Date(),
         })
-        .where(eq(agentRuns.id, runId));
+        .where(ownedWhere)
+        .returning();
+      if (!readyRow) {
+        log.info("agent run ownership lost; skipping ready update");
+        return;
+      }
     } catch (readyErr) {
       const readyMessage = readyErr instanceof Error ? readyErr.message : String(readyErr);
       await db
@@ -118,14 +183,19 @@ export async function executeAgentRun(runId: string): Promise<void> {
           ciSummary: r.ciSummary,
           updatedAt: new Date(),
         })
-        .where(eq(agentRuns.id, runId));
+        .where(ownedWhere);
       log.error("agent run ready-update failed", { error: readyMessage, pr: r.prNumber });
       return;
     }
     log.info("agent run ready", { pr: r.prNumber, verdict: r.verdict, reviseRounds: r.reviseRounds, ci: r.ciState });
   } catch (e) {
+    await stopHeartbeat();
     const message = e instanceof Error ? e.message : String(e);
-    await db.update(agentRuns).set({ status: "failed", error: message, updatedAt: new Date() }).where(eq(agentRuns.id, runId));
+    const failedHeartbeat = lastHeartbeat;
+    await db
+      .update(agentRuns)
+      .set({ status: "failed", error: message, updatedAt: new Date() })
+      .where(and(eq(agentRuns.id, runId), eq(agentRuns.status, "running"), eq(agentRuns.updatedAt, failedHeartbeat)));
     log.error("agent run failed", { error: message });
   }
 }

@@ -7,7 +7,7 @@ import { persistRun } from "./persist";
 import { scanForSecrets } from "./redact";
 import { securityReviewCheck } from "./security";
 import { resolveStatus } from "./engine";
-import type { CheckResult, FixInstruction, PreflightResult } from "./types";
+import type { CheckResult, FixInstruction, PreflightError, PreflightResult } from "./types";
 
 export interface RemotePreflightPayload {
   /** Unified diff of the change (drives the decision-graph check). */
@@ -34,6 +34,7 @@ export const REMOTE_PREFLIGHT_MAX_TOTAL_CHARS = 3 * 1024 * 1024;
 export const REMOTE_PREFLIGHT_MAX_DIFF_CHARS = 1_000_000;
 export const REMOTE_PREFLIGHT_MAX_CHANGED_FILES = 5000;
 export const REMOTE_PREFLIGHT_MAX_DIFF_FOR_CHECKS = 200_000;
+export const REMOTE_PREFLIGHT_MAX_ERRORS_PER_CHECK = 100;
 
 export class RemotePreflightTooLargeError extends Error {
   readonly statusCode = 413;
@@ -42,6 +43,25 @@ export class RemotePreflightTooLargeError extends Error {
     super(message);
     this.name = "RemotePreflightTooLargeError";
   }
+}
+
+/**
+ * Cap per-check errors to the first N plus an overflow summary so a bounded
+ * request cannot fan out into millions of error/fix objects and DB rows.
+ */
+export function truncateCheckErrors(errors: PreflightError[]): PreflightError[] {
+  if (errors.length <= REMOTE_PREFLIGHT_MAX_ERRORS_PER_CHECK) return errors;
+  const omitted = errors.length - REMOTE_PREFLIGHT_MAX_ERRORS_PER_CHECK;
+  const first = errors[0];
+  return [
+    ...errors.slice(0, REMOTE_PREFLIGHT_MAX_ERRORS_PER_CHECK),
+    {
+      file: first?.file ?? "",
+      code: "too-many-errors",
+      category: first?.category ?? "unknown",
+      message: `${omitted} additional matches omitted (cap of ${REMOTE_PREFLIGHT_MAX_ERRORS_PER_CHECK} per check) \u2014 fix the first ${REMOTE_PREFLIGHT_MAX_ERRORS_PER_CHECK} and re-run.`,
+    },
+  ];
 }
 
 export async function runRemotePreflight(repoId: string, payload: RemotePreflightPayload): Promise<PreflightResult> {
@@ -89,17 +109,25 @@ export async function runRemotePreflight(repoId: string, payload: RemotePrefligh
     });
   }
 
+  // Coverage is about actual content, not entry count: an empty-string file
+  // entry (or files[] omitting a changed file) must not turn a no-coverage
+  // run into a clean pass. A changed path is covered only by a files[] entry
+  // for that path with non-empty content, or by a non-empty diff.
+  const coveredPaths = new Set(files.filter((f) => f.content?.trim()).map((f) => f.path));
+  const hasDiff = Boolean(diff.trim());
+  const uncoveredChanged = hasDiff ? [] : changed.filter((p) => !coveredPaths.has(p));
+  const hasFileContent = coveredPaths.size > 0;
+
   // secret-scan on supplied contents; when contents are unavailable (large,
   // binary, or deleted files omit files[]) fall back to scanning the diff so a
   // secret visible only in the diff cannot bypass the gate. With neither,
   // report skipped instead of omitting the check.
   if (config.secretScan.enabled) {
     const start = Date.now();
-    if (files.length) {
-      const errors = scanForSecrets(files);
-      checks.push({ name: "secret-scan", agent: "security", command: "", durationMs: Date.now() - start, blocking: true, status: errors.length ? "fail" : "pass", errors });
-    } else if (diff.trim()) {
-      const errors = scanForSecrets([{ path: "diff.patch", content: diff }]);
+    const scanTargets = [...files];
+    if (payload.diff?.trim()) scanTargets.push({ path: "diff.patch", content: diff });
+    if (scanTargets.some((t) => t.content?.trim())) {
+      const errors = scanForSecrets(scanTargets);
       checks.push({ name: "secret-scan", agent: "security", command: "", durationMs: Date.now() - start, blocking: true, status: errors.length ? "fail" : "pass", errors });
     } else {
       checks.push({ name: "secret-scan", agent: "security", command: "", durationMs: 0, blocking: true, status: "skipped", errors: [], skippedReason: "No file contents or diff supplied \u2014 secret scan had no coverage." });
@@ -119,7 +147,7 @@ export async function runRemotePreflight(repoId: string, payload: RemotePrefligh
     ...(config.architectureChecks.deriveFromDecisions ? rulesFromRejectedDecisions(rejected) : []),
   ];
   const arch = architectureCheckContents(files, changed, rules);
-  if (!files.length && rules.some((r) => r.type !== "forbidden-path") && arch.status !== "fail") {
+  if ((!hasFileContent || uncoveredChanged.length > 0) && rules.some((r) => r.type !== "forbidden-path") && arch.status !== "fail") {
     checks.push({ ...arch, blocking: true, status: "skipped", skippedReason: "No file contents supplied \u2014 content rules had no coverage; supply files[] for full enforcement." });
   } else {
     checks.push({ ...arch, blocking: true });
@@ -138,6 +166,12 @@ export async function runRemotePreflight(repoId: string, payload: RemotePrefligh
     status: blockingViolations.length ? "fail" : "pass", errors: [],
     skippedReason: note && violations.length === 0 ? note : undefined,
   });
+
+  for (const c of checks) {
+    if (c.errors.length > REMOTE_PREFLIGHT_MAX_ERRORS_PER_CHECK) {
+      c.errors = truncateCheckErrors(c.errors);
+    }
+  }
 
   let fixInstructions: FixInstruction[] = [];
   for (const c of checks) if (c.status === "fail" && c.errors.length) fixInstructions.push(...toFixInstructions(c.name, c.errors));
