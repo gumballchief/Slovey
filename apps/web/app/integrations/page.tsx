@@ -23,7 +23,7 @@ const AGENTS: Array<{ name: string; logo?: string; what: string }> = [
   { name: "Claude", logo: "/logos/claude.svg", what: "The app, claude.ai and Claude Code read your decisions over MCP before they edit, and run Preflight before they commit." },
   { name: "Codex", logo: "/logos/codex.svg", what: "The Codex app, IDE extension and CLI, over MCP with one command." },
   { name: "Cursor", logo: "/logos/cursor.svg", what: "The same memory your reviewers and CI use, over MCP." },
-  { name: "ChatGPT, VS Code and others", what: "Any agent that speaks MCP, or anything that can call a CLI." },
+  { name: "ChatGPT, Lovable and others", what: "Any agent that speaks MCP, or anything that can call a CLI." },
   { name: "Your CI", what: "slovey preflight in any pipeline, as a required check." },
 ];
 

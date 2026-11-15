@@ -11,19 +11,19 @@ import { createToken, fetchTokens, type CliToken } from "@/lib/api-client";
 import { SITE_URL } from "@/lib/site";
 import { Button, CodeBlock, CopyLine, Segmented, cx, errorMessage, timeAgo } from "@/ui/kit";
 
-type ToolId = "claude" | "chatgpt" | "codex" | "cursor" | "vscode" | "cli" | "other";
-type ClaudeKind = "app" | "code";
+type ToolId = "claude" | "chatgpt" | "cursor" | "lovable" | "cli" | "mcp";
+/** Claude and ChatGPT each hold two products: the app, and the coding agent (Claude Code, Codex). */
+type Kind = "app" | "code";
 
-// The same set and order the big MCP pages use (Context7, Stripe, Vercel, Linear, Supabase, Higgsfield):
-// Claude once (the app and Claude Code inside it), then ChatGPT, Codex, Cursor, VS Code, a CLI route, Other.
-const TOOLS: Array<{ id: ToolId; name: string; logo?: string; icon?: ReactNode }> = [
-  { id: "claude", name: "Claude", logo: "/logos/claude.svg" },
-  { id: "chatgpt", name: "ChatGPT", logo: "/logos/openai.svg" },
-  { id: "codex", name: "Codex", logo: "/logos/codex.svg" },
+// Each maker once: Claude (the app and Claude Code), ChatGPT (the app and Codex), Cursor, Lovable, then the
+// terminal route (CLI) and any other MCP app (MCP).
+const TOOLS: Array<{ id: ToolId; name: string; logo?: string; icon?: ReactNode; kinds?: [string, string] }> = [
+  { id: "claude", name: "Claude", logo: "/logos/claude.svg", kinds: ["Claude app", "Claude Code"] },
+  { id: "chatgpt", name: "ChatGPT", logo: "/logos/openai.svg", kinds: ["ChatGPT app", "Codex"] },
   { id: "cursor", name: "Cursor", logo: "/logos/cursor.svg" },
-  { id: "vscode", name: "VS Code", logo: "/logos/vscode.svg" },
+  { id: "lovable", name: "Lovable", logo: "/logos/lovable.svg" },
   { id: "cli", name: "CLI", icon: <TerminalWindowIcon size={22} /> },
-  { id: "other", name: "Other", icon: <PlugIcon size={22} /> },
+  { id: "mcp", name: "MCP", icon: <PlugIcon size={22} /> },
 ];
 
 const PLACEHOLDER = "cb_YOUR_KEY";
@@ -49,7 +49,8 @@ function ConnectFor({ repoId }: { repoId: string }) {
   const repoName = repo?.name ?? "this repository";
   const tokens = useData(`${repoId}|tokens`, () => fetchTokens(repoId));
   const [tool, setTool] = useState<ToolId>("claude");
-  const [claudeKind, setClaudeKind] = useState<ClaudeKind>("app");
+  const [kinds, setKinds] = useState<Record<string, Kind>>({ claude: "app", chatgpt: "app" });
+  const kind = kinds[tool] ?? "app";
   const [fresh, setFresh] = useState<{ id: string; token: string } | null>(null);
   const [creating, setCreating] = useState(false);
   // The endpoint lives on whatever host serves this dashboard (slovey.ai, or a self-hosted copy).
@@ -84,9 +85,10 @@ function ConnectFor({ repoId }: { repoId: string }) {
 
   const key = fresh?.token ?? PLACEHOLDER;
   const url = `${origin}/api/mcp`;
+  const current = TOOLS.find((t) => t.id === tool)!;
   const toolName =
-    tool === "claude" && claudeKind === "code" ? "Claude Code" : tool === "cli" ? "your agents" : TOOLS.find((t) => t.id === tool)!.name;
-  const signsIn = tool !== "other";
+    current.kinds ? current.kinds[kind === "app" ? 0 : 1].replace(/ app$/, "") : tool === "cli" ? "your agents" : tool === "mcp" ? "your app" : current.name;
+  const signsIn = tool !== "mcp";
 
   async function makeKey(name: string) {
     setCreating(true);
@@ -111,7 +113,7 @@ function ConnectFor({ repoId }: { repoId: string }) {
       ) : (
         <>
           <p className="ui-small">A key reads {repoName}&apos;s decisions, and nothing else.</p>
-          <Button variant="light" loading={creating} icon={<KeyIcon size={15} />} onClick={() => makeKey(toolName)}>
+          <Button variant="light" loading={creating} icon={<KeyIcon size={15} />} onClick={() => makeKey(tool === "mcp" ? "MCP app" : toolName)}>
             Create a key
           </Button>
         </>
@@ -151,21 +153,21 @@ function ConnectFor({ repoId }: { repoId: string }) {
         <div className="ui-card ui-card--raised cn-panel">
           {!signsIn && keyStep}
           <Step
-            title={tool === "cli" ? "Add Slovey from your terminal" : signsIn ? `Add Slovey to ${toolName}` : "Point your client at Slovey"}
+            title={tool === "cli" ? "Add Slovey from your terminal" : signsIn ? `Add Slovey to ${toolName}` : "Point your app at Slovey"}
             done={connectedNow}
           >
-            {tool === "claude" && (
+            {current.kinds && (
               <Segmented
-                label="Which Claude"
-                value={claudeKind}
-                onChange={setClaudeKind}
+                label={`Which ${current.name}`}
+                value={kind}
+                onChange={(k) => setKinds((all) => ({ ...all, [tool]: k }))}
                 options={[
-                  { value: "app", label: "Claude app" },
-                  { value: "code", label: "Claude Code" },
+                  { value: "app", label: current.kinds[0] },
+                  { value: "code", label: current.kinds[1] },
                 ]}
               />
             )}
-            <ToolSteps tool={tool} claudeKind={claudeKind} url={url} apiKey={key} />
+            <ToolSteps tool={tool} kind={kind} url={url} apiKey={key} />
           </Step>
           {signsIn && (
             <Step title="Sign in with Slovey" done={connectedNow}>
@@ -248,8 +250,8 @@ function GateRow({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-function ToolSteps({ tool, claudeKind, url, apiKey }: { tool: ToolId; claudeKind: ClaudeKind; url: string; apiKey: string }) {
-  if (tool === "claude" && claudeKind === "app") {
+function ToolSteps({ tool, kind, url, apiKey }: { tool: ToolId; kind: Kind; url: string; apiKey: string }) {
+  if (tool === "claude" && kind === "app") {
     return (
       <>
         <p className="ui-small">
@@ -277,7 +279,7 @@ function ToolSteps({ tool, claudeKind, url, apiKey }: { tool: ToolId; claudeKind
     );
   }
 
-  if (tool === "chatgpt") {
+  if (tool === "chatgpt" && kind === "app") {
     return (
       <>
         <p className="ui-small">
@@ -293,7 +295,7 @@ function ToolSteps({ tool, claudeKind, url, apiKey }: { tool: ToolId; claudeKind
     );
   }
 
-  if (tool === "codex") {
+  if (tool === "chatgpt") {
     return (
       <>
         <p className="ui-small">Run this once in a terminal:</p>
@@ -321,17 +323,18 @@ function ToolSteps({ tool, claudeKind, url, apiKey }: { tool: ToolId; claudeKind
     );
   }
 
-  if (tool === "vscode") {
-    const server = { type: "http", url };
-    const deeplink = `vscode:mcp/install?${encodeURIComponent(JSON.stringify({ name: "slovey", ...server }))}`;
+  if (tool === "lovable") {
     return (
       <>
-        <OneClick href={deeplink} label="Add to VS Code" logo="/logos/vscode.svg" />
         <p className="ui-small">
-          For GitHub Copilot in VS Code. Or add it to .vscode/mcp.json in your repository. VS Code asks you to sign in the
-          first time.
+          In Lovable, open Connectors, click Add custom and choose MCP server. Name it Slovey, paste this address, leave
+          authentication on OAuth and click Add &amp; authorize:
         </p>
-        <CodeBlock title=".vscode/mcp.json" code={JSON.stringify({ servers: { slovey: server } }, null, 2)} />
+        <CopyLine text={url} />
+        <p className="ui-small">
+          Lovable then builds with your team&apos;s decisions in mind. If MCP server is greyed out, a workspace admin has
+          turned custom servers off.
+        </p>
       </>
     );
   }
@@ -359,7 +362,7 @@ function ToolSteps({ tool, claudeKind, url, apiKey }: { tool: ToolId; claudeKind
   return (
     <>
       <p className="ui-small">
-        Clients that support remote MCP sign in with Slovey on their own using this address. For one that can&apos;t,
+        Any app that supports MCP can use this address. Most sign in with Slovey on their own; for one that can&apos;t,
         send the key above as a header.
       </p>
       <CopyLine text={url} />

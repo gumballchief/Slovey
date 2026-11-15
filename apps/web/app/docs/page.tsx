@@ -34,7 +34,7 @@ export default function DocsPage() {
           <div className="st-card">
             <h3>Connect your agent</h3>
             <p>
-              Add this address to Claude, ChatGPT, Codex, Cursor or VS Code and sign in with Slovey. Nothing to install; the
+              Add this address to Claude, ChatGPT, Codex, Cursor or Lovable and sign in with Slovey. Nothing to install; the
               Connect page in your dashboard walks you through each one.
             </p>
             <pre className="ui-code" style={{ fontSize: 12.5 }}>https://slovey.ai/api/mcp</pre>

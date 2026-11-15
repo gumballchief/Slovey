@@ -36,8 +36,8 @@ export default function McpPage() {
           </div>
           <div className="st-card">
             <img src="/logos/cursor.svg" alt="" width={22} height={22} />
-            <h3>Cursor, VS Code and more</h3>
-            <p>One click in Cursor and VS Code. Anything that speaks MCP connects to the same memory.</p>
+            <h3>Cursor, Lovable and more</h3>
+            <p>One click in Cursor, a custom connector in Lovable. Anything that speaks MCP connects to the same memory.</p>
           </div>
         </div>
       </div>
@@ -65,8 +65,9 @@ export default function McpPage() {
             <code>codex mcp add slovey --url https://slovey.ai/api/mcp</code>
           </pre>
           <p>
-            In ChatGPT, open Plugins and add a custom MCP server with the same address. Cursor and VS Code get a one-click
-            install on the Connect page in your dashboard, which also shows the moment your agent first reaches Slovey.
+            In ChatGPT, open Plugins and add a custom MCP server with the same address; in Lovable, add it under
+            Connectors. Cursor gets a one-click install on the Connect page in your dashboard, which also shows the moment
+            your agent first reaches Slovey.
           </p>
           <p>
             Your agent then gets six tools: <code>what_applies_here</code>, <code>plan</code>, <code>can_i</code>,{" "}

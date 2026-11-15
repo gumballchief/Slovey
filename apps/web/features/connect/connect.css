@@ -1,14 +1,14 @@
 /* Connect: plug Slovey into a coding agent, then the commit gate. */
 
-/* seven clients: one row on desktop, 4 + 3 below that */
+/* six clients: one row on desktop, 3 + 3 below that */
 .cn-tools {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 8px;
 }
 @media (max-width: 900px) {
   .cn-tools {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 .cn-tool {
