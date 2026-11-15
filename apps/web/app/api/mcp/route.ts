@@ -41,9 +41,19 @@ function safe<A>(name: string, fn: (args: A) => Promise<ReturnType<typeof text>>
   };
 }
 
-function buildServer({ repoId, repoFullName }: CliCaller): McpServer {
+function buildServer({ repoId, repoFullName }: CliCaller, origin: string): McpServer {
   const server = new McpServer(
-    { name: "slovey", version: VERSION },
+    {
+      name: "slovey",
+      title: "Slovey",
+      version: VERSION,
+      websiteUrl: origin,
+      // Clients that show server icons use these; claude.ai custom connectors use the site favicon.
+      icons: [
+        { src: `${origin}/icon.png`, mimeType: "image/png", sizes: ["512x512"] },
+        { src: `${origin}/favicon.ico`, mimeType: "image/x-icon", sizes: ["16x16", "32x32", "48x48"] },
+      ],
+    },
     {
       instructions:
         `Slovey is the memory of ${repoFullName}: the decisions its team made, learned from merged and rejected pull requests and docs. ` +
@@ -202,7 +212,7 @@ export async function POST(req: Request): Promise<Response> {
     return rpcError(500, "Internal error");
   }
 
-  const server = buildServer(caller);
+  const server = buildServer(caller, publicOrigin(req));
   const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
   try {
     await server.connect(transport);

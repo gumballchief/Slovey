@@ -24,7 +24,7 @@ export const metadata: Metadata = {
   description:
     "Slovey learns your team's decisions from GitHub and blocks any change that breaks one, citing the pull request it came from. Open source, with an MCP server for Claude Code and Cursor.",
   applicationName: "Slovey",
-  icons: { icon: "/brand/mark.png" },
+  // Icons come from app/favicon.ico, app/icon.png and app/apple-icon.png (built from the logo layers).
 };
 
 export const viewport: Viewport = { themeColor: "#01010a", colorScheme: "dark" };
