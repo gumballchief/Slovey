@@ -1,24 +1,33 @@
 /* Connect: plug Slovey into a coding agent, then the commit gate. */
 
+/* seven clients: one row on desktop, 4 + 3 below that */
 .cn-tools {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 8px;
+}
+@media (max-width: 900px) {
+  .cn-tools {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 .cn-tool {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 10px;
-  min-height: 48px;
-  padding: 10px 14px;
-  border-radius: 14px;
+  justify-content: center;
+  gap: 9px;
+  min-height: 96px;
+  padding: 14px 6px 12px;
+  border-radius: 16px;
   border: 1px solid var(--line-2);
   background: var(--panel);
   color: var(--text);
   font: inherit;
   font-size: 14.5px;
   font-weight: 600;
-  text-align: left;
+  text-align: center;
+  white-space: nowrap;
   cursor: pointer;
   transition: border-color 0.18s, background 0.18s, color 0.18s;
 }
@@ -35,9 +44,9 @@
   display: grid;
   place-items: center;
   flex: none;
-  width: 30px;
-  height: 30px;
-  border-radius: 9px;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
   border: 1px solid var(--line-2);
   background: var(--panel-3);
   color: var(--ink);
@@ -189,4 +198,10 @@
   .cn-gate-label {
     padding-top: 0;
   }
+}
+
+/* the Claude app / Claude Code switch sits at its own width */
+.cn-step-body > .ui-seg {
+  justify-self: start;
+  align-self: start;
 }

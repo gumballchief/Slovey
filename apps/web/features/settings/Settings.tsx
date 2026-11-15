@@ -175,7 +175,7 @@ function CliTokens({ repoId, repoName }: { repoId: string; repoName?: string }) 
       <h2 className="ui-title ui-title--sm">API keys</h2>
       <p className="ui-small" style={{ color: "var(--text)" }}>
         Keys let your coding agents and the commit gate read {repoName ?? "this repository"}&apos;s decisions. To plug
-        Slovey into Claude Code, Cursor or another agent step by step, use{" "}
+        Slovey into Claude, Codex, Cursor or another agent step by step, use{" "}
         <Link href="/app/connect" className="ui-link">
           Connect
         </Link>

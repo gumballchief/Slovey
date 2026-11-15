@@ -616,7 +616,7 @@ const TILES = [
   { cls: "t-a", art: "/art/tile-preflight.webp", Ui: UiPreflight, Icon: ShieldCheck, k: "Preflight", title: "Stops it before the commit", body: "Runs on your machine and blocks a change that breaks a decision." },
   { cls: "t-b", art: "/art/tile-pr.webp", Ui: UiPr, Icon: GitPullRequest, k: "GitHub App", title: "Reviews every pull request", body: "Cites the decision and the PR behind it, right in the review." },
   { cls: "t-c", art: "/art/tile-ask.webp", Ui: UiAsk, Icon: ChatCircleText, k: "Ask", title: "Answers why it was built this way", body: "Every claim links to the PR, review or postmortem it came from." },
-  { cls: "t-d", art: "/art/tile-mcp.webp", Ui: UiMcp, Icon: Plugs, k: "MCP server", title: "Your agents ask first", body: "Claude Code, Cursor and any MCP client check Slovey before they write." },
+  { cls: "t-d", art: "/art/tile-mcp.webp", Ui: UiMcp, Icon: Plugs, k: "MCP server", title: "Your agents ask first", body: "Claude, Codex, Cursor and any MCP client check Slovey before they write." },
   { cls: "t-e", art: "/art/tile-repo.webp", Ui: UiRepo, Icon: LockKeyOpen, k: "Open source", title: "Yours to run", body: "MIT licensed. Self-host it, or let us run it." },
 ];
 
@@ -755,7 +755,7 @@ const FAQS = [
   { q: "Does this replace Claude Code or Cursor?", a: "No. Slovey sits under them. Your agents keep writing code the way they do today, and Slovey checks each change against your team's decisions before it is committed or merged." },
   { q: "How does it learn my team's decisions?", a: "It reads your GitHub history: pull requests, reviews, commits and docs, plus resolved PagerDuty incidents and their postmortem notes. It keeps the decisions that last and links each one to the PR it came from." },
   { q: "What leaves my machine when Preflight runs?", a: "Builds and tests run locally. In hosted mode Slovey receives the diff, the contents of the changed files, and the branch and commit. If the hosted service is down, Preflight warns and lets you continue, and the GitHub App checks again at PR time." },
-  { q: "How do agents use the memory?", a: "Through the MCP server. Claude Code, Cursor and any MCP client can ask Slovey about decisions, architecture and rules before they write, instead of re-learning your codebase every session." },
+  { q: "How do agents use the memory?", a: "Through the MCP server. Claude, Codex, Cursor and any MCP client can ask Slovey about decisions, architecture and rules before they write, instead of re-learning your codebase every session." },
   { q: "Is it open source?", a: "Yes, under the MIT license. The code is on GitHub. Enterprise adds self-hosted and VPC deployments with audit logs." },
   { q: "How long until it is useful?", a: "You can connect a repository in a few minutes. Basic checks work on day one, and the memory gets sharper with every review, merge and correction your team makes." },
 ];

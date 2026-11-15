@@ -58,7 +58,7 @@ export function GettingStarted({
     {
       done: agentConnected,
       title: "Connect your coding agent",
-      body: "Claude Code, Cursor or Claude Desktop asks Slovey before writing code and checks its change before committing.",
+      body: "Claude, Codex, Cursor or any MCP agent asks Slovey before writing code and checks its change before committing.",
       action: { href: "/app/connect", label: "Connect" },
     },
     {

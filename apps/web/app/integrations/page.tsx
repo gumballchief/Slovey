@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/integrations" },
   title: "Integrations",
   description:
-    "Slovey learns from GitHub, Slack, Notion, Jira, Confluence, Linear and PagerDuty, and feeds that memory to Claude Code, Cursor, Codex and any MCP agent.",
+    "Slovey learns from GitHub, Slack, Notion, Jira, Confluence, Linear and PagerDuty, and feeds that memory to Claude, Codex, Cursor and any MCP agent.",
 };
 
 const SOURCES: Array<{ name: string; logo?: string; what: string }> = [
@@ -20,9 +20,10 @@ const SOURCES: Array<{ name: string; logo?: string; what: string }> = [
   { name: "PagerDuty", logo: "/logos/pagerduty.svg", what: "Incidents, so a postmortem becomes a rule." },
 ];
 const AGENTS: Array<{ name: string; logo?: string; what: string }> = [
-  { name: "Claude Code", logo: "/logos/claude.svg", what: "Reads your decisions over MCP before it edits, and runs Preflight before it commits." },
+  { name: "Claude", logo: "/logos/claude.svg", what: "The app, claude.ai and Claude Code read your decisions over MCP before they edit, and run Preflight before they commit." },
+  { name: "Codex", logo: "/logos/codex.svg", what: "The Codex app, IDE extension and CLI, over MCP with one command." },
   { name: "Cursor", logo: "/logos/cursor.svg", what: "The same memory your reviewers and CI use, over MCP." },
-  { name: "Codex and others", what: "Any agent that speaks MCP, or anything that can call a CLI." },
+  { name: "ChatGPT, VS Code and others", what: "Any agent that speaks MCP, or anything that can call a CLI." },
   { name: "Your CI", what: "slovey preflight in any pipeline, as a required check." },
 ];
 

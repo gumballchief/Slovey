@@ -1,24 +1,29 @@
 "use client";
 
 import "./connect.css";
-import { CheckCircleIcon, CodeIcon, KeyIcon, PlugIcon, SpinnerGapIcon } from "@phosphor-icons/react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { CheckCircleIcon, KeyIcon, PlugIcon, SpinnerGapIcon, TerminalWindowIcon } from "@phosphor-icons/react";
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { toast } from "sonner";
 import { NeedsRepo, Page } from "@/features/shell/Page";
 import { useRepo } from "@/features/shell/RepoProvider";
 import { useData } from "@/features/use-data";
 import { createToken, fetchTokens, type CliToken } from "@/lib/api-client";
 import { SITE_URL } from "@/lib/site";
-import { Button, CodeBlock, CopyLine, cx, errorMessage, timeAgo } from "@/ui/kit";
+import { Button, CodeBlock, CopyLine, Segmented, cx, errorMessage, timeAgo } from "@/ui/kit";
 
-type ToolId = "claude" | "claude-code" | "cursor" | "vscode" | "other";
+type ToolId = "claude" | "chatgpt" | "codex" | "cursor" | "vscode" | "cli" | "other";
+type ClaudeKind = "app" | "code";
 
+// The same set and order the big MCP pages use (Context7, Stripe, Vercel, Linear, Supabase, Higgsfield):
+// Claude once (the app and Claude Code inside it), then ChatGPT, Codex, Cursor, VS Code, a CLI route, Other.
 const TOOLS: Array<{ id: ToolId; name: string; logo?: string; icon?: ReactNode }> = [
   { id: "claude", name: "Claude", logo: "/logos/claude.svg" },
-  { id: "claude-code", name: "Claude Code", logo: "/logos/claude.svg" },
+  { id: "chatgpt", name: "ChatGPT", logo: "/logos/openai.svg" },
+  { id: "codex", name: "Codex", logo: "/logos/codex.svg" },
   { id: "cursor", name: "Cursor", logo: "/logos/cursor.svg" },
-  { id: "vscode", name: "VS Code", icon: <CodeIcon size={20} /> },
-  { id: "other", name: "Other clients", icon: <PlugIcon size={20} /> },
+  { id: "vscode", name: "VS Code", logo: "/logos/vscode.svg" },
+  { id: "cli", name: "CLI", icon: <TerminalWindowIcon size={22} /> },
+  { id: "other", name: "Other", icon: <PlugIcon size={22} /> },
 ];
 
 const PLACEHOLDER = "cb_YOUR_KEY";
@@ -31,6 +36,7 @@ const TRY_PROMPTS = [
 
 /** Keys minted by "Sign in with Slovey" are named after the client, e.g. "Claude (connector)". */
 const isConnectorKey = (t: CliToken) => t.name.endsWith("(connector)");
+const noSubscribe = () => () => {};
 const latestUse = (rows: CliToken[]) =>
   rows.reduce((max, t) => (t.lastUsedAt && Date.parse(t.lastUsedAt) > max ? Date.parse(t.lastUsedAt) : max), 0);
 
@@ -43,29 +49,28 @@ function ConnectFor({ repoId }: { repoId: string }) {
   const repoName = repo?.name ?? "this repository";
   const tokens = useData(`${repoId}|tokens`, () => fetchTokens(repoId));
   const [tool, setTool] = useState<ToolId>("claude");
+  const [claudeKind, setClaudeKind] = useState<ClaudeKind>("app");
   const [fresh, setFresh] = useState<{ id: string; token: string } | null>(null);
   const [creating, setCreating] = useState(false);
-  const [origin, setOrigin] = useState(SITE_URL);
-
   // The endpoint lives on whatever host serves this dashboard (slovey.ai, or a self-hosted copy).
-  useEffect(() => setOrigin(window.location.origin), []);
+  const origin = useSyncExternalStore(noSubscribe, () => window.location.origin, () => SITE_URL);
 
   // "Connected" means an agent reached Slovey after this page opened: a connector key
   // (from signing in) or the key made here was used. Every call stamps last-used.
   const rows = tokens.data ?? [];
-  const baseline = useRef<number | null>(null);
+  const [baseline, setBaseline] = useState<number | null>(null);
 
   // Keys are per repository, so switching repositories starts over.
   const [keyRepo, setKeyRepo] = useState(repoId);
   if (keyRepo !== repoId) {
     setKeyRepo(repoId);
     setFresh(null);
-    baseline.current = null;
+    setBaseline(null);
   }
-  if (baseline.current === null && tokens.data) baseline.current = latestUse(rows);
+  if (baseline === null && tokens.data) setBaseline(latestUse(rows));
   const watched = rows.filter((t) => isConnectorKey(t) || t.id === fresh?.id);
   const newest = latestUse(watched);
-  const connectedNow = baseline.current !== null && newest > baseline.current;
+  const connectedNow = baseline !== null && newest > baseline;
   const lastConnector = rows.filter(isConnectorKey).sort((a, b) => latestUse([b]) - latestUse([a]))[0];
 
   const reload = tokens.reload;
@@ -79,7 +84,8 @@ function ConnectFor({ repoId }: { repoId: string }) {
 
   const key = fresh?.token ?? PLACEHOLDER;
   const url = `${origin}/api/mcp`;
-  const toolName = TOOLS.find((t) => t.id === tool)!.name;
+  const toolName =
+    tool === "claude" && claudeKind === "code" ? "Claude Code" : tool === "cli" ? "your agents" : TOOLS.find((t) => t.id === tool)!.name;
   const signsIn = tool !== "other";
 
   async function makeKey(name: string) {
@@ -134,7 +140,7 @@ function ConnectFor({ repoId }: { repoId: string }) {
         <div className="cn-tools" role="group" aria-label="Choose your agent">
           {TOOLS.map((t) => (
             <button key={t.id} type="button" className="cn-tool" aria-pressed={tool === t.id} onClick={() => setTool(t.id)}>
-              <span className="cn-tool-mark">{t.logo ? <img src={t.logo} alt="" width={20} height={20} /> : t.icon}</span>
+              <span className="cn-tool-mark">{t.logo ? <img src={t.logo} alt="" width={22} height={22} /> : t.icon}</span>
               {t.name}
             </button>
           ))}
@@ -144,14 +150,29 @@ function ConnectFor({ repoId }: { repoId: string }) {
       <section className="ui-section">
         <div className="ui-card ui-card--raised cn-panel">
           {!signsIn && keyStep}
-          <Step title={signsIn ? `Add Slovey to ${toolName}` : "Point your client at Slovey"} done={connectedNow}>
-            <ToolSteps tool={tool} url={url} apiKey={key} />
+          <Step
+            title={tool === "cli" ? "Add Slovey from your terminal" : signsIn ? `Add Slovey to ${toolName}` : "Point your client at Slovey"}
+            done={connectedNow}
+          >
+            {tool === "claude" && (
+              <Segmented
+                label="Which Claude"
+                value={claudeKind}
+                onChange={setClaudeKind}
+                options={[
+                  { value: "app", label: "Claude app" },
+                  { value: "code", label: "Claude Code" },
+                ]}
+              />
+            )}
+            <ToolSteps tool={tool} claudeKind={claudeKind} url={url} apiKey={key} />
           </Step>
           {signsIn && (
             <Step title="Sign in with Slovey" done={connectedNow}>
               <p className="ui-small">
-                {toolName} opens a Slovey page. Sign in, pick {repoName} or another repository, and click Allow. There&apos;s
-                no key to copy, and you can remove access any time in Settings.
+                {tool === "cli" ? "The first time an agent calls Slovey, it opens" : `${toolName} opens`} a Slovey page. Sign
+                in, pick {repoName} or another repository, and click Allow. There&apos;s no key to copy, and you can remove
+                access any time in Settings.
               </p>
             </Step>
           )}
@@ -227,8 +248,8 @@ function GateRow({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-function ToolSteps({ tool, url, apiKey }: { tool: ToolId; url: string; apiKey: string }) {
-  if (tool === "claude") {
+function ToolSteps({ tool, claudeKind, url, apiKey }: { tool: ToolId; claudeKind: ClaudeKind; url: string; apiKey: string }) {
+  if (tool === "claude" && claudeKind === "app") {
     return (
       <>
         <p className="ui-small">
@@ -244,13 +265,43 @@ function ToolSteps({ tool, url, apiKey }: { tool: ToolId; url: string; apiKey: s
     );
   }
 
-  if (tool === "claude-code") {
+  if (tool === "claude") {
     return (
       <>
         <p className="ui-small">Run this once in a terminal:</p>
         <CopyLine text={`claude mcp add --transport http slovey ${url}`} />
         <p className="ui-small">
           Then in Claude Code type <code className="ui-code-inline">/mcp</code>, choose slovey and pick Authenticate.
+        </p>
+      </>
+    );
+  }
+
+  if (tool === "chatgpt") {
+    return (
+      <>
+        <p className="ui-small">
+          In ChatGPT on the web, open Plugins, click the plus button and choose Add custom MCP server. Name it Slovey,
+          paste this address, choose OAuth, then Create as a plugin and install it:
+        </p>
+        <CopyLine text={url} />
+        <p className="ui-small">
+          Type @ in a chat and pick Slovey to use it. Adding your own server depends on your ChatGPT plan and workspace
+          settings.
+        </p>
+      </>
+    );
+  }
+
+  if (tool === "codex") {
+    return (
+      <>
+        <p className="ui-small">Run this once in a terminal:</p>
+        <CopyLine text={`codex mcp add slovey --url ${url}`} />
+        <p className="ui-small">
+          Codex opens your browser to sign in. If it doesn&apos;t, run{" "}
+          <code className="ui-code-inline">codex mcp login slovey</code>. The Codex app, the IDE extension and the CLI all
+          share this setup.
         </p>
       </>
     );
@@ -275,9 +326,32 @@ function ToolSteps({ tool, url, apiKey }: { tool: ToolId; url: string; apiKey: s
     const deeplink = `vscode:mcp/install?${encodeURIComponent(JSON.stringify({ name: "slovey", ...server }))}`;
     return (
       <>
-        <OneClick href={deeplink} label="Add to VS Code" icon={<CodeIcon size={16} />} />
-        <p className="ui-small">Or add it to .vscode/mcp.json in your repository. VS Code asks you to sign in the first time.</p>
+        <OneClick href={deeplink} label="Add to VS Code" logo="/logos/vscode.svg" />
+        <p className="ui-small">
+          For GitHub Copilot in VS Code. Or add it to .vscode/mcp.json in your repository. VS Code asks you to sign in the
+          first time.
+        </p>
         <CodeBlock title=".vscode/mcp.json" code={JSON.stringify({ servers: { slovey: server } }, null, 2)} />
+      </>
+    );
+  }
+
+  if (tool === "cli") {
+    return (
+      <>
+        <p className="ui-small">
+          One command adds Slovey to every coding agent on this computer: Claude Code, Codex, Cursor, Gemini CLI, Grok
+          Build, OpenCode, Windsurf, Zed and more.
+        </p>
+        <CopyLine text={`npx add-mcp ${url} -n slovey -g`} />
+        <p className="ui-small">
+          It asks which agents to set up. Restart any agent that was open. Slovey&apos;s own command line, for the commit
+          gate, is{" "}
+          <a className="ui-link" href="#gate">
+            below
+          </a>
+          .
+        </p>
       </>
     );
   }
@@ -328,7 +402,7 @@ function Status({
     <>
       <div className="cn-status" data-state="wait">
         <SpinnerGapIcon size={18} className="cn-spin" />
-        Waiting for {toolName}. This turns green the moment it first calls Slovey.
+        Waiting for {toolName}. This turns green the moment Slovey gets its first call.
       </div>
       {last?.lastUsedAt && (
         <p className="ui-small">

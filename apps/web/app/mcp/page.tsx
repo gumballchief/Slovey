@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/mcp" },
   title: "MCP server",
   description:
-    "Connect Claude Code, Cursor, Codex and any MCP agent to your team's decisions with the Slovey MCP server. One repository-scoped token, no database.",
+    "Connect Claude, ChatGPT, Codex, Cursor and any MCP agent to your team's decisions with the Slovey MCP server. Add one URL and sign in with Slovey.",
 };
 
 export default function McpPage() {
@@ -26,18 +26,18 @@ export default function McpPage() {
         <div className="st-grid">
           <div className="st-card">
             <img src="/logos/claude.svg" alt="" width={22} height={22} />
-            <h3>Claude Code</h3>
-            <p>Checks your decision graph before it acts on a change.</p>
+            <h3>Claude</h3>
+            <p>In the Claude app, on claude.ai and in Claude Code. Checks your decisions before it acts on a change.</p>
+          </div>
+          <div className="st-card">
+            <img src="/logos/codex.svg" alt="" width={22} height={22} />
+            <h3>Codex and ChatGPT</h3>
+            <p>One command in Codex, or a custom MCP server in ChatGPT.</p>
           </div>
           <div className="st-card">
             <img src="/logos/cursor.svg" alt="" width={22} height={22} />
-            <h3>Cursor</h3>
-            <p>Uses the same context your reviewers and CI use.</p>
-          </div>
-          <div className="st-card">
-            <span className="ui-mono" style={{ color: "var(--ice)" }}>MCP</span>
-            <h3>Codex and others</h3>
-            <p>Anything that speaks MCP connects to the same memory.</p>
+            <h3>Cursor, VS Code and more</h3>
+            <p>One click in Cursor and VS Code. Anything that speaks MCP connects to the same memory.</p>
           </div>
         </div>
       </div>
@@ -60,9 +60,13 @@ export default function McpPage() {
           <pre>
             <code>claude mcp add --transport http slovey https://slovey.ai/api/mcp</code>
           </pre>
+          <p>In Codex, the app, the IDE extension and the CLI share one setup:</p>
+          <pre>
+            <code>codex mcp add slovey --url https://slovey.ai/api/mcp</code>
+          </pre>
           <p>
-            Cursor and VS Code get a one-click install on the Connect page in your dashboard, which also shows the moment
-            your agent first reaches Slovey.
+            In ChatGPT, open Plugins and add a custom MCP server with the same address. Cursor and VS Code get a one-click
+            install on the Connect page in your dashboard, which also shows the moment your agent first reaches Slovey.
           </p>
           <p>
             Your agent then gets six tools: <code>what_applies_here</code>, <code>plan</code>, <code>can_i</code>,{" "}
