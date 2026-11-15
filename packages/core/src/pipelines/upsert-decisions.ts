@@ -1,7 +1,7 @@
 import { decisions, getDb } from "@company-brain/db";
 import { and, eq, sql } from "drizzle-orm";
 import type { ExtractedDecision } from "../ai/types";
-import { getEmbeddings } from "../embeddings";
+import { tryEmbed } from "../embeddings/try";
 import { activeDecisionsForScope, addEdge } from "../graph/service";
 import type { ScopeQuery } from "../graph/types";
 import { extractScope } from "../planning/classify";
@@ -46,7 +46,6 @@ export async function upsertDecisions(
   createdBy = "extract",
 ): Promise<{ inserted: number; updated: number }> {
   const db = getDb();
-  const emb = getEmbeddings();
   let inserted = 0;
   let updated = 0;
 
@@ -81,10 +80,29 @@ export async function upsertDecisions(
 
   for (const { d, source } of merged.values()) {
     const text = [d.decision, d.why, (d.examples ?? []).join(" ")].filter(Boolean).join("\n");
-    const vec = await emb.embedOne(text);
-    const lit = `[${vec.join(",")}]`;
+    // Null when embeddings are down: dedup falls back to an exact text match and
+    // the row is stored without a vector until backfillMissingEmbeddings runs.
+    const vec = await tryEmbed(text);
+    const lit = vec ? `[${vec.join(",")}]` : null;
 
-    const [near] = await db
+    const [near] = lit === null
+      ? await db
+          .select({
+            id: decisions.id,
+            evidence: decisions.evidence,
+            examples: decisions.examples,
+            review: decisions.review,
+            source: decisions.source,
+            domains: decisions.domains,
+            services: decisions.services,
+            languages: decisions.languages,
+            frameworks: decisions.frameworks,
+            distance: sql<number>`0::float8`,
+          })
+          .from(decisions)
+          .where(and(eq(decisions.repoId, repoId), sql`lower(${decisions.decision}) = ${d.decision.toLowerCase()}`))
+          .limit(1)
+      : await db
       .select({
         id: decisions.id,
         evidence: decisions.evidence,
@@ -118,7 +136,8 @@ export async function upsertDecisions(
                 decision: d.decision,
                 why: d.why ?? "",
                 category: d.category ?? null,
-                embedding: vec,
+                // Never wipe a stored vector just because embeddings are down.
+                ...(vec ? { embedding: vec } : {}),
                 ...(Object.keys(scope).length === 0
                   ? {}
                   : {

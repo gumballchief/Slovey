@@ -1,6 +1,6 @@
 import { decisionEdges, decisions, decisionVersions, getDb } from "@company-brain/db";
 import { and, desc, eq, getTableColumns, inArray, or, sql } from "drizzle-orm";
-import { getEmbeddings } from "../embeddings";
+import { tryEmbed } from "../embeddings/try";
 import {
   ACTIVE_STATUSES,
   isActiveStatus,
@@ -72,7 +72,8 @@ export async function createDecision(
   const confidence = input.confidence ?? 0.5;
   const status =
     input.status ?? (confidence < CANDIDATE_THRESHOLD ? "candidate" : "approved");
-  const embedding = await getEmbeddings().embedOne(embedText(input));
+  // Null when embeddings are down; backfillMissingEmbeddings fills it in later.
+  const embedding = await tryEmbed(embedText(input));
 
   const row = await db.transaction(async (tx) => {
     const [created] = await tx
@@ -200,7 +201,7 @@ export async function updateDecision(
     if (value !== undefined) set[key] = value;
   }
   if (textChanged) {
-    set.embedding = await getEmbeddings().embedOne(
+    set.embedding = await tryEmbed(
       embedText({
         title: patch.title ?? current.title,
         decision: patch.decision ?? current.decision,

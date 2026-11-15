@@ -1,7 +1,8 @@
 import { decisions, getDb } from "@company-brain/db";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { getAI } from "../ai";
-import { getEmbeddings } from "../embeddings";
+import { tryEmbed } from "../embeddings/try";
+import { lexicalDistance, lexicalTerms } from "../pipelines/lexical";
 import { freshnessScore } from "../graph/service";
 import type { DecisionRow } from "../graph/types";
 import { reinforce } from "../memory/reinforce";
@@ -35,9 +36,41 @@ export interface Ranked {
  * Shared primitive: the reasoner, CanI, and other Decision-API verbs all use it.
  */
 export async function retrieveRanked(repoId: string, query: string): Promise<Ranked[]> {
-  const vec = await getEmbeddings().embedOne(query);
-  const lit = `[${vec.join(",")}]`;
+  const vec = await tryEmbed(query);
   const db = getDb();
+  if (!vec) {
+    // Embeddings unavailable: keyword overlap stands in for cosine distance, so
+    // the silence threshold below still applies.
+    const q = lexicalTerms(query);
+    const all = await db
+      .select()
+      .from(decisions)
+      .where(
+        and(
+          eq(decisions.repoId, repoId),
+          inArray(decisions.status, QUERYABLE),
+          eq(decisions.review, "confirmed"),
+        ),
+      )
+      .orderBy(desc(decisions.updatedAt))
+      .limit(500);
+    return all
+      .map((row) => ({
+        row: row as DecisionRow,
+        distance: lexicalDistance(
+          q,
+          lexicalTerms([row.title ?? "", row.decision, row.why, (row.examples ?? []).join(" ")].join("\n")),
+        ),
+      }))
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, TOP_K)
+      .map(({ row, distance }) => {
+        const freshness = freshnessScore(row);
+        return { row, distance, freshness, rank: (1 - distance) * 0.7 + freshness * 0.3 };
+      })
+      .sort((a, b) => b.rank - a.rank);
+  }
+  const lit = `[${vec.join(",")}]`;
   const rows = await db
     .select({
       row: decisions,

@@ -14,7 +14,8 @@ import {
   users,
 } from "@company-brain/db";
 import { and, desc, eq, ilike, inArray, ne, or, sql } from "drizzle-orm";
-import { getEmbeddings } from "../embeddings";
+import { tryEmbed } from "../embeddings/try";
+import { lexicalDistance, lexicalTerms } from "../pipelines/lexical";
 import { reinforce } from "../memory";
 import { enqueue, JOBS } from "../queue";
 
@@ -359,9 +360,38 @@ export async function searchDecisions(
   await requireRepoScope(repoId, scope);
   const q = query.trim();
   if (!q) return listDecisions(repoId, {}, scope);
-  const vec = await getEmbeddings().embedOne(q);
-  const lit = `[${vec.join(",")}]`;
+  const vec = await tryEmbed(q);
   const db = getDb();
+  if (!vec) {
+    // Embeddings unavailable: rank by keyword overlap, dropping non-matches.
+    const terms = lexicalTerms(q);
+    const all = await db
+      .select({
+        id: decisions.id,
+        repoId: decisions.repoId,
+        decision: decisions.decision,
+        why: decisions.why,
+        examples: decisions.examples,
+        evidence: decisions.evidence,
+        source: decisions.source,
+        status: decisions.status,
+        createdAt: decisions.createdAt,
+      })
+      .from(decisions)
+      .where(and(eq(decisions.repoId, repoId), sql`${decisions.status} <> 'removed'`))
+      .orderBy(desc(decisions.updatedAt))
+      .limit(500);
+    return all
+      .map((r) => ({
+        r,
+        d: lexicalDistance(terms, lexicalTerms([r.decision, r.why, (r.examples ?? []).join(" ")].join("\n"))),
+      }))
+      .filter((x) => x.d < 1)
+      .sort((a, b) => a.d - b.d)
+      .slice(0, Math.min(Math.max(limit, 1), 50))
+      .map((x) => toApiDecision(x.r));
+  }
+  const lit = `[${vec.join(",")}]`;
   const rows = await db
     .select({
       id: decisions.id,
@@ -416,7 +446,8 @@ export async function createDecision(
   }
   const db = getDb();
   const text = [input.decision, input.why ?? "", (input.examples ?? []).join(" ")].join("\n");
-  const embedding = await getEmbeddings().embedOne(text);
+  // Null when embeddings are down; backfillMissingEmbeddings fills it in later.
+  const embedding = await tryEmbed(text);
   const values = {
     repoId,
     decision: input.decision,
@@ -503,7 +534,7 @@ export async function updateDecision(
   if (patch.status) set.status = patch.status;
   if (textChanged) {
     const text = [next.decision, next.why, (next.examples ?? []).join(" ")].join("\n");
-    set.embedding = await getEmbeddings().embedOne(text);
+    set.embedding = await tryEmbed(text);
   }
   if (isRestore && restoreOrgId && typeof db.transaction === "function") {
     const orgId = restoreOrgId;

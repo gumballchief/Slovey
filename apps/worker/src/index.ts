@@ -12,6 +12,7 @@ import {
   runIngestConnector,
   runRefreshMemory,
   runRescanPrs,
+  backfillMissingEmbeddings,
   reconcileInstallations,
   syncInstallation,
   type AgentTaskJob,
@@ -131,6 +132,13 @@ async function main() {
 
   await boss.work<RescanPrsJob>(JOBS.rescanPrs, async ([job]) => {
     if (!job) return;
+    // Rules saved while embeddings were down get their vectors once it is back.
+    try {
+      const b = await backfillMissingEmbeddings();
+      if (b.filled > 0 || b.remaining) log.info("embedding backfill", { ...b });
+    } catch (err) {
+      log.warn("embedding backfill failed", { err });
+    }
     log.info("rescan start", { repoId: job.data.repoId ?? "all" });
     const r = await runRescanPrs(job.data.repoId);
     log.info("rescan done", { ...r });

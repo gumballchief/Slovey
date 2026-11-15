@@ -7,6 +7,7 @@ export type { RepoArchitecture, DependencyGraph } from "./index-repo";
 export { runAgentTask } from "./agent";
 export type { AgentParams, AgentResult } from "./agent";
 export { retrieveDecisions, categorizePr } from "./retrieve";
+export { backfillMissingEmbeddings } from "./backfill-embeddings";
 export type { RetrievedDecision } from "./retrieve";
 export { checkPr, statusForVerdict } from "./check";
 export type { CheckPrParams, CheckPrResult } from "./check";

@@ -1,9 +1,10 @@
 import { getDb, decisions } from "@company-brain/db";
-import { and, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { getAI } from "../ai";
 import { CATEGORIES, categorizePrompt, type Category } from "../ai/prompts";
 import type { JudgePrInput } from "../ai/prompts";
-import { getEmbeddings } from "../embeddings";
+import { tryEmbed } from "../embeddings/try";
+import { lexicalDistance, lexicalTerms } from "./lexical";
 
 export interface RetrievedDecision {
   id: string;
@@ -111,7 +112,8 @@ export async function retrieveDecisions(
 
   const queryText = buildRetrievalQueryText(pr);
 
-  const vec = await getEmbeddings().embedOne(queryText);
+  const vec = await tryEmbed(queryText);
+  if (!vec) return retrieveDecisionsByKeyword(repoId, pr, queryText, topK);
   const lit = toVectorLiteral(vec);
   const db = getDb();
 
@@ -212,4 +214,53 @@ export async function retrieveDecisions(
     .slice(0, topK);
 
   return boosted.map(({ effective: _e, ...rest }) => rest);
+}
+
+/** Most active decisions a repo can have scanned in keyword mode. */
+const KEYWORD_SCAN_LIMIT = 500;
+
+/**
+ * Embeddings are down: score the repo's active decisions by keyword overlap
+ * instead (rows without a vector included), same category boost, same top-K.
+ * The AI judge still decides whether each one actually conflicts.
+ */
+async function retrieveDecisionsByKeyword(
+  repoId: string,
+  pr: JudgePrInput & { category?: Category | null },
+  queryText: string,
+  topK: number,
+): Promise<RetrievedDecision[]> {
+  const rows = await getDb()
+    .select({
+      id: decisions.id,
+      decision: decisions.decision,
+      why: decisions.why,
+      examples: decisions.examples,
+      evidence: decisions.evidence,
+      category: decisions.category,
+    })
+    .from(decisions)
+    .where(and(eq(decisions.repoId, repoId), inArray(decisions.status, ["approved", "proposed"])))
+    .orderBy(desc(decisions.updatedAt))
+    .limit(KEYWORD_SCAN_LIMIT);
+
+  const diff = pr.diffSummary ?? "";
+  const query = lexicalTerms(`${queryText}\n${diff.length > 4000 ? diff.slice(-4000) : ""}`);
+  return rows
+    .map((r) => {
+      const distance = lexicalDistance(
+        query,
+        lexicalTerms([r.decision, r.why, (r.examples ?? []).join(" ")].join("\n")),
+      );
+      return {
+        ...r,
+        examples: r.examples ?? [],
+        evidence: r.evidence ?? [],
+        distance,
+        effective: pr.category && r.category === pr.category ? distance * 0.8 : distance,
+      };
+    })
+    .sort((a, b) => a.effective - b.effective)
+    .slice(0, topK)
+    .map(({ effective: _e, ...rest }) => rest);
 }

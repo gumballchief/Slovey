@@ -1,6 +1,7 @@
 import { decisions, getDb } from "@company-brain/db";
 import { and, desc, eq, getTableColumns, sql } from "drizzle-orm";
-import { getEmbeddings } from "../embeddings";
+import { tryEmbed } from "../embeddings/try";
+import { lexicalDistance, lexicalTerms } from "../pipelines/lexical";
 
 export interface RejectedKnowledge {
   id: string;
@@ -28,7 +29,28 @@ export async function getRejectedKnowledge(
 
   const rows = query?.trim()
     ? await (async () => {
-        const vec = await getEmbeddings().embedOne(query);
+        const vec = await tryEmbed(query);
+        if (!vec) {
+          // Embeddings unavailable: rank by keyword overlap instead.
+          const q = lexicalTerms(query);
+          const all = await db
+            .select({ ...getTableColumns(decisions), distance: sql<number>`0::float8` })
+            .from(decisions)
+            .where(base)
+            .orderBy(desc(decisions.createdAt))
+            .limit(500);
+          return all
+            .map((r) => ({
+              ...r,
+              distance: lexicalDistance(
+                q,
+                lexicalTerms([r.decision, r.rejectionReason ?? "", (r.alternatives ?? []).join(" ")].join("\n")),
+              ),
+            }))
+            .filter((r) => r.distance < 1)
+            .sort((a, b) => a.distance - b.distance)
+            .slice(0, limit);
+        }
         const lit = `[${vec.join(",")}]`;
         return db
           .select({

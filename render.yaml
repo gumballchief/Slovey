@@ -45,8 +45,15 @@ envVarGroups:
         value: production
       - key: LOG_LEVEL
         value: info
+      # Chat/judge AI. Claude Haiku since 2026-11-15 (Gemini prepaid credit ran
+      # out). Search embeddings stay on Gemini and fall back to keyword search
+      # while Gemini is unavailable.
       - key: AI_PROVIDER
-        value: gemini
+        value: anthropic
+      - key: ANTHROPIC_MODEL
+        value: claude-haiku-5-5
+      - key: ANTHROPIC_MODEL_CHEAP
+        value: claude-haiku-5-5
       - key: GEMINI_MODEL
         value: gemini-3.5-flash
       # Cheap tier = the FAST model (security-review, categorization). 3.5-flash
@@ -87,6 +94,8 @@ envVarGroups:
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
       - key: GEMINI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
         sync: false
       - key: GITHUB_APP_ID
         sync: false
