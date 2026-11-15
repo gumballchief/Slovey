@@ -31,5 +31,6 @@ describe("R10-057 decision store failure is not reported as clean", () => {
     expect(result.note).toBeDefined();
     expect(result.note ?? "").not.toMatch(/No governing decisions found/);
     expect((result.note ?? "").toLowerCase()).toMatch(/unavailable|unverified|error/);
+    expect(result.unverified).toBe(true);
   });
 });

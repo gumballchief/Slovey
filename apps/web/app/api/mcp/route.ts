@@ -174,9 +174,14 @@ function buildServer({ repoId, repoFullName }: CliCaller, origin: string): McpSe
       const violations = r.decisionViolations
         .map((v) => `  ! ${v.title}: ${v.violation}\n    fix: ${v.instructionForAgent}`)
         .join("\n");
+      // A decision check that could not run is never reported as "safe".
+      const unverified = r.checks.some((c) => c.name === "decision-check" && c.status === "skipped");
+      const head = !r.safeToCommit ? `BLOCKED (${r.status})` : unverified ? "NOT VERIFIED" : `SAFE TO COMMIT (${r.status})`;
+      const warnings = r.warnings.map((w) => `  - ${w}`).join("\n");
       return text(
-        `${r.safeToCommit ? "SAFE TO COMMIT" : "BLOCKED"} (${r.status})\n${r.summary}` +
+        `${head}\n${r.summary}` +
           (violations ? `\n\ndecisions this breaks:\n${violations}` : "") +
+          (warnings ? `\n\nwarnings:\n${warnings}` : "") +
           (r.agentInstruction ? `\n\nnext: ${r.agentInstruction}` : ""),
       );
     }),

@@ -76,7 +76,9 @@ export async function runDecisionCheck(
   repoId: string,
   diff: string,
   changedFiles: string[],
-): Promise<{ violations: DecisionViolation[]; note?: string }> {
+): Promise<{ violations: DecisionViolation[]; note?: string; unverified?: boolean }> {
+  // `unverified`: the decision store or AI judge was unreachable, so the active
+  // decisions were NOT checked. Callers fail open but must say so loudly.
   if (!diff.trim() && changedFiles.length === 0) {
     return { violations: [], note: "No changes to check against the decision graph." };
   }
@@ -131,7 +133,7 @@ export async function runDecisionCheck(
     });
   }
   if (catalog.size === 0) {
-    if (retrievalFailed) return { violations: [], note: "Decision store unavailable \u2014 decision check unverified." };
+    if (retrievalFailed) return { violations: [], note: "Decision store unavailable \u2014 decision check unverified.", unverified: true };
     return { violations: [], note: "No governing decisions found for the changed files." };
   }
 
@@ -156,7 +158,7 @@ export async function runDecisionCheck(
     rawViolations.push(...raw.violations);
   }
 
-  if (judgeFailed) return { violations: keywordFallback(list, diff, changedFiles), note: combineNotes("Decision check ran in keyword-only mode (AI unavailable).", truncationNote, retrievalFailed ? "Decision store unavailable — decision check unverified." : undefined) };
+  if (judgeFailed) return { violations: keywordFallback(list, diff, changedFiles), note: combineNotes("Decision check ran in keyword-only mode (AI unavailable).", truncationNote, retrievalFailed ? "Decision store unavailable — decision check unverified." : undefined), unverified: true };
 
   const violations: DecisionViolation[] = [];
   const seen = new Set<string>();
@@ -172,6 +174,7 @@ export async function runDecisionCheck(
     if (!seen.has(v.decisionId)) violations.push(v);
   }
   const finalNote = combineNotes(truncationNote, retrievalFailed ? "Decision store unavailable — decision check unverified." : undefined);
+  if (retrievalFailed) return { violations, note: finalNote, unverified: true };
   return finalNote ? { violations, note: finalNote } : { violations };
 }
 

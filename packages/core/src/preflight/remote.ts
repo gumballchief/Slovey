@@ -215,11 +215,20 @@ export async function runRemotePreflight(repoId: string, payload: RemotePrefligh
   const blockingViolations = violations.filter(
     (v) => !config.decisionChecks.blockOnHighConfidence || v.confidence >= config.decisionChecks.minimumBlockingConfidence,
   );
+  // The AI judge or decision store was down: fail open (our outage must not block
+  // a commit) but never silently, the same rule as hosted downtime in the CLI.
+  const decisionUnverified = Boolean(decisionResult.unverified) && blockingViolations.length === 0;
   if (changed.length > 0 && (!hasFileContent || uncoveredChanged.length > 0) && !hasDiff && blockingViolations.length === 0) {
     checks.push({
       name: "decision-check", command: "", durationMs: Date.now() - startDec, blocking: true,
       status: "skipped", errors: [],
       skippedReason: "No file contents or diff supplied — decision check had no coverage; supply files[] or diff for full enforcement.",
+    });
+  } else if (decisionUnverified) {
+    checks.push({
+      name: "decision-check", command: "", durationMs: Date.now() - startDec, blocking: false,
+      status: "skipped", errors: [],
+      skippedReason: note ?? "Decision check could not run.",
     });
   } else {
     checks.push({
@@ -251,17 +260,23 @@ export async function runRemotePreflight(repoId: string, payload: RemotePrefligh
     safeToCommit: !blocked,
     safeToPush: !blocked,
     humanReviewRequired: false,
-    summary: `${status.toUpperCase()} (remote) — knowledge checks on ${changed.length} changed file(s); command checks require the local workspace.`,
+    summary: decisionUnverified && !blocked
+      ? `NOT VERIFIED (remote) — Slovey could not check this change against the team's decisions right now, so nothing was blocked. ${note ?? ""}`.trim()
+      : `${status.toUpperCase()} (remote) — knowledge checks on ${changed.length} changed file(s); command checks require the local workspace.`,
     agentInstruction: blocked
       ? "Agent, do not commit yet. Fix the reported knowledge-check violations, then re-run. Note: typecheck/test/build did NOT run here — run the full gate locally before pushing."
-      : "Knowledge checks pass. Run the full local gate (typecheck/test/build) before committing — this remote run cannot execute project commands.",
+      : decisionUnverified
+        ? "Slovey's decision check could not run, so this change was NOT verified against the team's decisions. Tell the human, do not describe it as checked, and run the full local gate before committing. It will be re-checked on the pull request."
+        : "Knowledge checks pass. Run the full local gate (typecheck/test/build) before committing — this remote run cannot execute project commands.",
     mode: "remote",
     attempt: { attemptId: payload.attemptId ?? null, attemptNumber: 1, maxAttempts: config.maxAttempts, remainingAttempts: config.maxAttempts - 1, repeatedFailure: false, unrelatedChangesDetected: false },
     project: { workspacePath: "(remote)", projectType: "unknown", packageManager: "unknown", detectedScripts: [] },
     checks,
     fixInstructions,
     decisionViolations: violations,
-    warnings: overrideWarnings,
+    warnings: decisionUnverified
+      ? [...overrideWarnings, "Slovey's decision check could not run (AI or decision store unavailable). This change was NOT verified against the team's decisions; it will be re-checked on the pull request."]
+      : overrideWarnings,
     nextSteps: ["Run the full local gate before committing."],
     branch: payload.branch ?? null,
     commitSha: payload.commitSha ?? null,
