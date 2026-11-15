@@ -2,7 +2,7 @@ import { decisions, getDb } from "@company-brain/db";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { getAI } from "../ai";
 import { tryEmbed } from "../embeddings/try";
-import { lexicalDistance, lexicalTerms } from "../pipelines/lexical";
+import { lexicalSimilarity, lexicalTerms } from "../pipelines/lexical";
 import { freshnessScore } from "../graph/service";
 import type { DecisionRow } from "../graph/types";
 import { reinforce } from "../memory/reinforce";
@@ -39,9 +39,16 @@ export async function retrieveRanked(repoId: string, query: string): Promise<Ran
   const vec = await tryEmbed(query);
   const db = getDb();
   if (!vec) {
-    // Embeddings unavailable: keyword overlap stands in for cosine distance, so
-    // the silence threshold below still applies.
+    // Embeddings unavailable: keyword overlap stands in for cosine distance.
+    // Keywords can't match synonyms ("framework" vs "runner"), so any decision
+    // sharing a term maps inside every caller's silence threshold (<= 0.5) and
+    // the reasoner, told to decline when the decisions don't answer, decides.
+    // No shared term at all maps to 1, so callers still stay silent.
     const q = lexicalTerms(query);
+    const keywordDistance = (text: string) => {
+      const sim = lexicalSimilarity(q, lexicalTerms(text));
+      return sim > 0 ? 0.5 * (1 - sim) : 1;
+    };
     const all = await db
       .select()
       .from(decisions)
@@ -57,9 +64,8 @@ export async function retrieveRanked(repoId: string, query: string): Promise<Ran
     return all
       .map((row) => ({
         row: row as DecisionRow,
-        distance: lexicalDistance(
-          q,
-          lexicalTerms([row.title ?? "", row.decision, row.why, (row.examples ?? []).join(" ")].join("\n")),
+        distance: keywordDistance(
+          [row.title ?? "", row.decision, row.why, (row.examples ?? []).join(" ")].join("\n"),
         ),
       }))
       .sort((a, b) => a.distance - b.distance)
