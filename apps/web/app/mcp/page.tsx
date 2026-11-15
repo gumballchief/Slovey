@@ -46,13 +46,24 @@ export default function McpPage() {
         <h2>Set it up</h2>
         <article className="st-prose" style={{ maxWidth: 760 }}>
           <p>
-            Open Connect in your dashboard, create a key and pick your agent. There is nothing to install or run: Slovey
-            serves MCP at one address, and each key is scoped to one repository, so an agent only ever sees that
-            repository&apos;s decisions. Cursor and VS Code get a one-click install; Claude Code is one command:
+            There is nothing to install or run. Add this address to your agent and it signs in with Slovey: you pick the
+            repository it may read and click Allow. Access is scoped to that one repository, and you can remove it any
+            time in Settings.
           </p>
           <pre>
-            <code>{"claude mcp add --transport http slovey https://slovey.ai/api/mcp \\\n  --header \"Authorization: Bearer cb_…\""}</code>
+            <code>https://slovey.ai/api/mcp</code>
           </pre>
+          <p>
+            In Claude (the app or claude.ai), open Settings, then Connectors, then Add custom connector, and paste it. In
+            Claude Code it is one command, then <code>/mcp</code> to sign in:
+          </p>
+          <pre>
+            <code>claude mcp add --transport http slovey https://slovey.ai/api/mcp</code>
+          </pre>
+          <p>
+            Cursor and VS Code get a one-click install on the Connect page in your dashboard, which also shows the moment
+            your agent first reaches Slovey.
+          </p>
           <p>
             Your agent then gets six tools: <code>what_applies_here</code>, <code>plan</code>, <code>can_i</code>,{" "}
             <code>ask</code>, <code>get_rejected</code> and <code>check_change</code>, which checks a diff before it is

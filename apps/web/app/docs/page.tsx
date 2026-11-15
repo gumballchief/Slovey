@@ -34,10 +34,10 @@ export default function DocsPage() {
           <div className="st-card">
             <h3>Connect your agent</h3>
             <p>
-              In the dashboard, open Connect, pick Claude Code, Cursor, Claude Desktop or VS Code, and follow the steps.
-              Nothing to install: agents reach Slovey at one address with a key.
+              Add this address to Claude, Claude Code, Cursor or VS Code and sign in with Slovey. Nothing to install; the
+              Connect page in your dashboard walks you through each one.
             </p>
-            <pre className="ui-code" style={{ fontSize: 12.5 }}>{"claude mcp add --transport http slovey \\\n  https://slovey.ai/api/mcp \\\n  --header \"Authorization: Bearer cb_…\""}</pre>
+            <pre className="ui-code" style={{ fontSize: 12.5 }}>https://slovey.ai/api/mcp</pre>
           </div>
           <div className="st-card">
             <h3>Turn on the commit gate</h3>

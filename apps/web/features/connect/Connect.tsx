@@ -2,23 +2,23 @@
 
 import "./connect.css";
 import { CheckCircleIcon, CodeIcon, KeyIcon, PlugIcon, SpinnerGapIcon } from "@phosphor-icons/react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { NeedsRepo, Page } from "@/features/shell/Page";
 import { useRepo } from "@/features/shell/RepoProvider";
 import { useData } from "@/features/use-data";
-import { createToken, fetchTokens } from "@/lib/api-client";
+import { createToken, fetchTokens, type CliToken } from "@/lib/api-client";
 import { SITE_URL } from "@/lib/site";
 import { Button, CodeBlock, CopyLine, cx, errorMessage, timeAgo } from "@/ui/kit";
 
-type ToolId = "claude-code" | "claude-desktop" | "cursor" | "vscode" | "other";
+type ToolId = "claude" | "claude-code" | "cursor" | "vscode" | "other";
 
 const TOOLS: Array<{ id: ToolId; name: string; logo?: string; icon?: ReactNode }> = [
+  { id: "claude", name: "Claude", logo: "/logos/claude.svg" },
   { id: "claude-code", name: "Claude Code", logo: "/logos/claude.svg" },
-  { id: "claude-desktop", name: "Claude Desktop", logo: "/logos/claude.svg" },
   { id: "cursor", name: "Cursor", logo: "/logos/cursor.svg" },
   { id: "vscode", name: "VS Code", icon: <CodeIcon size={20} /> },
-  { id: "other", name: "Any MCP client", icon: <PlugIcon size={20} /> },
+  { id: "other", name: "Other clients", icon: <PlugIcon size={20} /> },
 ];
 
 const PLACEHOLDER = "cb_YOUR_KEY";
@@ -29,6 +29,11 @@ const TRY_PROMPTS = [
   "Check this change with Slovey before you commit.",
 ];
 
+/** Keys minted by "Sign in with Slovey" are named after the client, e.g. "Claude (connector)". */
+const isConnectorKey = (t: CliToken) => t.name.endsWith("(connector)");
+const latestUse = (rows: CliToken[]) =>
+  rows.reduce((max, t) => (t.lastUsedAt && Date.parse(t.lastUsedAt) > max ? Date.parse(t.lastUsedAt) : max), 0);
+
 export function Connect() {
   return <NeedsRepo>{(repoId) => <ConnectFor repoId={repoId} />}</NeedsRepo>;
 }
@@ -37,45 +42,51 @@ function ConnectFor({ repoId }: { repoId: string }) {
   const { repo } = useRepo();
   const repoName = repo?.name ?? "this repository";
   const tokens = useData(`${repoId}|tokens`, () => fetchTokens(repoId));
-  const [tool, setTool] = useState<ToolId>("claude-code");
-  const [fresh, setFresh] = useState<{ id: string; token: string; tool: ToolId } | null>(null);
+  const [tool, setTool] = useState<ToolId>("claude");
+  const [fresh, setFresh] = useState<{ id: string; token: string } | null>(null);
   const [creating, setCreating] = useState(false);
   const [origin, setOrigin] = useState(SITE_URL);
 
   // The endpoint lives on whatever host serves this dashboard (slovey.ai, or a self-hosted copy).
   useEffect(() => setOrigin(window.location.origin), []);
 
-  // A key is per repository, so switching repositories forgets the one made for the last.
+  // "Connected" means an agent reached Slovey after this page opened: a connector key
+  // (from signing in) or the key made here was used. Every call stamps last-used.
+  const rows = tokens.data ?? [];
+  const baseline = useRef<number | null>(null);
+
+  // Keys are per repository, so switching repositories starts over.
   const [keyRepo, setKeyRepo] = useState(repoId);
   if (keyRepo !== repoId) {
     setKeyRepo(repoId);
     setFresh(null);
+    baseline.current = null;
   }
+  if (baseline.current === null && tokens.data) baseline.current = latestUse(rows);
+  const watched = rows.filter((t) => isConnectorKey(t) || t.id === fresh?.id);
+  const newest = latestUse(watched);
+  const connectedNow = baseline.current !== null && newest > baseline.current;
+  const lastConnector = rows.filter(isConnectorKey).sort((a, b) => latestUse([b]) - latestUse([a]))[0];
 
-  const freshRow = fresh ? tokens.data?.find((t) => t.id === fresh.id) : undefined;
-  const connected = Boolean(freshRow?.lastUsedAt);
-
-  // Watch for the agent's first call: every request with the key stamps its last-used time.
   const reload = tokens.reload;
   useEffect(() => {
-    if (!fresh || connected) return;
-    const timer = window.setInterval(reload, 4000);
+    if (connectedNow) return;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") reload();
+    }, 5000);
     return () => window.clearInterval(timer);
-  }, [fresh, connected, reload]);
-
-  const lastUsed = (tokens.data ?? [])
-    .filter((t) => t.lastUsedAt)
-    .sort((a, b) => Date.parse(b.lastUsedAt!) - Date.parse(a.lastUsedAt!))[0];
+  }, [connectedNow, reload]);
 
   const key = fresh?.token ?? PLACEHOLDER;
   const url = `${origin}/api/mcp`;
   const toolName = TOOLS.find((t) => t.id === tool)!.name;
+  const signsIn = tool !== "other";
 
-  async function makeKey() {
+  async function makeKey(name: string) {
     setCreating(true);
     try {
-      const t = await createToken(repoId, toolName);
-      setFresh({ id: t.id, token: t.token, tool });
+      const t = await createToken(repoId, name);
+      setFresh({ id: t.id, token: t.token });
       tokens.reload();
     } catch (e) {
       toast.error(errorMessage(e));
@@ -83,6 +94,24 @@ function ConnectFor({ repoId }: { repoId: string }) {
       setCreating(false);
     }
   }
+
+  const keyStep = (
+    <Step title="Create a key" done={Boolean(fresh)}>
+      {fresh ? (
+        <>
+          <CopyLine text={fresh.token} label="Copy key" />
+          <p className="ui-small">Shown once and already filled in below. Lost it? Make another; old keys are in Settings.</p>
+        </>
+      ) : (
+        <>
+          <p className="ui-small">A key reads {repoName}&apos;s decisions, and nothing else.</p>
+          <Button variant="light" loading={creating} icon={<KeyIcon size={15} />} onClick={() => makeKey(toolName)}>
+            Create a key
+          </Button>
+        </>
+      )}
+    </Step>
+  );
 
   return (
     <Page
@@ -96,7 +125,7 @@ function ConnectFor({ repoId }: { repoId: string }) {
       intro={
         <>
           Once connected, your coding agent asks Slovey before it writes code and checks its change before it commits, so
-          it follows {repoName}&apos;s decisions. Nothing to install: it connects over the web with a key.
+          it follows {repoName}&apos;s decisions. Nothing to install: you add one address and sign in with Slovey.
         </>
       }
     >
@@ -114,31 +143,20 @@ function ConnectFor({ repoId }: { repoId: string }) {
 
       <section className="ui-section">
         <div className="ui-card ui-card--raised cn-panel">
-          <Step title="Create a key" done={Boolean(fresh)}>
-            {fresh ? (
-              <>
-                <CopyLine text={fresh.token} label="Copy key" />
-                <p className="ui-small">
-                  Shown once and already filled into the steps below. Lost it? Make another; old keys are listed in
-                  Settings.
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="ui-small">A key lets {toolName} read {repoName}&apos;s decisions, and nothing else.</p>
-                <Button variant="light" loading={creating} icon={<KeyIcon size={15} />} onClick={makeKey}>
-                  Create a key for {toolName}
-                </Button>
-              </>
-            )}
+          {!signsIn && keyStep}
+          <Step title={signsIn ? `Add Slovey to ${toolName}` : "Point your client at Slovey"} done={connectedNow}>
+            <ToolSteps tool={tool} url={url} apiKey={key} />
           </Step>
-
-          <Step title={tool === "other" ? "Point your client at Slovey" : `Add Slovey to ${toolName}`} done={connected}>
-            <ToolSteps tool={tool} url={url} apiKey={key} hasKey={Boolean(fresh)} />
-          </Step>
-
-          <Step title="Check it worked" done={connected} last>
-            <Status fresh={fresh} connected={connected} usedAt={freshRow?.lastUsedAt} lastUsed={lastUsed} toolName={toolName} />
+          {signsIn && (
+            <Step title="Sign in with Slovey" done={connectedNow}>
+              <p className="ui-small">
+                {toolName} opens a Slovey page. Sign in, pick {repoName} or another repository, and click Allow. There&apos;s
+                no key to copy, and you can remove access any time in Settings.
+              </p>
+            </Step>
+          )}
+          <Step title="Check it worked" done={connectedNow} last>
+            <Status connected={connectedNow} at={newest} toolName={toolName} last={lastConnector} />
           </Step>
         </div>
       </section>
@@ -156,13 +174,18 @@ function ConnectFor({ repoId }: { repoId: string }) {
         <h2 className="ui-title ui-title--sm">The commit gate</h2>
         <p className="ui-small cn-lede">
           Slovey can also run on your machine and in CI, so a commit that breaks a decision is stopped before it lands,
-          whoever or whatever wrote it.
+          whoever or whatever wrote it. This part uses a key.
         </p>
         <div className="ui-card ui-card--pad cn-gate">
           <GateRow label="Install the command">
             <CopyLine text="npm i -g slovey" />
           </GateRow>
-          <GateRow label="Give it your key">
+          <GateRow label="Give it a key">
+            {!fresh && (
+              <Button loading={creating} icon={<KeyIcon size={15} />} onClick={() => makeKey("Commit gate")}>
+                Create a key
+              </Button>
+            )}
             <CopyLine text={`export SLOVEY_TOKEN=${key}`} />
             <span className="ui-small">On Windows (PowerShell), instead:</span>
             <CopyLine text={`setx SLOVEY_TOKEN ${key}`} />
@@ -204,68 +227,56 @@ function GateRow({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-function ToolSteps({ tool, url, apiKey, hasKey }: { tool: ToolId; url: string; apiKey: string; hasKey: boolean }) {
-  const auth = `Bearer ${apiKey}`;
-
-  if (tool === "claude-code") {
+function ToolSteps({ tool, url, apiKey }: { tool: ToolId; url: string; apiKey: string }) {
+  if (tool === "claude") {
     return (
       <>
-        <p className="ui-small">Run this once in a terminal:</p>
-        <CopyLine text={`claude mcp add --transport http slovey ${url} --header "Authorization: ${auth}"`} />
         <p className="ui-small">
-          Then open Claude Code in your repository and type <code className="ui-code-inline">/mcp</code>. Slovey shows as
-          connected.
+          In Claude, open Settings, then Connectors, and click Add custom connector. Name it Slovey and paste this
+          address, then click Add and Connect:
+        </p>
+        <CopyLine text={url} />
+        <p className="ui-small">
+          Works in the Claude app and on claude.ai. On Team and Enterprise plans, an owner adds it once under Organization
+          settings and everyone connects their own account.
         </p>
       </>
     );
   }
 
-  if (tool === "claude-desktop") {
-    const config = {
-      mcpServers: {
-        slovey: {
-          command: "npx",
-          args: ["-y", "mcp-remote", url, "--header", "Authorization:${SLOVEY_AUTH}"],
-          env: { SLOVEY_AUTH: auth },
-        },
-      },
-    };
+  if (tool === "claude-code") {
     return (
       <>
+        <p className="ui-small">Run this once in a terminal:</p>
+        <CopyLine text={`claude mcp add --transport http slovey ${url}`} />
         <p className="ui-small">
-          In Claude Desktop open Settings, then Developer, then Edit Config. Paste this into the file, save, and restart
-          Claude. It needs Node.js on your computer.
-        </p>
-        <CodeBlock title="claude_desktop_config.json" code={JSON.stringify(config, null, 2)} />
-        <p className="ui-small">
-          Using Claude in the browser instead? claude.ai connectors need a sign-in flow Slovey doesn&apos;t offer yet, so
-          use Claude Desktop or Claude Code for now.
+          Then in Claude Code type <code className="ui-code-inline">/mcp</code>, choose slovey and pick Authenticate.
         </p>
       </>
     );
   }
 
   if (tool === "cursor") {
-    const server = { url, headers: { Authorization: auth } };
+    const server = { url };
     const deeplink = `cursor://anysphere.cursor-deeplink/mcp/install?name=slovey&config=${encodeURIComponent(
       btoa(JSON.stringify(server)),
     )}`;
     return (
       <>
-        <OneClick href={deeplink} enabled={hasKey} label="Add to Cursor" logo="/logos/cursor.svg" />
-        <p className="ui-small">Or paste it into ~/.cursor/mcp.json yourself:</p>
+        <OneClick href={deeplink} label="Add to Cursor" logo="/logos/cursor.svg" />
+        <p className="ui-small">Or add it to ~/.cursor/mcp.json yourself. Cursor asks you to sign in the first time.</p>
         <CodeBlock title="mcp.json" code={JSON.stringify({ mcpServers: { slovey: server } }, null, 2)} />
       </>
     );
   }
 
   if (tool === "vscode") {
-    const server = { type: "http", url, headers: { Authorization: auth } };
+    const server = { type: "http", url };
     const deeplink = `vscode:mcp/install?${encodeURIComponent(JSON.stringify({ name: "slovey", ...server }))}`;
     return (
       <>
-        <OneClick href={deeplink} enabled={hasKey} label="Add to VS Code" icon={<CodeIcon size={16} />} />
-        <p className="ui-small">Or add it to .vscode/mcp.json in your repository:</p>
+        <OneClick href={deeplink} label="Add to VS Code" icon={<CodeIcon size={16} />} />
+        <p className="ui-small">Or add it to .vscode/mcp.json in your repository. VS Code asks you to sign in the first time.</p>
         <CodeBlock title=".vscode/mcp.json" code={JSON.stringify({ servers: { slovey: server } }, null, 2)} />
       </>
     );
@@ -273,43 +284,21 @@ function ToolSteps({ tool, url, apiKey, hasKey }: { tool: ToolId; url: string; a
 
   return (
     <>
-      <p className="ui-small">Any client that supports remote (Streamable HTTP) MCP servers works. Server address:</p>
+      <p className="ui-small">
+        Clients that support remote MCP sign in with Slovey on their own using this address. For one that can&apos;t,
+        send the key above as a header.
+      </p>
       <CopyLine text={url} />
-      <p className="ui-small">Send this header with every request:</p>
-      <CopyLine text={`Authorization: ${auth}`} />
+      <CopyLine text={`Authorization: Bearer ${apiKey}`} />
     </>
   );
 }
 
-function OneClick({
-  href,
-  enabled,
-  label,
-  logo,
-  icon,
-}: {
-  href: string;
-  enabled: boolean;
-  label: string;
-  logo?: string;
-  icon?: ReactNode;
-}) {
-  const mark = logo ? <img src={logo} alt="" width={16} height={16} /> : icon;
-  if (!enabled) {
-    return (
-      <div className="cn-oneclick">
-        <span className="ui-btn ui-btn--light" aria-disabled="true" data-disabled="true">
-          {mark}
-          {label}
-        </span>
-        <span className="ui-small">Create a key first.</span>
-      </div>
-    );
-  }
+function OneClick({ href, label, logo, icon }: { href: string; label: string; logo?: string; icon?: ReactNode }) {
   return (
     <div className="cn-oneclick">
       <a className="ui-btn ui-btn--light" href={href}>
-        {mark}
+        {logo ? <img src={logo} alt="" width={16} height={16} /> : icon}
         {label}
       </a>
     </div>
@@ -317,41 +306,35 @@ function OneClick({
 }
 
 function Status({
-  fresh,
   connected,
-  usedAt,
-  lastUsed,
+  at,
   toolName,
+  last,
 }: {
-  fresh: { tool: ToolId } | null;
   connected: boolean;
-  usedAt: string | null | undefined;
-  lastUsed: { name: string; lastUsedAt: string | null } | undefined;
+  at: number;
   toolName: string;
+  last: CliToken | undefined;
 }) {
-  if (fresh && connected) {
+  if (connected) {
     return (
       <div className="cn-status" data-state="ok">
         <CheckCircleIcon size={18} weight="fill" />
-        Connected. Your agent reached Slovey {usedAt ? timeAgo(usedAt) : "just now"}.
+        Connected. Your agent reached Slovey {timeAgo(new Date(at).toISOString())}.
       </div>
     );
   }
-  if (fresh) {
-    return (
+  return (
+    <>
       <div className="cn-status" data-state="wait">
         <SpinnerGapIcon size={18} className="cn-spin" />
-        Waiting for {toolName} to call Slovey. Finish the step above, then ask your agent anything about your code.
+        Waiting for {toolName}. This turns green the moment it first calls Slovey.
       </div>
-    );
-  }
-  if (lastUsed?.lastUsedAt) {
-    return (
-      <p className="ui-small">
-        An agent last used the key &ldquo;{lastUsed.name}&rdquo; {timeAgo(lastUsed.lastUsedAt)}. A new key shows a live
-        check here.
-      </p>
-    );
-  }
-  return <p className="ui-small">This turns green the moment your agent first calls Slovey.</p>;
+      {last?.lastUsedAt && (
+        <p className="ui-small">
+          {last.name.replace(/ \(connector\)$/, "")} last reached Slovey {timeAgo(last.lastUsedAt)}.
+        </p>
+      )}
+    </>
+  );
 }

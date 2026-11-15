@@ -13,7 +13,7 @@ const RELEASES: Array<{ date: string; title: string; items: string[] }> = [
     title: "A new Slovey",
     items: [
       "Slovey now lives at slovey.ai. Links to slovey.dev keep working and bring you here.",
-      "Connect your coding agent in one step: a new Connect page sets up Claude Code, Cursor, Claude Desktop or VS Code with a key, nothing to install, and shows when your agent first reaches Slovey.",
+      "Sign in with Slovey from your agent: add slovey.ai/api/mcp as a connector in Claude, Claude Code, Cursor or VS Code, sign in, pick a repository and click Allow. Nothing to install and no key to copy. A new Connect page walks you through it and shows the moment your agent first reaches Slovey.",
       "Agents can now send a diff to Slovey before committing and get back exactly which decisions it breaks and how to fix it.",
       "A redesigned dashboard: Today shows what needs you, Memory draws your decisions as a map linked to the pull requests and incidents behind them, Reviews lets you approve learned decisions from the keyboard, and Ask answers with sources.",
       "Upgrading to Team now happens on slovey.ai with a checkout that matches the product. Seats and yearly or monthly billing are set right on the page.",

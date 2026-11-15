@@ -1,4 +1,5 @@
 import {
+  dashboard,
   getUserIdByGithubId,
   resolveRepoById,
   upsertUser,
@@ -161,4 +162,14 @@ export async function assertRepoWrite(repoId: string, viewer: Viewer): Promise<R
   const { repo, role } = await resolveAccess(repoId, viewer);
   if (role === "viewer") throw new HttpError(403, "Your role is read-only");
   return repo;
+}
+
+/**
+ * Repos the viewer can see: what they own or belong to, never another tenant's.
+ * The local dev viewer (no Supabase) sees everything.
+ */
+export async function listViewerRepos(viewer: Viewer) {
+  if (viewer.isDev) return dashboard.listRepos();
+  const orgIds = viewer.userId ? await dashboard.listUserOrgIds(viewer.userId) : [];
+  return dashboard.listRepos({ githubId: viewer.githubId, login: viewer.githubId != null ? viewer.login : "", orgIds });
 }

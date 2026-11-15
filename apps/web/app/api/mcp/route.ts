@@ -3,6 +3,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { z } from "zod";
 import { type CliCaller, authorizeCliToken } from "@/lib/server/cli-auth";
+import { publicOrigin } from "@/lib/server/oauth";
 import { clientIp, rateLimit } from "@/lib/server/ratelimit";
 import { HttpError } from "@/lib/server/respond";
 
@@ -12,7 +13,9 @@ export const dynamic = "force-dynamic";
 /**
  * Slovey's hosted MCP server (Streamable HTTP, stateless, JSON responses).
  *
- * Agents connect with a URL and a repo-scoped key, nothing to install:
+ * Agents connect with a URL and nothing to install. Without a key they get a 401
+ * pointing at Slovey's OAuth metadata, so claude.ai, Claude Desktop and Claude Code
+ * run "Sign in with Slovey" by themselves; with a key made on the Connect page:
  *   claude mcp add --transport http slovey https://slovey.ai/api/mcp --header "Authorization: Bearer cb_…"
  *
  * Every tool reads the one repository the key was issued for. The installable
@@ -191,7 +194,9 @@ export async function POST(req: Request): Promise<Response> {
     caller = await authorizeCliToken(req);
   } catch (e) {
     if (e instanceof HttpError) {
-      return rpcError(e.status, e.message, e.status === 401 ? { "WWW-Authenticate": 'Bearer realm="slovey"' } : undefined);
+      // RFC 9728: a 401 names the resource metadata, which names the sign-in server.
+      const challenge = `Bearer realm="slovey", resource_metadata="${publicOrigin(req)}/.well-known/oauth-protected-resource/api/mcp"`;
+      return rpcError(e.status, e.message, e.status === 401 ? { "WWW-Authenticate": challenge } : undefined);
     }
     console.error("[api] mcp auth error:", e);
     return rpcError(500, "Internal error");

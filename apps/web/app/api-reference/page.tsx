@@ -89,8 +89,9 @@ export default function ApiReferencePage() {
           POST <code>/api/mcp</code>
         </h2>
         <p>
-          The same memory as a remote MCP server (Streamable HTTP, stateless, JSON responses). Point any MCP client at{" "}
-          <code>https://slovey.ai/api/mcp</code> with the Bearer header above. Tools: <code>what_applies_here</code>,{" "}
+          The same memory as a remote MCP server (Streamable HTTP, stateless, JSON responses) at{" "}
+          <code>https://slovey.ai/api/mcp</code>. Clients sign in with OAuth 2.1 (PKCE, dynamic client registration,
+          discovery through <code>/.well-known/oauth-protected-resource</code>), or send the Bearer header above. Tools: <code>what_applies_here</code>,{" "}
           <code>plan</code>, <code>can_i</code>, <code>ask</code>, <code>get_rejected</code> and <code>check_change</code>,
           which takes a unified diff and says whether it is safe to commit.
         </p>

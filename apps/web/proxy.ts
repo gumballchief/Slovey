@@ -28,7 +28,7 @@ import { CANONICAL_HOSTS, LEGACY_HOSTS, SITE_URL, servedOnLegacyHost } from "@/l
  */
 
 function needsSessionRefresh(pathname: string): boolean {
-  return pathname === "/" || pathname === "/app" || pathname.startsWith("/app/");
+  return pathname === "/" || pathname === "/app" || pathname.startsWith("/app/") || pathname.startsWith("/oauth/");
 }
 
 function hostOf(request: NextRequest): string {

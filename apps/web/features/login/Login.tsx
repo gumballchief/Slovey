@@ -24,6 +24,8 @@ export function Login() {
   const params = useSearchParams();
   const next = useMemo(() => destination(params), [params]);
   const team = params.get("plan") === "team";
+  // Arrived from "Sign in with Slovey" in an agent (Claude, Cursor...).
+  const connecting = next.startsWith("/oauth/authorize");
   const auth = isAuthConfigured();
   const [mode, setMode] = useState<Mode>(params.get("mode") === "signup" ? "signup" : "signin");
   const [more, setMore] = useState(false);
@@ -84,9 +86,15 @@ export function Login() {
       </header>
 
       <main className="lg-card">
-        <div className="ui-eyebrow">{team ? "Team plan" : mode === "signup" ? "Create your account" : "Welcome back"}</div>
+        <div className="ui-eyebrow">
+          {connecting ? "Connect your agent" : team ? "Team plan" : mode === "signup" ? "Create your account" : "Welcome back"}
+        </div>
         <h1 className="ui-title lg-title">
-          {team ? (
+          {connecting ? (
+            <>
+              Sign in to <span className="dim">connect your agent.</span>
+            </>
+          ) : team ? (
             <>
               Sign in to <span className="dim">start Team.</span>
             </>

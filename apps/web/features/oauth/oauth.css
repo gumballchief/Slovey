@@ -1,0 +1,106 @@
+/* "Sign in with Slovey": the login scene, with a consent card in the dark sky. */
+
+.oa {
+  gap: 18px;
+  /* the card is taller than the login one: keep it clear of the logo in the corner */
+  padding-top: 92px;
+}
+.oa-who {
+  color: var(--text);
+  font-size: 15px;
+}
+.oa-who strong {
+  color: var(--ink);
+}
+.oa-link {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--ice);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.oa-grants {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--line-2);
+  background: rgba(14, 17, 34, 0.72);
+  backdrop-filter: blur(8px);
+  color: var(--text);
+  font-size: 14px;
+}
+.oa-grants li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.oa-grants svg {
+  flex: none;
+  color: var(--ice);
+}
+.oa-repos {
+  display: grid;
+  gap: 8px;
+  max-height: 260px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.oa-repos legend {
+  margin-bottom: 8px;
+}
+.oa-repo {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line-2);
+  background: rgba(14, 17, 34, 0.78);
+  cursor: pointer;
+  transition: border-color 0.18s, background 0.18s;
+}
+.oa-repo:hover {
+  border-color: var(--line-3);
+}
+.oa-repo[data-on="true"] {
+  border-color: var(--blue);
+  background: linear-gradient(180deg, rgba(61, 123, 255, 0.18), rgba(14, 17, 34, 0.85));
+}
+.oa-repo input {
+  accent-color: var(--blue);
+  margin: 0;
+}
+.oa-repo-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 14.5px;
+}
+.oa-actions {
+  display: grid;
+  gap: 8px;
+}
+.oa-problem {
+  display: flex;
+  align-items: start;
+  gap: 10px;
+}
+.oa-problem svg {
+  flex: none;
+  margin-top: 1px;
+}
+.lg-msg a {
+  color: var(--ice);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
