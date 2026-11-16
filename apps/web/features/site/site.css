@@ -348,6 +348,21 @@ a.st-card:hover {
 .st-gh:hover {
   color: var(--ink);
 }
+.st-social {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+}
+.st-social a {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--mute);
+  font-size: 14px;
+}
+.st-social a:hover {
+  color: var(--ink);
+}
 .st-foot-col {
   display: grid;
   gap: 10px;

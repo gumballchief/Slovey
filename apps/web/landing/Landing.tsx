@@ -828,6 +828,12 @@ function Closing() {
             <a href={GITHUB} target="_blank" rel="noreferrer">
               GitHub
             </a>
+            <a href="https://x.com/SloveyAI" target="_blank" rel="noreferrer">
+              X
+            </a>
+            <a href="https://www.instagram.com/sloveyai/" target="_blank" rel="noreferrer">
+              Instagram
+            </a>
             <a href="mailto:support@slovey.dev">support@slovey.dev</a>
           </div>
         </footer>

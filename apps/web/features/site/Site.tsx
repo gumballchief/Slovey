@@ -1,6 +1,6 @@
 import "@/ui/ui.css";
 import "./site.css";
-import { ArrowRightIcon, GithubLogoIcon } from "@phosphor-icons/react/dist/ssr";
+import { ArrowRightIcon, GithubLogoIcon, InstagramLogoIcon, XLogoIcon } from "@phosphor-icons/react/dist/ssr";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -8,6 +8,8 @@ import type { ReactNode } from "react";
    screen-print art, Bellefair caps), but a calm reading layout. Server components. */
 
 export const GITHUB_URL = "https://github.com/gumballchief/slovey";
+export const X_URL = "https://x.com/SloveyAI";
+export const INSTAGRAM_URL = "https://www.instagram.com/sloveyai/";
 
 const NAV = [
   { href: "/docs", label: "Docs" },
@@ -95,6 +97,14 @@ export function SiteFooter() {
           <a className="st-gh" href={GITHUB_URL} target="_blank" rel="noreferrer">
             <GithubLogoIcon size={16} weight="fill" /> Star on GitHub
           </a>
+          <div className="st-social">
+            <a href={X_URL} target="_blank" rel="noreferrer">
+              <XLogoIcon size={16} weight="bold" /> @SloveyAI
+            </a>
+            <a href={INSTAGRAM_URL} target="_blank" rel="noreferrer">
+              <InstagramLogoIcon size={16} weight="bold" /> Instagram
+            </a>
+          </div>
         </div>
         {FOOT.map((col) => (
           <div key={col.title} className="st-foot-col">
