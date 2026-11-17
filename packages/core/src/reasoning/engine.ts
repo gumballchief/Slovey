@@ -3,6 +3,7 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { getAI } from "../ai";
 import { tryEmbed } from "../embeddings/try";
 import { lexicalSimilarity, lexicalTerms } from "../pipelines/lexical";
+import { applyMeaning, pickByMeaning } from "../pipelines/meaning";
 import { freshnessScore } from "../graph/service";
 import type { DecisionRow } from "../graph/types";
 import { reinforce } from "../memory/reinforce";
@@ -61,13 +62,23 @@ export async function retrieveRanked(repoId: string, query: string): Promise<Ran
       )
       .orderBy(desc(decisions.updatedAt))
       .limit(500);
-    return all
-      .map((row) => ({
+    // The cheap model adds the decisions the question is about by meaning
+    // (synonyms keywords can't see); it can only bring rows closer, never drop one.
+    const picks = await pickByMeaning(
+      query,
+      all.map((row) => ({ id: row.id, text: [row.title ?? "", row.decision].join(" ") })),
+      TOP_K,
+    );
+    return applyMeaning(
+      all.map((row) => ({
+        id: row.id,
         row: row as DecisionRow,
         distance: keywordDistance(
           [row.title ?? "", row.decision, row.why, (row.examples ?? []).join(" ")].join("\n"),
         ),
-      }))
+      })),
+      picks,
+    )
       .sort((a, b) => a.distance - b.distance)
       .slice(0, TOP_K)
       .map(({ row, distance }) => {

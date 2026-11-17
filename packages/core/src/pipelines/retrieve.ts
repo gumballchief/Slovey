@@ -5,6 +5,7 @@ import { CATEGORIES, categorizePrompt, type Category } from "../ai/prompts";
 import type { JudgePrInput } from "../ai/prompts";
 import { tryEmbed } from "../embeddings/try";
 import { lexicalDistance, lexicalTerms } from "./lexical";
+import { applyMeaning, pickByMeaning } from "./meaning";
 
 export interface RetrievedDecision {
   id: string;
@@ -246,21 +247,41 @@ async function retrieveDecisionsByKeyword(
 
   const diff = pr.diffSummary ?? "";
   const query = lexicalTerms(`${queryText}\n${diff.length > 4000 ? diff.slice(-4000) : ""}`);
-  return rows
+  const boost = (r: { category: string | null; distance: number }) =>
+    pr.category && r.category === pr.category ? r.distance * 0.8 : r.distance;
+  const byEffective = (a: { effective: number }, b: { effective: number }) => a.effective - b.effective;
+  const scored = rows
     .map((r) => {
       const distance = lexicalDistance(
         query,
         lexicalTerms([r.decision, r.why, (r.examples ?? []).join(" ")].join("\n")),
       );
-      return {
-        ...r,
-        examples: r.examples ?? [],
-        evidence: r.evidence ?? [],
-        distance,
-        effective: pr.category && r.category === pr.category ? distance * 0.8 : distance,
-      };
+      return { ...r, examples: r.examples ?? [], evidence: r.evidence ?? [], distance, effective: 0 };
     })
-    .sort((a, b) => a.effective - b.effective)
-    .slice(0, topK)
-    .map(({ effective: _e, ...rest }) => rest);
+    .map((r) => ({ ...r, effective: boost(r) }))
+    .sort(byEffective);
+
+  // Half the slots always go to the best keyword matches, so a crafted PR can't
+  // talk the model into crowding a decision that shares its words out of view.
+  const reservedIds = new Set(scored.slice(0, Math.ceil(topK / 2)).map((r) => r.id));
+  // The cheap model fills the rest with decisions the change is about by meaning.
+  const picks = await pickByMeaning(
+    [
+      pr.title ?? "",
+      (pr.body ?? "").slice(0, 800),
+      (pr.changedFiles ?? []).slice(0, 30).join(" "),
+      diff.slice(0, 1800),
+    ].join("\n"),
+    scored.map((r) => ({ id: r.id, text: r.decision })),
+    topK,
+  );
+  const ranked = applyMeaning(scored, picks).map((r) => ({ ...r, effective: boost(r) }));
+  const kept = ranked.filter((r) => reservedIds.has(r.id));
+  const rest = ranked
+    .filter((r) => !reservedIds.has(r.id))
+    .sort(byEffective)
+    .slice(0, Math.max(0, topK - kept.length));
+  return [...kept, ...rest]
+    .sort(byEffective)
+    .map(({ effective: _e, ...r }) => r);
 }

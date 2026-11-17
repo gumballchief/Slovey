@@ -32,7 +32,11 @@ vi.mock("@company-brain/db", async (importOriginal) => {
   return { ...actual, getDb: () => chain };
 });
 
+import { setAI } from "../src/ai";
 import { retrieveRanked } from "../src/reasoning/engine";
+
+// Keyword-only path: the meaning model returns nothing (never call a real API from tests).
+setAI({ name: "fake", complete: async () => "", completeJSON: async () => null });
 
 describe("ask/can_i keyword mode while embeddings are down", () => {
   it("passes a synonym-phrased question's best match to the reasoner instead of going silent", async () => {

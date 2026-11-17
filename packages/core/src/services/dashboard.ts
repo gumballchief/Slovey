@@ -16,6 +16,7 @@ import {
 import { and, desc, eq, ilike, inArray, ne, or, sql } from "drizzle-orm";
 import { tryEmbed } from "../embeddings/try";
 import { lexicalDistance, lexicalTerms } from "../pipelines/lexical";
+import { applyMeaning, pickByMeaning } from "../pipelines/meaning";
 import { reinforce } from "../memory";
 import { enqueue, JOBS } from "../queue";
 
@@ -381,14 +382,24 @@ export async function searchDecisions(
       .where(and(eq(decisions.repoId, repoId), sql`${decisions.status} <> 'removed'`))
       .orderBy(desc(decisions.updatedAt))
       .limit(500);
-    return all
-      .map((r) => ({
+    const max = Math.min(Math.max(limit, 1), 50);
+    // The cheap model adds decisions the search is about by meaning (synonyms).
+    const picks = await pickByMeaning(
+      q,
+      all.map((r) => ({ id: r.id, text: r.decision })),
+      max,
+    );
+    return applyMeaning(
+      all.map((r) => ({
+        id: r.id,
         r,
-        d: lexicalDistance(terms, lexicalTerms([r.decision, r.why, (r.examples ?? []).join(" ")].join("\n"))),
-      }))
-      .filter((x) => x.d < 1)
-      .sort((a, b) => a.d - b.d)
-      .slice(0, Math.min(Math.max(limit, 1), 50))
+        distance: lexicalDistance(terms, lexicalTerms([r.decision, r.why, (r.examples ?? []).join(" ")].join("\n"))),
+      })),
+      picks,
+    )
+      .filter((x) => x.distance < 1)
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, max)
       .map((x) => toApiDecision(x.r));
   }
   const lit = `[${vec.join(",")}]`;

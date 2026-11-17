@@ -18,6 +18,24 @@ async function bodyWithTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   }
 }
 
+/**
+ * Claude 5-family models reject a custom `temperature` (400), so it is never
+ * sent to them; older models still get it.
+ */
+export function acceptsTemperature(model: string): boolean {
+  return !/^claude-(haiku|sonnet|opus|fable|mythos)-5/.test(model);
+}
+
+/**
+ * Claude Haiku 5.x thinks by default, and on Slovey's short JSON calls (50-900
+ * token replies) the thinking can use the whole budget and leave no answer.
+ * Thinking is switched off there ({type: "disabled"} is accepted at Haiku's
+ * default effort); other models keep their own default.
+ */
+export function thinkingParam(model: string): { type: "disabled" } | undefined {
+  return /^claude-haiku-5/.test(model) ? { type: "disabled" } : undefined;
+}
+
 export interface AnthropicConfig {
   apiKey: string;
   /** model id per tier */
@@ -38,13 +56,16 @@ export class AnthropicProvider implements AIProvider {
   }
 
   async complete(prompt: string, opts: AICompleteOptions = {}): Promise<string> {
+    const model = this.model(opts.tier);
     const body: Record<string, unknown> = {
-      model: this.model(opts.tier),
+      model,
       max_tokens: opts.maxTokens ?? 400,
       messages: [{ role: "user", content: prompt }],
     };
     if (opts.system) body.system = opts.system;
-    if (typeof opts.temperature === "number") body.temperature = opts.temperature;
+    if (typeof opts.temperature === "number" && acceptsTemperature(model)) body.temperature = opts.temperature;
+    const thinking = thinkingParam(model);
+    if (thinking) body.thinking = thinking;
 
     // Two attempts, matching the prototype's resilience — under one overall
     // deadline so a hung socket can't block the gate indefinitely.

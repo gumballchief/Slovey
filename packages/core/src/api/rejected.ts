@@ -2,6 +2,7 @@ import { decisions, getDb } from "@company-brain/db";
 import { and, desc, eq, getTableColumns, sql } from "drizzle-orm";
 import { tryEmbed } from "../embeddings/try";
 import { lexicalDistance, lexicalTerms } from "../pipelines/lexical";
+import { applyMeaning, pickByMeaning } from "../pipelines/meaning";
 
 export interface RejectedKnowledge {
   id: string;
@@ -39,14 +40,22 @@ export async function getRejectedKnowledge(
             .where(base)
             .orderBy(desc(decisions.createdAt))
             .limit(500);
-          return all
-            .map((r) => ({
+          // The cheap model adds rejected approaches the query is about by meaning.
+          const picks = await pickByMeaning(
+            query,
+            all.map((r) => ({ id: r.id, text: r.decision })),
+            limit,
+          );
+          return applyMeaning(
+            all.map((r) => ({
               ...r,
               distance: lexicalDistance(
                 q,
                 lexicalTerms([r.decision, r.rejectionReason ?? "", (r.alternatives ?? []).join(" ")].join("\n")),
               ),
-            }))
+            })),
+            picks,
+          )
             .filter((r) => r.distance < 1)
             .sort((a, b) => a.distance - b.distance)
             .slice(0, limit);
