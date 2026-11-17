@@ -72,6 +72,12 @@
   align-items: center;
   gap: 14px;
 }
+.co-flat {
+  font-family: var(--serif);
+  font-size: 22px;
+  font-weight: 400;
+  color: var(--ink);
+}
 .co-seats output {
   min-width: 28px;
   text-align: center;
@@ -139,7 +145,8 @@
   position: sticky;
   top: 24px;
 }
-.co-form {
+.co-form,
+.co-change {
   display: grid;
   gap: 16px;
 }

@@ -129,7 +129,7 @@ export const repoKnowledgeKind = pgEnum("repo_knowledge_kind", [
 ]);
 
 // ─────────────────────────── tenancy ───────────────────────────
-export const orgPlan = pgEnum("org_plan", ["free", "pro", "enterprise"]);
+export const orgPlan = pgEnum("org_plan", ["free", "pro", "team", "business", "scale", "enterprise"]);
 
 export const organizations = pgTable("organizations", {
   id: uuid("id").defaultRandom().primaryKey(),

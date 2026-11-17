@@ -4,6 +4,7 @@
 // fabricated/mock data: an unconfigured or empty backend degrades to honest
 // empty states, not a fake-populated demo.
 
+import { type OrgPlan, type PaidPlan, PLANS } from "@company-brain/core/plans";
 import type { CheckedPR, Connector, Decision, Repo } from "@/lib/data";
 
 export interface RepoSettings {
@@ -191,13 +192,14 @@ export function createAgentTask(repoId: string, intent: string): Promise<AgentRu
 }
 
 // ── Stripe billing ──
-/** Creates a Team-plan checkout for Slovey's own checkout page; returns Stripe's client secret. */
+/** Creates a paid-plan checkout for Slovey's own checkout page; returns Stripe's client secret. */
 export function startCheckout(
   repoId: string,
+  plan: PaidPlan,
   interval: "annual" | "monthly",
   seats: number,
 ): Promise<{ clientSecret: string; sessionId: string }> {
-  return send(`/api/repos/${repoId}/billing/checkout`, "POST", { interval, seats });
+  return send(`/api/repos/${repoId}/billing/checkout`, "POST", { plan, interval, seats });
 }
 export interface CheckoutStatus {
   status: "open" | "complete" | "expired" | null;
@@ -205,9 +207,52 @@ export interface CheckoutStatus {
   amountTotal: number | null;
   currency: string | null;
   plan: OrgPlan;
+  /** The paid plan this checkout is for. */
+  boughtPlan: PaidPlan | null;
 }
 export function fetchCheckoutStatus(repoId: string, sessionId: string): Promise<CheckoutStatus> {
   return getJSON<CheckoutStatus>(`/api/repos/${repoId}/billing/session?session_id=${encodeURIComponent(sessionId)}`);
+}
+/** What a card-paying workspace is on now (for switching plans). */
+export interface CurrentSubscription {
+  plan: PaidPlan;
+  interval: "annual" | "monthly";
+  seats: number;
+  /** A switch is waiting on the buyer's bank. */
+  pending: boolean;
+}
+export function fetchCurrentSubscription(repoId: string): Promise<CurrentSubscription> {
+  return send<CurrentSubscription>(`/api/repos/${repoId}/billing/change`, "GET");
+}
+export interface PlanChangePreview {
+  current: Omit<CurrentSubscription, "pending">;
+  /** Already on exactly this plan, period and seat count. */
+  same: boolean;
+  /** Cents charged today (prorated). */
+  dueNow: number;
+  /** Cents credited for unused time on a downgrade. */
+  credit: number;
+  /** Cents per renewal on the new plan. */
+  renewal: number;
+  prorationDate: number | null;
+  currency: string;
+}
+export function previewPlanChange(
+  repoId: string,
+  plan: PaidPlan,
+  interval: "annual" | "monthly",
+  seats: number,
+): Promise<PlanChangePreview> {
+  return send<PlanChangePreview>(`/api/repos/${repoId}/billing/change`, "POST", { plan, interval, seats });
+}
+export function confirmPlanChange(
+  repoId: string,
+  plan: PaidPlan,
+  interval: "annual" | "monthly",
+  seats: number,
+  prorationDate: number | null,
+): Promise<{ status: "changed"; plan: PaidPlan } | { status: "requires_action"; clientSecret: string | null }> {
+  return send(`/api/repos/${repoId}/billing/change`, "POST", { plan, interval, seats, prorationDate, confirm: true });
 }
 export function openBillingPortal(repoId: string): Promise<{ url: string }> {
   return send<{ url: string }>(`/api/repos/${repoId}/billing/portal`, "POST");
@@ -295,20 +340,21 @@ export function fetchOrg(repoId: string): Promise<OrgOverview> {
   }));
 }
 
-export type OrgPlan = "free" | "pro" | "enterprise";
+export type { OrgPlan, PaidPlan };
 export interface Billing {
   org: { id: string; name: string };
   plan: OrgPlan;
-  usage: { repos: number; members: number; decisions: number; prsChecked: number; conflictsCaught: number };
-  limits: { repos: number; decisions: number };
+  usage: { repos: number; members: number; decisions: number; prsChecked: number; conflictsCaught: number; agentRuns: number };
+  /** -1 = unlimited. */
+  limits: { repos: number; decisions: number; agentRuns: number };
 }
 
 export function fetchBilling(repoId: string): Promise<Billing> {
   return getJSON<Billing>(`/api/repos/${repoId}/billing`, () => ({
     org: { id: "", name: "—" },
     plan: "free",
-    usage: { repos: 0, members: 0, decisions: 0, prsChecked: 0, conflictsCaught: 0 },
-    limits: { repos: 1, decisions: 200 },
+    usage: { repos: 0, members: 0, decisions: 0, prsChecked: 0, conflictsCaught: 0, agentRuns: 0 },
+    limits: { ...PLANS.free.limits },
   }));
 }
 

@@ -40,5 +40,7 @@ export * from "./services/orgs";
 export * from "./services/api-tokens";
 export * from "./services/audit";
 export * from "./services/connectors";
+// Plan catalog: names, prices, limits (also importable alone as @company-brain/core/plans)
+export * as plans from "./plans";
 export * as dashboard from "./services/dashboard";
 export * as planGuard from "./services/plan-guard";

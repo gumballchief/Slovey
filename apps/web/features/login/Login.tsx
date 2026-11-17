@@ -6,15 +6,17 @@ import { CaretDownIcon, EnvelopeSimpleIcon, GithubLogoIcon, GoogleLogoIcon } fro
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
+import { PLANS, isPaidPlan } from "@company-brain/core/plans";
 import { createSupabaseBrowser, isAuthConfigured } from "@/lib/supabase-browser";
 import { Button, Mark } from "@/ui/kit";
 
 type Mode = "signin" | "signup";
 
-/** Where to go after signing in: a "Get Team plan" click goes to checkout; otherwise ?next or the dashboard. */
+/** Where to go after signing in: picking a paid plan goes to its checkout; otherwise ?next or the dashboard. */
 function destination(params: URLSearchParams): string {
-  if (params.get("plan") === "team") {
-    return `/checkout?interval=${params.get("interval") === "monthly" ? "monthly" : "annual"}`;
+  const plan = params.get("plan");
+  if (isPaidPlan(plan)) {
+    return `/checkout?plan=${plan}&interval=${params.get("interval") === "monthly" ? "monthly" : "annual"}`;
   }
   const next = params.get("next");
   return next && /^\/(?![/\\])/.test(next) ? next : "/app";
@@ -23,7 +25,8 @@ function destination(params: URLSearchParams): string {
 export function Login() {
   const params = useSearchParams();
   const next = useMemo(() => destination(params), [params]);
-  const team = params.get("plan") === "team";
+  const askedPlan = params.get("plan");
+  const buying = isPaidPlan(askedPlan) ? PLANS[askedPlan].name : null;
   // Arrived from "Sign in with Slovey" in an agent (Claude, Cursor...).
   const connecting = next.startsWith("/oauth/authorize");
   const auth = isAuthConfigured();
@@ -87,16 +90,16 @@ export function Login() {
 
       <main className="lg-card">
         <div className="ui-eyebrow">
-          {connecting ? "Connect your agent" : team ? "Team plan" : mode === "signup" ? "Create your account" : "Welcome back"}
+          {connecting ? "Connect your agent" : buying ? `${buying} plan` : mode === "signup" ? "Create your account" : "Welcome back"}
         </div>
         <h1 className="ui-title lg-title">
           {connecting ? (
             <>
               Sign in to <span className="dim">connect your agent.</span>
             </>
-          ) : team ? (
+          ) : buying ? (
             <>
-              Sign in to <span className="dim">start Team.</span>
+              Sign in to <span className="dim">start {buying}.</span>
             </>
           ) : mode === "signup" ? (
             <>

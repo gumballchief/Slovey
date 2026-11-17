@@ -12,7 +12,8 @@
     "./github": "./src/github/index.ts",
     "./pipelines": "./src/pipelines/index.ts",
     "./guardrails": "./src/guardrails/index.ts",
-    "./queue": "./src/queue/index.ts"
+    "./queue": "./src/queue/index.ts",
+    "./plans": "./src/plans.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

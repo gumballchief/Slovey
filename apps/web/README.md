@@ -35,7 +35,7 @@ payments are off instead of loading the payment form.
 |-------|--------|
 | `/` | Landing page |
 | `/login` | Sign in with GitHub, Google or email |
-| `/checkout`, `/checkout/complete` | Team plan checkout (Stripe Checkout Sessions, elements mode) |
+| `/checkout`, `/checkout/complete` | Paid-plan checkout for Pro, Team, Business and Scale (Stripe Checkout Sessions, elements mode; plans in `packages/core/src/plans.ts`) |
 | `/app` | Today: what changed, what was blocked, what needs you |
 | `/app/memory` | The decision graph as a map or a list |
 | `/app/review` | Approve or reject learned decisions (A / R / J / K) |

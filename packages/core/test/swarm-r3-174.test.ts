@@ -46,7 +46,8 @@ describe("R3-174 resurrecting removed decisions enforces plan limit", () => {
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-    // updateDecision current lookup, getOrgForRepo lookup, then getBilling's 5 queries (free plan, 200 decisions = limit)
+    // updateDecision current lookup, getOrgForRepo lookup, then getBilling's 6 queries
+    // (free plan, 200 decisions = limit, then this month's agent-run count)
     hoisted.state.queue = [
       [removed],
       [{ id: "org-1", name: "Org", slug: "org" }],
@@ -55,6 +56,7 @@ describe("R3-174 resurrecting removed decisions enforces plan limit", () => {
       [{ n: 1 }],
       [{ n: 200 }],
       [{ prs: 0, conflicts: 0 }],
+      [{ n: 0 }],
     ];
     await expect(updateDecision("repo-1", "dec-1", { status: "approved" })).rejects.toThrow(
       /Decision limit reached for free plan \(200\)/,

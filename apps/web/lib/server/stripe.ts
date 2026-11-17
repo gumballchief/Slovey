@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import { type BillingInterval, type PaidPlan, PLANS, isPaidPlan } from "@company-brain/core/plans";
 import { HttpError } from "./respond";
 
 let _stripe: Stripe | null = null;
@@ -16,35 +17,78 @@ export function getStripe(): Stripe {
   return _stripe;
 }
 
-export type BillingInterval = "annual" | "monthly";
+export type { BillingInterval } from "@company-brain/core/plans";
 
 /**
- * Pro subscription line item, built inline (price_data) so no Stripe-dashboard
- * product/price setup is required. $19/user/mo billed annually, or $24/user/mo
- * billed monthly — keep in sync with the landing pricing card.
+ * Every paid plan has one Stripe product with a fixed id (slovey_plan_<plan>).
+ * Prices stay inline (price_data, from the plan catalog) so no dashboard setup
+ * is needed, but the fixed product is what lets a subscription move between
+ * plans in place, and what tells the webhook which plan a subscription is on.
  */
-export function proLineItem(interval: BillingInterval): {
+const PRODUCT_PREFIX = "slovey_plan_";
+const ensured = new Set<string>();
+
+export function planProductId(plan: PaidPlan): string {
+  return `${PRODUCT_PREFIX}${plan}`;
+}
+
+/** The paid plan a Stripe product id belongs to, or null for anything else. */
+export function planFromProductId(productId: string | null | undefined): PaidPlan | null {
+  if (!productId?.startsWith(PRODUCT_PREFIX)) return null;
+  const plan = productId.slice(PRODUCT_PREFIX.length);
+  return isPaidPlan(plan) ? plan : null;
+}
+
+/** Create the plan's Stripe product the first time it's needed. Safe to call concurrently. */
+export async function ensurePlanProduct(plan: PaidPlan): Promise<string> {
+  const id = planProductId(plan);
+  if (ensured.has(id)) return id;
+  const stripe = getStripe();
+  try {
+    await stripe.products.retrieve(id);
+  } catch (e) {
+    if ((e as { code?: string }).code !== "resource_missing") throw e;
+    try {
+      await stripe.products.create({ id, name: `Slovey ${PLANS[plan].name}`, metadata: { plan } });
+    } catch (e2) {
+      // Another request created it first.
+      if ((e2 as { code?: string }).code !== "resource_already_exists") throw e2;
+    }
+  }
+  ensured.add(id);
+  return id;
+}
+
+/**
+ * Price + quantity for one paid plan, from the plan catalog (the same numbers
+ * the pricing page shows). Per-seat plans charge per seat; flat plans are one
+ * unit for the workspace.
+ */
+export async function planItem(
+  plan: PaidPlan,
+  interval: BillingInterval,
+  seats: number,
+): Promise<{
   price_data: {
     currency: string;
-    product_data: { name: string };
+    product: string;
     unit_amount: number;
     recurring: { interval: "year" | "month" };
   };
   quantity: number;
-  adjustable_quantity: { enabled: boolean; minimum: number; maximum: number };
-} {
+}> {
+  const p = PLANS[plan];
   const annual = interval === "annual";
+  const perMonth = annual ? p.price!.annual : p.price!.monthly;
   return {
     price_data: {
       currency: "usd",
-      product_data: {
-        name: annual ? "Slovey Team, yearly ($19 per seat a month)" : "Slovey Team, monthly ($24 per seat)",
-      },
-      unit_amount: annual ? 22800 : 2400, // cents per seat per period
+      product: await ensurePlanProduct(plan),
+      // cents per unit per billing period
+      unit_amount: perMonth * (annual ? 12 : 1) * 100,
       recurring: { interval: annual ? "year" : "month" },
     },
-    quantity: 1,
-    adjustable_quantity: { enabled: true, minimum: 1, maximum: 100 },
+    quantity: p.billing === "seat" ? seats : 1,
   };
 }
 

@@ -1,6 +1,21 @@
 import type Stripe from "stripe";
 import { dashboard, logAudit, logger } from "@company-brain/core";
-import { getStripe, webhookSecret } from "@/lib/server/stripe";
+import { type PaidPlan, isPaidPlan } from "@company-brain/core/plans";
+import { getStripe, planFromProductId, webhookSecret } from "@/lib/server/stripe";
+
+/**
+ * Which paid plan a live subscription is on. The subscription's product says it
+ * best (slovey_plan_<plan>, and it follows in-place plan switches); then the
+ * `plan` our checkout writes into metadata; subscriptions from before there were
+ * several paid plans carry neither, and those were all "pro".
+ */
+function paidPlanOf(sub: Stripe.Subscription, metadata?: Stripe.Metadata | null): PaidPlan {
+  const product = sub.items?.data?.[0]?.price?.product;
+  const fromProduct = planFromProductId(typeof product === "string" ? product : product?.id);
+  if (fromProduct) return fromProduct;
+  const p = sub.metadata?.plan ?? metadata?.plan;
+  return isPaidPlan(p) ? p : "pro";
+}
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -174,42 +189,36 @@ export async function POST(req: Request): Promise<Response> {
           log.info("ignoring stale checkout completion", { orgId, subId });
           break;
         }
-        try {
-          const live = await getStripe().subscriptions.retrieve(subId);
-          if (live.status !== "active" && live.status !== "trialing" && live.status !== "past_due") {
-            log.info("ignoring stale checkout completion", { orgId, subId });
-            break;
-          }
-        } catch (e) {
-          // Can't confirm right now (Stripe API hiccup): fail the request so
-          // Stripe retries this event, instead of acking it and losing a real upgrade.
-          throw e;
+        // Can't confirm right now (Stripe API hiccup)? It throws, the request
+        // fails and Stripe retries this event instead of losing a real upgrade.
+        const live = await getStripe().subscriptions.retrieve(subId);
+        if (live.status !== "active" && live.status !== "trialing" && live.status !== "past_due") {
+          log.info("ignoring stale checkout completion", { orgId, subId });
+          break;
         }
         await dashboard.setOrgStripe(orgId, {
           stripeSubscriptionId: subId,
         });
-        await dashboard.setOrgPlan(orgId, "pro");
-        await logAudit({ orgId, action: "billing.subscribed", actorUser: "stripe", metadata: { plan: "pro" } });
-        log.info("org upgraded to pro", { orgId });
+        const plan = paidPlanOf(live, session.metadata);
+        await dashboard.setOrgPlan(orgId, plan);
+        await logAudit({ orgId, action: "billing.subscribed", actorUser: "stripe", metadata: { plan } });
+        log.info("org upgraded", { orgId, plan });
         break;
       }
       case "customer.subscription.updated": {
         const sub = event.data.object;
         const orgId = sub.metadata?.orgId ?? (await orgFromCustomer(sub.customer));
         if (!orgId) break;
-        // active/trialing → pro; anything terminal → free. past_due keeps access
+        // active/trialing → the paid plan it was bought as; anything terminal → free. past_due keeps access
         // while Stripe retries payment (their dunning handles the nagging).
         if (sub.status === "active" || sub.status === "trialing" || sub.status === "past_due") {
           if (await isStaleSubscriptionEvent(sub.customer, sub.id)) {
             log.info("ignoring stale subscription update", { orgId, subId: sub.id });
             break;
           }
+          let live: Stripe.Subscription;
           try {
-            const live = await getStripe().subscriptions.retrieve(sub.id);
-            if (live.status !== "active" && live.status !== "trialing" && live.status !== "past_due") {
-              log.info("ignoring stale subscription update", { orgId, subId: sub.id });
-              break;
-            }
+            live = await getStripe().subscriptions.retrieve(sub.id);
           } catch (e) {
             // Transient Stripe errors must retry (500) instead of acking and
             // losing the upgrade; only a gone/missing subscription is ignored.
@@ -217,10 +226,15 @@ export async function POST(req: Request): Promise<Response> {
             log.info("ignoring unverifiable subscription update", { orgId, subId: sub.id });
             break;
           }
+          if (live.status !== "active" && live.status !== "trialing" && live.status !== "past_due") {
+            log.info("ignoring stale subscription update", { orgId, subId: sub.id });
+            break;
+          }
           await dashboard.setOrgStripe(orgId, {
             stripeSubscriptionId: sub.id,
           });
-          await dashboard.setOrgPlan(orgId, "pro");
+          // Read from the live subscription, so a late event can't undo a newer plan switch.
+          await dashboard.setOrgPlan(orgId, paidPlanOf(live));
         } else if (["canceled", "unpaid", "incomplete_expired"].includes(sub.status)) {
           if (await isStaleSubscriptionEvent(sub.customer, sub.id)) {
             log.info("ignoring stale subscription update", { orgId, subId: sub.id });

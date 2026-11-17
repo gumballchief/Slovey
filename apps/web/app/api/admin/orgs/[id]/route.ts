@@ -1,11 +1,10 @@
 import { dashboard, logAudit } from "@company-brain/core";
 import { requireSuperAdmin } from "@/lib/server/auth";
+import { isPlan } from "@company-brain/core/plans";
 import { HttpError, handle, ok } from "@/lib/server/respond";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const PLANS = new Set(["free", "pro", "enterprise"]);
 
 /**
  * Set any org's plan, including enterprise. This is the out-of-band admin path
@@ -20,8 +19,8 @@ export async function PATCH(
     const viewer = await requireSuperAdmin();
     const { id } = await ctx.params;
     const body = (await req.json()) as { plan?: string };
-    if (!body.plan || !PLANS.has(body.plan)) throw new HttpError(400, "invalid plan");
-    await dashboard.setOrgPlan(id, body.plan as dashboard.OrgPlan);
+    if (!isPlan(body.plan)) throw new HttpError(400, "invalid plan");
+    await dashboard.setOrgPlan(id, body.plan);
     await logAudit({
       orgId: id,
       action: "billing.plan_changed",

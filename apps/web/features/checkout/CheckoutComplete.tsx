@@ -4,6 +4,7 @@ import { CheckCircleIcon, CircleNotchIcon, WarningCircleIcon } from "@phosphor-i
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import { PLANS } from "@company-brain/core/plans";
 import { fetchCheckoutStatus, type CheckoutStatus } from "@/lib/api-client";
 import { NeedsRepo } from "@/features/shell/Page";
 
@@ -32,7 +33,7 @@ function CompleteFor({ repoId }: { repoId: string }) {
       .then((r) => {
         if (!live) return;
         setS(r);
-        const settled = r.plan === "pro" || r.status === "expired" || (r.status === "complete" && r.paymentStatus === "unpaid");
+        const settled = r.plan !== "free" || r.status === "expired" || (r.status === "complete" && r.paymentStatus === "unpaid");
         if (!settled && tries < 20) setTimeout(() => live && setTries((t) => t + 1), 1500);
       })
       .catch(() => live && setFailed(true));
@@ -41,7 +42,7 @@ function CompleteFor({ repoId }: { repoId: string }) {
     };
   }, [repoId, sessionId, tries]);
 
-  const active = s?.plan === "pro";
+  const active = s != null && s.plan !== "free";
   const paidWaiting = !active && s?.status === "complete" && s.paymentStatus === "paid";
   const bad = failed || s?.status === "expired" || (s?.status === "complete" && s.paymentStatus === "unpaid");
 
@@ -50,7 +51,7 @@ function CompleteFor({ repoId }: { repoId: string }) {
       {active ? (
         <>
           <CheckCircleIcon size={46} weight="fill" style={{ color: "var(--green)" }} />
-          <h1 className="ui-title">You&apos;re on Team.</h1>
+          <h1 className="ui-title">You&apos;re on {PLANS[s.plan]?.name ?? "your new plan"}.</h1>
           <p className="ui-body ui-muted">Every repository in this workspace now has the full decision graph and rule enforcement.</p>
           <Link className="ui-btn ui-btn--light ui-btn--lg" href="/app">
             Open Slovey
@@ -71,7 +72,7 @@ function CompleteFor({ repoId }: { repoId: string }) {
           <h1 className="ui-title">{paidWaiting ? "Payment received." : "Confirming your payment."}</h1>
           <p className="ui-body ui-muted">
             {paidWaiting
-              ? "Switching your workspace to Team. This takes a few seconds."
+              ? `Switching your workspace to ${s?.boughtPlan ? PLANS[s.boughtPlan].name : "your new plan"}. This takes a few seconds.`
               : "Hold on a moment while we confirm it."}
           </p>
           {tries >= 20 && (

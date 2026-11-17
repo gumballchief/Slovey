@@ -148,6 +148,13 @@
       "when": 1794679406417,
       "tag": "0020_identity_and_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1794806193432,
+      "tag": "0021_plan_tiers",
+      "breakpoints": true
     }
   ]
 }

@@ -18,6 +18,7 @@ import {
   LockKeyOpen,
   SquaresFour,
 } from "@phosphor-icons/react";
+import { PLAN_IDS, PLANS, type Plan } from "@company-brain/core/plans";
 import { ProductWindow, type TabId } from "./ProductWindow";
 import "./landing.css";
 
@@ -671,23 +672,33 @@ function Reveal({ children, delay = 0, className = "" }: { children: React.React
 
 /* ---------------- Pricing + FAQ ---------------- */
 
-const PLANS = [
-  { name: "Starter", who: "For one engineer", annual: "$0", monthly: "$0", unit: "forever", features: ["1 repository", "Pre-commit review", "Basic decision graph", "Community support"], cta: "start" as const },
-  {
-    name: "Team",
-    who: "For teams shipping with AI every day",
-    annual: "$19",
-    monthly: "$24",
-    unit: "per user / month",
-    features: ["Unlimited repositories", "Full decision graph", "Company rule enforcement", "MCP server and API access", "Slack, Notion, Jira, GitHub"],
-    cta: "start" as const,
-    featured: true,
-  },
-  { name: "Enterprise", who: "For orgs with strict requirements", annual: "Custom", monthly: "Custom", unit: "", features: ["Self-hosted or VPC", "Audit logs", "SSO and SCIM on request", "Custom integrations", "A dedicated engineer"], cta: "talk" as const },
-];
+/** The plan the pricing grid lights up (gets the art and the light button). */
+const FEATURED = "team";
+
+function planPrice(p: Plan, annual: boolean): string {
+  if (!p.price) return "Custom";
+  return `$${annual ? p.price.annual : p.price.monthly}`;
+}
+
+/** What actually gets charged, so "$799 per month" billed yearly can't be misread. */
+function planBilled(p: Plan, annual: boolean): string {
+  if (p.billing === "free") return "No card needed";
+  if (!p.price) return "Priced for your org";
+  if (!annual) return "Billed monthly, cancel anytime";
+  const year = (p.price.annual * 12).toLocaleString("en-US");
+  return p.billing === "seat" ? `$${year} per user, billed yearly` : `$${year} billed yearly`;
+}
+
+function planUnit(p: Plan): string {
+  if (p.billing === "free") return "forever";
+  if (p.billing === "seat") return "per user / month";
+  if (p.billing === "flat") return `per month, up to ${p.users} users`;
+  return "";
+}
 
 function Pricing() {
   const [annual, setAnnual] = useState(true);
+  const interval = annual ? "annual" : "monthly";
   return (
     <section className="sl-pricing" id="pricing">
       <div className="sl-wrap">
@@ -695,8 +706,7 @@ function Pricing() {
           <p className="sl-eyebrow">Pricing</p>
           <h2 className="sl-display sl-display--md">
             Free for one engineer.
-            <br />
-            Per seat after that.
+            <br />A plan for every team.
           </h2>
           <div className="sl-toggle" role="group" aria-label="Billing period">
             <button type="button" className={annual ? "is-on" : ""} onClick={() => setAnnual(true)} aria-pressed={annual}>
@@ -708,43 +718,50 @@ function Pricing() {
           </div>
         </Reveal>
         <div className="sl-plans">
-          {PLANS.map((p, i) => (
-            <Reveal key={p.name} delay={0.08 * i} className={`sl-plan ${p.featured ? "is-featured" : ""}`}>
-              {p.featured && <img src="/art/dive.webp" alt="" className="sl-plan-art" loading="lazy" />}
-              <div className="sl-plan-body">
-                <h3>{p.name}</h3>
-                <p className="sl-plan-who">{p.who}</p>
-                <div className="sl-plan-price">
-                  <AnimatePresence mode="popLayout" initial={false}>
-                    <motion.span key={annual ? p.annual : p.monthly} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.3, ease: EASE }}>
-                      {annual ? p.annual : p.monthly}
-                    </motion.span>
-                  </AnimatePresence>
-                  {p.unit && <small>{p.unit}</small>}
+          {PLAN_IDS.map((id, i) => {
+            const p = PLANS[id];
+            const featured = id === FEATURED;
+            const price = planPrice(p, annual);
+            const unit = planUnit(p);
+            return (
+              <Reveal key={id} delay={0.06 * (i % 3)} className={`sl-plan ${featured ? "is-featured" : ""}`}>
+                {featured && <img src="/art/dive.webp" alt="" className="sl-plan-art" loading="lazy" />}
+                <div className="sl-plan-body">
+                  <h3>{p.name}</h3>
+                  <p className="sl-plan-who">{p.who}</p>
+                  <div className="sl-plan-price">
+                    <AnimatePresence mode="popLayout" initial={false}>
+                      <motion.span key={price} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.3, ease: EASE }}>
+                        {price}
+                      </motion.span>
+                    </AnimatePresence>
+                    {unit && <small>{unit}</small>}
+                  </div>
+                  <p className="sl-plan-bill">{planBilled(p, annual)}</p>
+                  <ul>
+                    {p.features.map((f) => (
+                      <li key={f}>
+                        <Check weight="bold" aria-hidden /> {f}
+                      </li>
+                    ))}
+                  </ul>
+                  {p.billing === "custom" ? (
+                    <a href="mailto:support@slovey.dev?subject=Slovey%20Enterprise" className="sl-pill sl-pill--dark sl-pill--wide">
+                      Contact sales <ArrowUpRight weight="bold" aria-hidden />
+                    </a>
+                  ) : p.billing === "free" ? (
+                    <a href="/login" className="sl-pill sl-pill--dark sl-pill--wide">
+                      Start free <ArrowRight weight="bold" aria-hidden />
+                    </a>
+                  ) : (
+                    <a href={`/login?plan=${id}&interval=${interval}`} className={`sl-pill sl-pill--wide ${featured ? "sl-pill--light" : "sl-pill--dark"}`}>
+                      Get {p.name} plan <ArrowRight weight="bold" aria-hidden />
+                    </a>
+                  )}
                 </div>
-                <ul>
-                  {p.features.map((f) => (
-                    <li key={f}>
-                      <Check weight="bold" aria-hidden /> {f}
-                    </li>
-                  ))}
-                </ul>
-                {p.cta === "talk" ? (
-                  <a href="mailto:support@slovey.dev?subject=Slovey%20Enterprise" className="sl-pill sl-pill--dark sl-pill--wide">
-                    Contact sales <ArrowUpRight weight="bold" aria-hidden />
-                  </a>
-                ) : p.featured ? (
-                  <a href={`/login?plan=team&interval=${annual ? "annual" : "monthly"}`} className="sl-pill sl-pill--light sl-pill--wide">
-                    Get Team plan <ArrowRight weight="bold" aria-hidden />
-                  </a>
-                ) : (
-                  <a href="/login" className="sl-pill sl-pill--dark sl-pill--wide">
-                    Start free <ArrowRight weight="bold" aria-hidden />
-                  </a>
-                )}
-              </div>
-            </Reveal>
-          ))}
+              </Reveal>
+            );
+          })}
         </div>
       </div>
     </section>

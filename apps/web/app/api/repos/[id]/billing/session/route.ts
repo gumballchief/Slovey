@@ -1,4 +1,5 @@
 import { dashboard } from "@company-brain/core";
+import { isPaidPlan } from "@company-brain/core/plans";
 import { assertRepoAccess, requireViewer } from "@/lib/server/auth";
 import { HttpError, handle, ok } from "@/lib/server/respond";
 import { getStripe } from "@/lib/server/stripe";
@@ -31,6 +32,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       amountTotal: session.amount_total,
       currency: session.currency,
       plan: stripeState?.plan ?? "free",
+      boughtPlan: isPaidPlan(session.metadata?.plan) ? session.metadata.plan : null,
     });
   });
 }

@@ -6,19 +6,26 @@ are set, billing endpoints return 503 and the app behaves exactly as before
 
 ## How it works
 
-- **Upgrade:** Billing page → "Upgrade" → `POST /api/repos/:id/billing/checkout`
-  → Stripe Checkout (subscription, Pro price) → on success the **webhook**
-  (`POST /api/billing/webhook`, signature-verified) sets the org's plan to
-  `pro` and stores the customer/subscription ids on `organizations`.
+- **Plans:** every name, price and limit lives in one file,
+  `packages/core/src/plans.ts` (Starter, Pro, Team, Business, Scale,
+  Enterprise). The pricing page, checkout, Stripe line items, webhook and
+  usage gates all read it. Change a price there and everything follows.
+- **Upgrade:** pricing page or Billing → `/checkout?plan=<id>` →
+  `POST /api/repos/:id/billing/checkout` with `{ plan, interval, seats }`
+  → Stripe Checkout (inline price, `plan` written to session + subscription
+  metadata) → on success the **webhook** (`POST /api/billing/webhook`,
+  signature-verified) sets the org's plan to that `plan` (subscriptions with
+  no `plan` metadata predate the catalog and count as `pro`) and stores the
+  customer/subscription ids on `organizations`.
 - **Manage / cancel:** Billing page → "Manage billing" → Stripe customer
   portal. Cancellation flows back through `customer.subscription.deleted` →
-  plan drops to `free`.
-- **Gating:** agent runs are metered per org per calendar month
-  (`AGENT_RUNS_PER_MONTH`: free 20 · pro 500 · enterprise unlimited) — the
-  tasks API returns 402 with an upgrade message at the cap. Repo/decision
-  limits were already enforced via `PLAN_LIMITS`.
-- Manual PATCH plan-switching to `pro` is blocked once Stripe is configured
-  (payments are the only path to paid). Enterprise stays sales-led.
+  plan drops to `free`. Switching between paid plans is done by hand for now
+  (Billing page "Change plan" emails support).
+- **Gating:** repos, decisions and agent runs per calendar month are capped
+  per plan from the catalog (`PLAN_LIMITS`, `AGENT_RUNS_PER_MONTH`); the APIs
+  return 402 with an upgrade message at the cap.
+- Manual PATCH plan-switching to any paid plan is blocked once Stripe is
+  configured (payments are the only path to paid). Enterprise stays sales-led.
 
 ## One-time setup (dashboard steps — owner only)
 

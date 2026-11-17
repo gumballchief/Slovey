@@ -1,12 +1,11 @@
 import { dashboard, logAudit } from "@company-brain/core";
 import { assertRepoAccessWithRole, requireViewer } from "@/lib/server/auth";
 import { HttpError, handle, ok, readJsonBody } from "@/lib/server/respond";
+import { isPaidPlan, isPlan } from "@company-brain/core/plans";
 import { isBillingConfigured } from "@/lib/server/stripe";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const PLANS = new Set(["free", "pro", "enterprise"]);
 
 /** Current plan + real usage for the repo's org. */
 export async function GET(
@@ -36,7 +35,7 @@ export async function PATCH(
       throw new HttpError(403, "Only owners or admins can change the plan");
     }
     const body = (await readJsonBody(req)) as { plan?: string };
-    if (!body.plan || !PLANS.has(body.plan)) throw new HttpError(400, "invalid plan");
+    if (!isPlan(body.plan)) throw new HttpError(400, "invalid plan");
     // Enterprise (unlimited repos/decisions/agent-runs) is sales-led — it must
     // NEVER be self-assignable through this dashboard PATCH, or any owner/admin
     // could grant themselves the unlimited plan for free. It's set out-of-band
@@ -44,15 +43,15 @@ export async function PATCH(
     if (body.plan === "enterprise") {
       throw new HttpError(403, "Enterprise plans are set up with our team — contact sales.");
     }
-    // With Stripe live, Pro goes through Checkout — a manual switch would grant
-    // Pro without payment. Downgrades to free stay manual.
-    if (isBillingConfigured() && body.plan === "pro") {
-      throw new HttpError(400, "Upgrade to Pro via checkout (POST billing/checkout)");
+    // With Stripe live, every paid plan goes through Checkout: a manual switch
+    // would grant it without payment. Downgrades to free stay manual.
+    if (isBillingConfigured() && isPaidPlan(body.plan)) {
+      throw new HttpError(400, "Paid plans start at checkout (POST billing/checkout)");
     }
 
     const org = await dashboard.getOrgForRepo(id);
     if (!org) throw new HttpError(404, "No organization for this repo");
-    await dashboard.setOrgPlan(org.id, body.plan as dashboard.OrgPlan);
+    await dashboard.setOrgPlan(org.id, body.plan);
     await logAudit({
       orgId: org.id,
       repoId: repo.repoId,

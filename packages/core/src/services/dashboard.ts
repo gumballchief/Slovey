@@ -13,12 +13,13 @@ import {
   repos,
   users,
 } from "@company-brain/db";
-import { and, desc, eq, ilike, inArray, ne, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray, ne, or, sql } from "drizzle-orm";
 import { tryEmbed } from "../embeddings/try";
 import { lexicalDistance, lexicalTerms } from "../pipelines/lexical";
 import { applyMeaning, pickByMeaning } from "../pipelines/meaning";
 import { reinforce } from "../memory";
 import { enqueue, JOBS } from "../queue";
+import { PLANS, PLAN_IDS, type OrgPlan } from "../plans";
 
 // ── API shapes (match apps/web/lib/data.ts exactly so they're drop-in) ──
 export interface ApiDecision {
@@ -635,7 +636,7 @@ export interface ApiAuditEntry {
 }
 
 // ── billing ──
-export type OrgPlan = "free" | "pro" | "enterprise";
+export type { OrgPlan };
 
 export interface ApiBilling {
   plan: OrgPlan;
@@ -645,19 +646,17 @@ export interface ApiBilling {
     decisions: number;
     prsChecked: number;
     conflictsCaught: number;
+    /** Agent runs this calendar month. */
+    agentRuns: number;
   };
   /** -1 = unlimited. */
-  limits: { repos: number; decisions: number };
+  limits: { repos: number; decisions: number; agentRuns: number };
 }
 
-export const PLAN_LIMITS: Record<OrgPlan, { repos: number; decisions: number }> = {
-  free: { repos: 1, decisions: 200 },
-  // Team advertises "Unlimited repositories" on the pricing page, so `pro` grants
-  // it for real (-1). The decision cap stays finite and is surfaced in the UI —
-  // an unadvertised silent cap is what this used to get wrong.
-  pro: { repos: -1, decisions: 5000 },
-  enterprise: { repos: -1, decisions: -1 },
-};
+/** Repo + decision caps per plan (-1 = unlimited), from the plan catalog. */
+export const PLAN_LIMITS = Object.fromEntries(
+  PLAN_IDS.map((id) => [id, { repos: PLANS[id].limits.repos, decisions: PLANS[id].limits.decisions }]),
+) as Record<OrgPlan, { repos: number; decisions: number }>;
 
 /** Plan + real current usage for an org (drives the Billing page). */
 export async function getBilling(orgId: string, scope?: RepoScope): Promise<ApiBilling> {
@@ -697,6 +696,7 @@ export async function getBilling(orgId: string, scope?: RepoScope): Promise<ApiB
       .innerJoin(installations, eq(repos.installationId, installations.id))
       .where(eq(installations.orgId, orgId)),
   ]);
+  const agentRunsUsed = await countAgentRunsThisMonth(orgId);
 
   const plan = (orgRows[0]?.plan ?? "free") as OrgPlan;
   return {
@@ -707,8 +707,9 @@ export async function getBilling(orgId: string, scope?: RepoScope): Promise<ApiB
       decisions: decisionCount[0]?.n ?? 0,
       prsChecked: checkCounts[0]?.prs ?? 0,
       conflictsCaught: checkCounts[0]?.conflicts ?? 0,
+      agentRuns: agentRunsUsed,
     },
-    limits: PLAN_LIMITS[plan],
+    limits: { ...PLAN_LIMITS[plan], agentRuns: AGENT_RUNS_PER_MONTH[plan] },
   };
 }
 
@@ -802,12 +803,10 @@ export async function findOrgByStripeCustomer(customerId: string): Promise<{ id:
 
 // ── Agent-run metering (per org, calendar month) ──
 
-/** -1 = unlimited. A business rail, not a technical constant. */
-export const AGENT_RUNS_PER_MONTH: Record<OrgPlan, number> = {
-  free: 20,
-  pro: 500,
-  enterprise: -1,
-};
+/** -1 = unlimited. A business rail, not a technical constant; set in the plan catalog. */
+export const AGENT_RUNS_PER_MONTH = Object.fromEntries(
+  PLAN_IDS.map((id) => [id, PLANS[id].limits.agentRuns]),
+) as Record<OrgPlan, number>;
 
 export async function countAgentRunsThisMonth(orgId: string): Promise<number> {
   const db = getDb();
@@ -819,7 +818,8 @@ export async function countAgentRunsThisMonth(orgId: string): Promise<number> {
     .from(agentRuns)
     .innerJoin(repos, eq(agentRuns.repoId, repos.id))
     .innerJoin(installations, eq(repos.installationId, installations.id))
-    .where(and(eq(installations.orgId, orgId), sql`${agentRuns.createdAt} >= ${monthStart}`));
+    // gte() maps the Date through the column type; a raw sql`` Date param crashes postgres-js.
+    .where(and(eq(installations.orgId, orgId), gte(agentRuns.createdAt, monthStart)));
   return row?.n ?? 0;
 }
 

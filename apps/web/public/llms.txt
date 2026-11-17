@@ -52,10 +52,20 @@ npm i -g slovey
 
 ## Pricing
 
-- Starter — $0/forever: 1 repository, pre-commit review, basic decision graph.
-- Team — $19/user/month billed annually: unlimited repositories, full decision
-  graph, rule enforcement, MCP server and API access.
-- Enterprise — custom: self-hosted/VPC, audit logs; SSO and SCIM on request.
+Yearly prices shown; monthly billing costs about 20% more.
+
+- Starter: $0 forever. 1 repository, 200 decisions, 20 agent runs a month,
+  pre-commit review, MCP server.
+- Pro: $19/user/month. Unlimited repositories, 5,000 decisions, 500 agent runs
+  a month, rule checks on every pull request, MCP server and API access.
+- Team: $49/user/month. Everything in Pro, 25,000 decisions, 2,500 agent runs a
+  month, Slack/Notion/Jira/GitHub, email support.
+- Business: $299/month for up to 25 users. 100,000 decisions, 10,000 agent runs
+  a month, priority support.
+- Scale: $799/month for up to 100 users. Unlimited decisions, 50,000 agent runs
+  a month, onboarding call.
+- Enterprise: custom. Unlimited usage, self-hosted/VPC, audit logs; SSO and
+  SCIM on request.
 
 ## Links
 
